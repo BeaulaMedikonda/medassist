@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello Doctor — How to use the app</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --fg: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --brand: #059669;
+        --brand-tint: #ecfdf5;
+        --brand-tint-2: #d1fae5;
+        --warn: #b45309;
+        --warn-tint: #fef3c7;
+        --info: #0369a1;
+        --info-tint: #e0f2fe;
+        --danger: #b91c1c;
+        --danger-tint: #fee2e2;
+        --doctor: #047857;
+        --doctor-tint: #d1fae5;
+        --ma: #0369a1;
+        --ma-tint: #e0f2fe;
+        --admin: #b45309;
+        --admin-tint: #fef3c7;
+      }
+      html { background: var(--bg); }
+      body {
+        font: 15.5px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+        color: var(--fg);
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 32px 24px 96px;
+      }
+
+      h1 { font-size: 32px; line-height: 1.1; margin: 0 0 4px; letter-spacing: -0.02em; }
+      h2 {
+        font-size: 24px; margin: 48px 0 12px; padding-bottom: 8px;
+        border-bottom: 2px solid var(--brand-tint-2); letter-spacing: -0.01em;
+        scroll-margin-top: 16px;
+      }
+      h3 { font-size: 18px; margin: 28px 0 8px; }
+      h4 { font-size: 13px; margin: 14px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+      .lede { color: var(--muted); margin: 0 0 28px; font-size: 17px; }
+      .meta { color: var(--muted); font-size: 12px; margin-bottom: 24px; }
+
+      a { color: var(--brand); text-decoration: none; border-bottom: 1px dotted var(--brand-tint-2); }
+      a:hover { border-bottom-style: solid; }
+
+      .toc {
+        background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+        padding: 16px 20px; margin: 24px 0;
+      }
+      .toc h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      .toc ol { margin: 0; padding-left: 20px; }
+      .toc li { margin: 4px 0; font-size: 14px; }
+
+      .card {
+        background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+        padding: 20px 22px; margin: 16px 0; box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+      }
+
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+      @media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+      table {
+        border-collapse: collapse; width: 100%; font-size: 13.5px;
+        background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+        margin: 12px 0;
+      }
+      thead th { text-align: left; background: #f1f5f9; padding: 10px 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+      td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+      tbody tr:last-child td { border-bottom: 0; }
+
+      code {
+        background: #0f172a; color: #e2e8f0; padding: 1px 6px; border-radius: 4px; font-size: 12.5px;
+      }
+      .kbd {
+        display: inline-block; background: white; border: 1px solid var(--border); border-bottom-width: 2px;
+        border-radius: 4px; padding: 1px 6px; font-size: 12px; font-family: ui-monospace, monospace;
+      }
+      pre {
+        background: #0f172a; color: #e2e8f0; padding: 14px 16px; border-radius: 10px;
+        overflow: auto; font-size: 13px; line-height: 1.5;
+      }
+
+      .pill {
+        display: inline-block; padding: 2px 8px; border-radius: 999px;
+        font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+      }
+      .pill-doctor { background: var(--doctor-tint); color: var(--doctor); }
+      .pill-ma { background: var(--ma-tint); color: var(--ma); }
+      .pill-admin { background: var(--admin-tint); color: var(--admin); }
+      .pill-warn { background: var(--warn-tint); color: var(--warn); }
+      .pill-info { background: var(--info-tint); color: var(--info); }
+
+      .credentials {
+        background: var(--card); border: 2px solid var(--brand);
+        border-radius: 14px; padding: 18px 22px; margin: 20px 0;
+        box-shadow: 0 4px 14px rgba(5, 150, 105, .12);
+      }
+      .credentials h3 { margin-top: 0; color: var(--brand); display: flex; align-items: center; gap: 8px; }
+      .creds-table { font-size: 13px; }
+      .creds-table code { background: #f1f5f9; color: var(--fg); }
+
+      .callout {
+        border-left: 4px solid var(--brand); background: var(--brand-tint);
+        padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0;
+      }
+      .callout-warn { border-left-color: var(--warn); background: var(--warn-tint); }
+      .callout-info { border-left-color: var(--info); background: var(--info-tint); }
+      .callout-danger { border-left-color: var(--danger); background: var(--danger-tint); }
+      .callout strong { color: var(--fg); }
+
+      .step-list {
+        counter-reset: step;
+        list-style: none; padding: 0; margin: 0;
+      }
+      .step-list > li {
+        counter-increment: step;
+        position: relative;
+        padding: 4px 0 16px 44px;
+      }
+      .step-list > li::before {
+        content: counter(step);
+        position: absolute; left: 0; top: 0;
+        width: 30px; height: 30px;
+        background: var(--brand); color: white; border-radius: 999px;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 14px;
+      }
+      .step-list > li:not(:last-child)::after {
+        content: ""; position: absolute; left: 14px; top: 32px; bottom: 4px;
+        width: 2px; background: var(--brand-tint-2);
+      }
+
+      .feature-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 14px;
+      }
+      .feature-card {
+        background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+        padding: 16px 18px;
+      }
+      .feature-card h4 {
+        margin: 0 0 6px; font-size: 14px; color: var(--fg); text-transform: none; letter-spacing: 0;
+        font-weight: 600;
+      }
+      .feature-card p { font-size: 13.5px; margin: 0; color: var(--muted); }
+      .feature-card .who {
+        display: inline-block; margin-top: 8px; font-size: 10px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        background: #f1f5f9; padding: 2px 8px; border-radius: 999px; color: var(--muted);
+      }
+
+      ul { padding-left: 22px; }
+      li { margin: 4px 0; }
+
+      .check::before { content: "✓ "; color: var(--brand); font-weight: 700; }
+      .cross::before { content: "✗ "; color: var(--danger); font-weight: 700; }
+
+      .role-header {
+        display: flex; align-items: center; gap: 12px;
+        padding: 14px 18px; border-radius: 12px;
+        margin: 24px 0 14px;
+      }
+      .role-header.doctor { background: var(--doctor-tint); }
+      .role-header.ma { background: var(--ma-tint); }
+      .role-header.admin { background: var(--admin-tint); }
+      .role-header h3 { margin: 0; font-size: 18px; }
+      .role-header .role-tag { margin-left: auto; }
+
+      .footnote { color: var(--muted); font-size: 12px; }
+
+      .ascii-flow {
+        background: #0f172a; color: #e2e8f0; padding: 18px 22px; border-radius: 10px;
+        font-family: ui-monospace, monospace; font-size: 12.5px; line-height: 1.55;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello Doctor — How to use</h1>
+    <p class="lede">
+      A complete walkthrough of every feature in the app, who can use what, the
+      seeded user accounts you can sign in with, and the day-in-the-life
+      workflows for each role.
+    </p>
+    <p class="meta">Build date 2026-04-29. App URL in dev: <code>http://localhost:3000</code>.</p>
+
+    <div class="credentials">
+      <h3>🔐 Sign-in credentials (jump straight in)</h3>
+      <p style="margin: 4px 0 12px; font-size: 13px; color: var(--muted);">
+        These accounts are seeded by <code>supabase/full-setup.sql</code> Part 4.
+        All on the same clinic as your admin. Test credentials — fine to share within the team.
+      </p>
+      <table class="creds-table">
+        <thead>
+          <tr><th>Email</th><th>Password</th><th>Role</th><th>Display name</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>venkat@kryptonlabs.ai</code></td>
+            <td><code>Venkat2026!</code></td>
+            <td><span class="pill pill-doctor">Doctor</span></td>
+            <td>Dr. Venkat</td>
+          </tr>
+          <tr>
+            <td><code>abhijit@kryptonlabs.ai</code></td>
+            <td><code>Abhijit2026!</code></td>
+            <td><span class="pill pill-doctor">Doctor</span></td>
+            <td>Dr. Abhijit</td>
+          </tr>
+          <tr>
+            <td><code>chiranjeevi@kryptonlabs.ai</code></td>
+            <td><code>Chiranjeevi2026!</code></td>
+            <td><span class="pill pill-doctor">Doctor</span></td>
+            <td>Dr. Chiranjeevi</td>
+          </tr>
+          <tr>
+            <td><code>saidharamtej@kryptonlabs.ai</code></td>
+            <td><code>SaiDharam2026!</code></td>
+            <td><span class="pill pill-ma">Medical Assistant</span></td>
+            <td>Sai Dharam Tej</td>
+          </tr>
+          <tr style="background: var(--brand-tint);">
+            <td><code>kiranktb98@gmail.com</code></td>
+            <td><em>(your signup password)</em></td>
+            <td><span class="pill pill-admin">Admin</span></td>
+            <td>You — clinic admin</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin: 12px 0 0; font-size: 12px; color: var(--muted);">
+        Symbols: <code>!</code> at the end of each password is part of it. Case-sensitive.
+        Each user can change their password later via Supabase Dashboard → Authentication → Users.
+      </p>
+    </div>
+
+    <div class="toc">
+      <h3>Contents</h3>
+      <ol>
+        <li><a href="#start">Quickstart — getting the app running</a></li>
+        <li><a href="#accounts">User accounts you can sign in with</a></li>
+        <li><a href="#roles">The three roles, what each can do</a></li>
+        <li><a href="#features">Features at a glance</a></li>
+        <li><a href="#workflow-ma">Day-in-the-life: Medical Assistant</a></li>
+        <li><a href="#workflow-doctor">Day-in-the-life: Doctor</a></li>
+        <li><a href="#workflow-admin">Day-in-the-life: Admin</a></li>
+        <li><a href="#flows">Detailed feature walkthroughs</a></li>
+        <li><a href="#data-flow">What happens behind the scenes</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+      </ol>
+    </div>
+
+    <h2 id="start">1. Quickstart — getting the app running</h2>
+
+    <ol class="step-list">
+      <li>
+        <strong>Apply the database setup.</strong> Open Supabase Dashboard → SQL
+        Editor → paste the contents of
+        <a href="../supabase/full-setup.sql"><code>supabase/full-setup.sql</code></a>
+        (or <code>full-setup.txt</code>) and run. Watch the <strong>Messages</strong> tab — it prints temp passwords for the seeded team.
+      </li>
+      <li>
+        <strong>Disable email confirmation in Supabase.</strong> Authentication → Providers → Email → toggle <strong>Confirm email</strong> OFF. Without this, signups need email verification that won't work in dev.
+      </li>
+      <li>
+        <strong>Start the dev server.</strong> From the project root run <code>npm run dev</code>. The app comes up at <code>http://localhost:3000</code>.
+      </li>
+      <li>
+        <strong>Sign in.</strong> Use any of the seeded accounts (table below) or create a fresh admin via "Create an account" → "Create new clinic".
+      </li>
+    </ol>
+
+    <h2 id="accounts">2. User accounts you can sign in with</h2>
+
+    <p>The credentials are at the top of this page. A quick reference of what each role does:</p>
+
+    <ul>
+      <li><strong>Admin</strong> — manages the team and the clinic; can also act as a doctor.</li>
+      <li><strong>Doctor</strong> — runs consultations, records audio, reviews and prints prescriptions.</li>
+      <li><strong>Medical Assistant</strong> — front-desk intake; creates EMRs, captures vitals, routes to doctors.</li>
+    </ul>
+
+    <div class="callout callout-info">
+      <strong>Rotating passwords.</strong> Anyone can change their password via Supabase's "forgot password" flow. Or, as the admin, you can reset passwords directly via Supabase Dashboard → Authentication → Users → click the user → Reset password.
+    </div>
+
+    <h2 id="roles">3. The three roles, what each can do</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th><span class="pill pill-admin">Admin</span></th>
+          <th><span class="pill pill-doctor">Doctor</span></th>
+          <th><span class="pill pill-ma">Medical Assistant</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>See own clinic's patients & visits</td>
+          <td>✓</td>
+          <td>✓</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>Create new patient EMRs</td>
+          <td>✓</td>
+          <td>✓ (quick form)</td>
+          <td>✓ (full intake form)</td>
+        </tr>
+        <tr>
+          <td>Capture vitals on a visit</td>
+          <td>✓</td>
+          <td>✓ (during review)</td>
+          <td>✓ (during intake)</td>
+        </tr>
+        <tr>
+          <td>Assign doctors to a visit</td>
+          <td>✓</td>
+          <td>—</td>
+          <td>✓</td>
+        </tr>
+        <tr>
+          <td>Record audio for a visit</td>
+          <td>—</td>
+          <td>✓</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Edit extracted EMR fields</td>
+          <td>—</td>
+          <td>✓</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Print prescription</td>
+          <td>—</td>
+          <td>✓</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>See pre-visit AI brief (Haiku 4.5)</td>
+          <td>—</td>
+          <td>✓</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Add team members (create accounts)</td>
+          <td>✓ (Settings → Team)</td>
+          <td>—</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Share clinic invite code</td>
+          <td>✓</td>
+          <td>✓ (read-only view)</td>
+          <td>✓ (read-only view)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="footnote">
+      RLS is enforced at the database level — no role can see another clinic's
+      data, regardless of how they craft a request. The
+      <code>current_clinic_id()</code> Postgres function gates every read and write.
+    </p>
+
+    <h2 id="features">4. Features at a glance</h2>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <h4>Email + password auth</h4>
+        <p>Sign up creates a Supabase auth user. Onboarding picks role + clinic. RLS keys off the auth UID.</p>
+        <span class="who">All roles</span>
+      </div>
+      <div class="feature-card">
+        <h4>Clinic invite codes</h4>
+        <p>8-character codes auto-generated when a clinic is created. Anyone with the code can sign up into that clinic.</p>
+        <span class="who">Admin shares it</span>
+      </div>
+      <div class="feature-card">
+        <h4>Patient list (search)</h4>
+        <p>Search by name, phone, or EMR number. Debounced — 250ms after you stop typing.</p>
+        <span class="who">All roles</span>
+      </div>
+      <div class="feature-card">
+        <h4>Today's queue</h4>
+        <p>Doctor sees visits assigned to them today. MA sees the whole clinic's intake queue. Status pills: awaiting consult / audio captured / reviewed.</p>
+        <span class="who">All roles</span>
+      </div>
+      <div class="feature-card">
+        <h4>Auto-generated EMR numbers</h4>
+        <p>Format <code>HD-{CLINIC}-{YYYYMM}-{SEQ}</code>. Sequence increments per clinic per month.</p>
+        <span class="who">System</span>
+      </div>
+      <div class="feature-card">
+        <h4>Multi-doctor visits</h4>
+        <p>Reception can attach 2–3 doctors per visit with roles: attending, resident, consultant.</p>
+        <span class="who">MA assigns, doctors see</span>
+      </div>
+      <div class="feature-card">
+        <h4>Vitals capture</h4>
+        <p>BP, pulse, temp, SpO₂, weight. Front-desk note for chief complaint.</p>
+        <span class="who">MA enters, doctor edits</span>
+      </div>
+      <div class="feature-card">
+        <h4>Audio recording</h4>
+        <p>MediaRecorder API, 25-min cap, pause/resume, live waveform on canvas. Uploaded to Supabase Storage.</p>
+        <span class="who">Doctor</span>
+      </div>
+      <div class="feature-card">
+        <h4>Sarvam STT (batch + diarisation)</h4>
+        <p>Telugu/Hindi/code-mixed speech → English transcript with SPEAKER_1 / SPEAKER_2 labels. ~3–5 min latency.</p>
+        <span class="who">System</span>
+      </div>
+      <div class="feature-card">
+        <h4>Claude Sonnet 4.6 extraction</h4>
+        <p>Structured EMR JSON: vitals, complaints, history, diagnosis, prescription with statuses, follow-up. Prompt-cached.</p>
+        <span class="who">System</span>
+      </div>
+      <div class="feature-card">
+        <h4>Pre-visit AI brief (Haiku 4.5)</h4>
+        <p>4-section markdown summary based on today's vitals + last 2 visits across the clinic. Auto-runs first time review opens.</p>
+        <span class="who">Doctor sees it</span>
+      </div>
+      <div class="feature-card">
+        <h4>Prescription diff editor</h4>
+        <p>Color-coded: NEW / CONTINUED / MODIFIED / STOPPED. Editing dose flips a continued med to MODIFIED.</p>
+        <span class="who">Doctor</span>
+      </div>
+      <div class="feature-card">
+        <h4>Speaker flip</h4>
+        <p>If Claude attributed the doctor wrong, one click swaps and re-extracts.</p>
+        <span class="who">Doctor</span>
+      </div>
+      <div class="feature-card">
+        <h4>Editable fields with Revert</h4>
+        <p>Every AI field has a "Revert" link to restore Claude's draft if the doctor over-edits.</p>
+        <span class="who">Doctor</span>
+      </div>
+      <div class="feature-card">
+        <h4>Print A5 prescription</h4>
+        <p>Browser-driven PDF. Letterhead + signature + clinic header. Devanagari/Tamil/Telugu fonts via Google Fonts.</p>
+        <span class="who">Doctor</span>
+      </div>
+      <div class="feature-card">
+        <h4>Audit trail</h4>
+        <p>Every visit create/update/delete logged in <code>audit_events</code> with payload snapshot. Visible to clinic admins.</p>
+        <span class="who">System</span>
+      </div>
+      <div class="feature-card">
+        <h4>Team management</h4>
+        <p>Admin can directly create accounts (email + temp password) without invite-code workflow.</p>
+        <span class="who">Admin</span>
+      </div>
+    </div>
+
+    <h2 id="workflow-ma">5. Day-in-the-life: Medical Assistant</h2>
+
+    <div class="role-header ma">
+      <span class="pill pill-ma">Medical Assistant</span>
+      <h3>Sai Dharam Tej · saidharamtej@kryptonlabs.ai</h3>
+    </div>
+
+    <ol class="step-list">
+      <li><strong>Sign in.</strong> Use email + temp password <code>SaiDharam2026!</code>.</li>
+      <li><strong>Land on the front desk.</strong> Heading reads "Front desk". You see "Today's intake queue" — every visit created today, regardless of which doctor it's assigned to.</li>
+      <li><strong>New patient walks in.</strong> Click <strong>+ New EMR</strong>.</li>
+      <li>
+        <strong>Step 1 — Patient.</strong> Either:
+        <ul>
+          <li>Type 2+ characters in <em>Search existing patient</em> — picks up returning patients by name/phone/EMR.</li>
+          <li>Or fill the new-patient form below if it's a first-timer.</li>
+        </ul>
+      </li>
+      <li><strong>Step 2 — Vitals.</strong> Optional but recommended. BP / pulse / temp / SpO₂ / weight. Add chief complaint as a free-text reason for visit.</li>
+      <li><strong>Step 3 — Assign doctors.</strong> Check the box next to each doctor who should see this patient today. Pick a role from the dropdown — attending (default), resident, consultant. You can pick multiple if a resident sees them before the consultant.</li>
+      <li><strong>Save & route.</strong> Click <strong>Save & route to doctor</strong>. The visit lands on the doctors' queues immediately. The pre-visit AI brief starts generating in the background.</li>
+      <li><strong>Need to update vitals later?</strong> Find the visit in your queue, click into it — you land on a vitals + assignment edit screen.</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Tip.</strong> The faster you fill vitals, the better the AI brief
+      will be when the doctor opens the visit. The brief explicitly highlights
+      abnormal vitals (BP ≥140/90, T ≥100°F, SpO₂ &lt;94%, etc.).
+    </div>
+
+    <h2 id="workflow-doctor">6. Day-in-the-life: Doctor</h2>
+
+    <div class="role-header doctor">
+      <span class="pill pill-doctor">Doctor</span>
+      <h3>Dr. Venkat / Abhijit / Chiranjeevi</h3>
+    </div>
+
+    <h3>Path A — Patient was prepped by reception</h3>
+    <ol class="step-list">
+      <li><strong>Sign in.</strong> Email + temp password (e.g. <code>Venkat2026!</code>).</li>
+      <li><strong>Open your queue.</strong> Heading reads "Patients". Top section is "My queue today" — only visits assigned to you. Each card shows the patient name, vitals already captured (BP, pulse, etc. as pills), and any chief complaint reception noted.</li>
+      <li><strong>Tap a queue card.</strong> If no audio yet, you go to the recording page. The reception note appears as a blue card above the recorder so you remember what the patient came in for.</li>
+      <li><strong>Hit the big mic button.</strong> 25-min cap, pause/resume, live waveform. Stop when done.</li>
+      <li>
+        <strong>Wait ~3–5 min.</strong> Three stages run automatically:
+        <ul>
+          <li>🎙️ Audio uploaded</li>
+          <li>🌐 Sarvam transcribes & translates</li>
+          <li>🤖 Claude extracts fields</li>
+        </ul>
+      </li>
+      <li><strong>Review screen opens.</strong> At the top: the AI pre-visit brief (auto-generated by Haiku 4.5) summarising context. Below: editable fields with AI badges and Revert buttons. Right side: prescription editor with diff against last visit (NEW / CONTINUED / MODIFIED / STOPPED).</li>
+      <li><strong>If Claude got the doctor speaker wrong:</strong> click <strong>Flip doctor ↔ patient</strong> at the top — re-runs extraction with swapped attribution.</li>
+      <li><strong>Edit anything that's wrong.</strong> Tweak doses, add notes, drop medicines. Editing a continued med's dose auto-flips it to MODIFIED.</li>
+      <li><strong>Save & print prescription</strong> opens an A5 print page in a new tab and goes through the OS print dialog. Print to paper or save as PDF.</li>
+    </ol>
+
+    <h3>Path B — Walk-in, no reception involvement</h3>
+    <ol class="step-list">
+      <li><strong>Click + New EMR</strong> from the home page.</li>
+      <li><strong>Quick patient capture.</strong> Search for existing or fill name + age + sex (phone/email optional).</li>
+      <li><strong>Pick what to do:</strong>
+        <ul>
+          <li><strong>Save & start recording</strong> — auto-creates the visit, assigns you as attending, takes you straight to the recorder.</li>
+          <li><strong>Open blank visit</strong> — opens the review screen empty for full manual entry.</li>
+        </ul>
+      </li>
+      <li><strong>Continue as in Path A from step 5.</strong></li>
+    </ol>
+
+    <h2 id="workflow-admin">7. Day-in-the-life: Admin</h2>
+
+    <div class="role-header admin">
+      <span class="pill pill-admin">Admin</span>
+      <h3>You — kiranktb98@gmail.com</h3>
+    </div>
+
+    <h3>Onboarding new staff</h3>
+    <p>You have two paths to add team members:</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>A. Direct create (fastest)</h4>
+        <p>Click avatar → <strong>Team management</strong> → <strong>+ Add member</strong>. Fill email, generate a temp password (button), pick role, save. The account is live immediately. Hand the credentials over.</p>
+      </div>
+      <div class="card">
+        <h4>B. Self-service join (privacy-friendly)</h4>
+        <p>Click avatar → copy <strong>Clinic invite code</strong>. Send it to the staffer. They go to <code>/login</code> → "Create an account" → "Join existing clinic" → paste the code → pick Doctor or Medical Assistant.</p>
+      </div>
+    </div>
+
+    <h3>Other admin powers</h3>
+    <ul>
+      <li>Promote a doctor or MA to admin via the SQL editor (the migration ensures only one admin if there's only one member; for multiple, run an UPDATE manually).</li>
+      <li>View all clinic activity through the audit log (currently DB-only; UI exposure is a future feature).</li>
+      <li>Reset any team member's password via Supabase Dashboard → Authentication → Users.</li>
+      <li>You can ALSO act as a doctor — you have access to recording and review just like any doctor.</li>
+    </ul>
+
+    <h2 id="flows">8. Detailed feature walkthroughs</h2>
+
+    <h3>Recording a consultation</h3>
+    <ol class="step-list">
+      <li>From your queue or "+ New EMR", land on <code>/emr/[id]/visits/new?mode=record</code>.</li>
+      <li>Big green mic button. Click it — browser asks for microphone permission. Allow.</li>
+      <li>Live waveform shows audio level. Timer counts up. Pause/Resume work as expected.</li>
+      <li>Click the red square to stop. The flow auto-progresses through three stages:
+        <ol>
+          <li><strong>Uploading</strong> — audio.webm goes to Supabase Storage at <code>{user_id}/{visit_id}.webm</code>.</li>
+          <li><strong>Transcribing</strong> — server downloads the audio, posts to Sarvam batch API, polls every 5 s. Default timeout: 20 min.</li>
+          <li><strong>Extracting</strong> — Claude Sonnet 4.6 with the speaker-labelled transcript + previous prescription as context.</li>
+        </ol>
+      </li>
+      <li>You auto-redirect to the review screen.</li>
+    </ol>
+
+    <div class="callout callout-warn">
+      <strong>If transcription times out:</strong> the visit row stays in the database with the audio attached. You can return to it from your queue and the system will retry — it picks up the existing audio file rather than re-recording.
+    </div>
+
+    <h3>The review screen anatomy</h3>
+
+    <div class="card">
+      <h4>Top: Pre-visit AI brief</h4>
+      <p>Four sections — Patient context, Today, Recent pattern, Watchpoints. Generated once on first open by Claude Haiku 4.5 from vitals + last 2 visits. Refresh button re-generates if vitals or notes were updated.</p>
+
+      <h4>Speaker-ID banner (only if 2+ speakers detected)</h4>
+      <p>Shows which speaker Claude identified as the doctor and confidence (high / medium / low). One-click <strong>Flip</strong> button reattributes if wrong.</p>
+
+      <h4>Left column: Vitals + Clinical fields</h4>
+      <p>Numeric inputs for vitals. Text fields for chief complaints, history, examination findings, diagnosis, investigations. Each field has an "AI" badge if Claude populated it; "Revert" appears if the doctor edited.</p>
+
+      <h4>Right column: Prescription editor</h4>
+      <p>Each medicine on its own card, color-coded by status:</p>
+      <ul>
+        <li><strong>NEW</strong> (green) — first-time prescribed.</li>
+        <li><strong>CONTINUED</strong> (white) — was on the previous visit's Rx, doctor said continue or didn't mention it.</li>
+        <li><strong>MODIFIED</strong> (yellow) — was on previous Rx, dose/freq/duration changed. Shows previous values inline.</li>
+        <li><strong>STOPPED</strong> (red, strikethrough) — doctor explicitly stopped, or removed by clicking the X (preserves audit trail).</li>
+      </ul>
+      <p>Drag-handle reorder (up/down arrows). "+ Add medicine" for manual entries.</p>
+
+      <h4>Collapsible: View transcript</h4>
+      <p>Speaker-labelled English transcript. The doctor's lines are highlighted in green. Useful for verifying what Claude based its extraction on.</p>
+
+      <h4>Bottom: Doctor's notes</h4>
+      <p>Free text, internal-only. NOT printed by default (configurable via <code>PDF_INCLUDE_DOCTOR_NOTES_BY_DEFAULT</code>).</p>
+
+      <h4>Sticky save bar</h4>
+      <p>Cancel · Save without printing · Save & print prescription. Saving updates the visit row; opening print launches a new tab with the A5 print page.</p>
+    </div>
+
+    <h3>Printing a prescription</h3>
+    <p>The print page is a static HTML page styled for A5 portrait:</p>
+    <ul>
+      <li>Letterhead (if uploaded) at top, OR a clean default header with doctor name + qualification + reg number + clinic info.</li>
+      <li>Patient block: name, age/sex, EMR number, date.</li>
+      <li>Vitals line.</li>
+      <li>Complaints, examination, diagnosis, investigations as labelled rows.</li>
+      <li>℞ section with numbered medicines (only those NOT marked stopped).</li>
+      <li>Advice + follow-up date.</li>
+      <li>Signature image (if uploaded) + doctor name + reg number at bottom.</li>
+      <li>"AI-generated draft, reviewed and approved by Dr. {name}." disclaimer line — required for medico-legal.</li>
+    </ul>
+    <p>Press <span class="kbd">Ctrl</span>+<span class="kbd">P</span> (or <span class="kbd">Cmd</span>+<span class="kbd">P</span>) — set paper size to A5 portrait in the print dialog. Or save as PDF.</p>
+
+    <h3>Settings</h3>
+    <ul>
+      <li><strong>Profile fields</strong>: name, qualification, registration number, clinic phone.</li>
+      <li><strong>Clinic name & address</strong> — also used on the print header.</li>
+      <li><strong>Signature image</strong>: upload a transparent PNG. Used on every prescription.</li>
+      <li><strong>Letterhead</strong>: if you have a clinic letterhead, upload it. Replaces the default header on prints.</li>
+      <li><strong>Team management</strong> (admin only): button at the top, leads to <code>/settings/team</code>.</li>
+    </ul>
+
+    <h2 id="data-flow">9. What happens behind the scenes</h2>
+
+    <pre class="ascii-flow">
+                ┌────────────────────┐
+                │ Doctor records     │
+                │ audio (browser     │
+                │ MediaRecorder API) │
+                └──────────┬─────────┘
+                           │ webm/opus
+                           ▼
+                ┌────────────────────┐
+                │ Supabase Storage   │
+                │ visit-audio bucket │
+                └──────────┬─────────┘
+                           │ service role download
+                           ▼
+                ┌────────────────────┐         ┌──────────────────┐
+                │ /api/transcribe    │──HTTPS──│ Sarvam Batch API │
+                │ Next.js route      │         │ saaras:v3 +      │
+                │                    │◄────────│ with_diarization │
+                └──────────┬─────────┘         └──────────────────┘
+                           │ transcript + speaker turns
+                           ▼
+                ┌────────────────────┐         ┌──────────────────┐
+                │ /api/extract       │──HTTPS──│ Claude Sonnet    │
+                │ Next.js route      │         │ 4.6 (cached)     │
+                │                    │◄────────│                  │
+                └──────────┬─────────┘         └──────────────────┘
+                           │ structured EMR JSON
+                           ▼
+                ┌────────────────────┐
+                │ visits table       │
+                │ (Postgres + RLS)   │
+                └──────────┬─────────┘
+                           │
+                           ▼
+                ┌────────────────────┐         ┌──────────────────┐
+                │ Doctor's review    │──HTTPS──│ Claude Haiku 4.5 │
+                │ screen loads       │         │ (pre-visit AI    │
+                │ /api/pre-visit-... │◄────────│  brief, cached)  │
+                └──────────┬─────────┘         └──────────────────┘
+                           │
+                           ▼
+                  Save · Print A5
+    </pre>
+
+    <h3>Cost per visit (approx, current pipeline)</h3>
+    <ul>
+      <li>Sarvam batch transcription + diarisation: ~₹3</li>
+      <li>Claude Sonnet 4.6 extraction (with prompt caching): ~₹0.50</li>
+      <li>Claude Haiku 4.5 pre-visit brief: ~₹0.13</li>
+      <li><strong>Total: ~₹3.60 per visit</strong></li>
+    </ul>
+    <p class="footnote">
+      See <a href="transcription-options-comparison.html">transcription-options-comparison.html</a> for a comparison against local-STT and Gemini-audio paths.
+    </p>
+
+    <h2 id="troubleshooting">10. Troubleshooting</h2>
+
+    <table>
+      <thead>
+        <tr><th>Symptom</th><th>What's happening</th><th>Fix</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Login fails with "Email not confirmed"</td>
+          <td>Supabase email confirmation is on; SMTP is unconfigured</td>
+          <td>Toggle Authentication → Providers → Email → Confirm email <strong>OFF</strong></td>
+        </tr>
+        <tr>
+          <td>"No admin clinic found" when running seed SQL</td>
+          <td>You haven't signed up your admin account in the app yet</td>
+          <td>Sign up via the app first (creates the clinic + admin row), then re-run the seed SQL</td>
+        </tr>
+        <tr>
+          <td>Doctor can't see assigned visits</td>
+          <td>visit_doctors row missing</td>
+          <td>If created via doctor's "+ New EMR", auto-assign happens. If from MA's intake, check the assignment list. Worst case, edit the visit's intake page and re-pick the doctor.</td>
+        </tr>
+        <tr>
+          <td>Sarvam returns "Diarization not supported in real-time API"</td>
+          <td>You're hitting the sync endpoint instead of batch</td>
+          <td>The current code uses the batch API. Confirm <code>SARVAM_ENABLE_DIARIZATION=true</code> in <code>.env</code>.</td>
+        </tr>
+        <tr>
+          <td>Recording flow times out</td>
+          <td>Sarvam queue is busy or audio is &gt; 25 min</td>
+          <td>Bump <code>SARVAM_JOB_TIMEOUT_MS</code> in <code>.env</code> to 1800000 (30 min). The route already declares <code>maxDuration = 800</code> — fine on local dev, needs Vercel Pro for production.</td>
+        </tr>
+        <tr>
+          <td>Pre-visit AI brief shows nothing</td>
+          <td>Visit just created, generation hasn't completed yet</td>
+          <td>Wait 5–10 s and refresh, OR click the "Refresh" link on the brief card.</td>
+        </tr>
+        <tr>
+          <td>Print page font looks wrong</td>
+          <td>Google Fonts didn't load (offline?)</td>
+          <td>Use the system default — print still works; Devanagari/Tamil rendering may downgrade.</td>
+        </tr>
+        <tr>
+          <td>"Function timeout" on transcribe in production</td>
+          <td>Vercel Hobby caps API at 60s</td>
+          <td>Upgrade to Vercel Pro (800s cap) or refactor to a webhook-driven flow. See <a href="../CAVEATS.md">CAVEATS.md</a> §1.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Where to look when something breaks</h3>
+    <ul>
+      <li><strong>Browser console</strong>: client-side errors, especially auth and recording.</li>
+      <li><strong>Server logs (terminal running <code>npm run dev</code>)</strong>: API route errors, Sarvam/Claude failures.</li>
+      <li><strong>Supabase Dashboard → Logs → API/PostgREST</strong>: RLS rejections, permission errors.</li>
+      <li><strong>Supabase Dashboard → Storage → visit-audio</strong>: confirms audio uploads landed.</li>
+      <li><strong>Supabase Dashboard → Table Editor → visits</strong>: see <code>llm_extraction_raw</code> column for full Claude response, useful for debugging extraction quality.</li>
+    </ul>
+
+    <h2>11. Reference docs</h2>
+    <ul>
+      <li><a href="../CAVEATS.md">CAVEATS.md</a> — Vercel limits, Sarvam constraints, audit trail caveats, RLS notes.</li>
+      <li><a href="local-stt-for-telugu.html">local-stt-for-telugu.html</a> — alternatives to Sarvam (IndicConformer, Whisper variants).</li>
+      <li><a href="transcription-options-comparison.html">transcription-options-comparison.html</a> — full cost × resources × quality matrix across all STT options.</li>
+      <li><a href="../PROJECT_HELLO_DOCTOR.md">PROJECT_HELLO_DOCTOR.md</a> — the original product spec.</li>
+      <li><a href="../supabase/full-setup.sql">supabase/full-setup.sql</a> / <a href="../supabase/full-setup.txt">.txt</a> — paste-and-run database setup.</li>
+    </ul>
+
+    <p class="footnote" style="margin-top: 40px; text-align: center;">
+      Hello Doctor · AI medical scribe for Indian OPD practice. Built with Next.js, Supabase, Sarvam AI, and Claude.
+    </p>
+  </body>
+</html>

@@ -1,0 +1,1025 @@
+-- =============================================================================
+-- Hello Doctor — full database setup (paste-and-run)
+-- =============================================================================
+-- Combines all migrations from supabase/migrations/ into one script that can be
+-- pasted into Supabase Dashboard → SQL Editor and executed in a single run.
+--
+-- This file is IDEMPOTENT: re-running it on an already-set-up database is safe.
+-- Existing tables, policies, and triggers will be left intact; new ones will be
+-- added. The team-seed step skips any email that already exists.
+--
+-- Equivalent to running, in this order:
+--   1. 20260428115000_initial_setup.sql
+--   2. 20260428160000_multi_role.sql
+--   3. 20260428170000_rename_role_to_medical_assistant.sql
+--   4. 20260428180000_seed_team.sql
+--   5. 20260503000000_demo_compat.sql (visit.status + appointments + clinic fields)
+--   6. 20260507000000_api_usage_events.sql (per-call cost tracking)
+--
+-- After running, capture the RAISE NOTICE output from the SQL Editor's "Messages"
+-- tab — it includes the temp passwords for the seeded accounts.
+-- =============================================================================
+
+
+-- =============================================================================
+-- PART 1 — Initial schema (tables, RLS, audit, storage buckets)
+-- =============================================================================
+
+create table if not exists public.doctors (
+  id uuid primary key,
+  full_name text not null,
+  qualification text,
+  registration_number text,
+  clinic_name text,
+  clinic_address text,
+  clinic_phone text,
+  signature_url text,
+  letterhead_url text,
+  preferred_language text not null default 'en',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.patients (
+  id uuid primary key default extensions.gen_random_uuid(),
+  doctor_id uuid not null references public.doctors(id) on delete cascade,
+  emr_number text not null unique,
+  full_name text not null,
+  age integer,
+  sex text check (sex in ('M', 'F', 'O')),
+  phone text,
+  email text,
+  address text,
+  blood_group text,
+  known_allergies text,
+  chronic_conditions text,
+  emergency_contact text,
+  created_at timestamptz not null default now(),
+  last_visit_at timestamptz,
+  unique (doctor_id, phone, full_name)
+);
+
+create table if not exists public.visits (
+  id uuid primary key default extensions.gen_random_uuid(),
+  patient_id uuid not null references public.patients(id) on delete cascade,
+  doctor_id uuid not null references public.doctors(id) on delete cascade,
+  visit_date timestamptz not null default now(),
+  bp_systolic integer,
+  bp_diastolic integer,
+  pulse integer,
+  temperature_f numeric(4, 1),
+  spo2 integer,
+  weight_kg numeric(5, 2),
+  height_cm numeric(5, 2),
+  chief_complaints text,
+  history_present_illness text,
+  past_history text,
+  examination_findings text,
+  provisional_diagnosis text,
+  confirmed_diagnosis text,
+  icd_codes text[],
+  investigations_ordered text,
+  prescription jsonb,
+  advice text,
+  follow_up_date date,
+  follow_up_notes text,
+  audio_url text,
+  transcript_text text,
+  transcript_original text,
+  transcript_language text,
+  transcript_speakers jsonb,
+  doctor_speaker_id text,
+  doctor_id_confidence text check (doctor_id_confidence in ('high', 'medium', 'low')),
+  llm_extraction_raw jsonb,
+  doctor_notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.audit_events (
+  id uuid primary key default extensions.gen_random_uuid(),
+  doctor_id uuid not null references public.doctors(id) on delete cascade,
+  actor_id uuid,
+  entity_type text not null check (entity_type in ('visit')),
+  entity_id uuid not null,
+  action text not null check (action in ('create', 'update', 'delete')),
+  payload jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists patients_last_visit_idx on public.patients (doctor_id, last_visit_at desc);
+create index if not exists patients_name_search_idx on public.patients using gin (to_tsvector('simple', full_name));
+create index if not exists visits_patient_date_idx on public.visits (patient_id, visit_date desc);
+create index if not exists visits_doctor_date_idx on public.visits (doctor_id, visit_date desc);
+create index if not exists audit_events_doctor_created_idx on public.audit_events (doctor_id, created_at desc);
+
+create or replace function public.touch_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create or replace function public.sync_patient_last_visit()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'DELETE' then
+    update public.patients
+      set last_visit_at = (
+        select max(v.visit_date)
+        from public.visits v
+        where v.patient_id = old.patient_id
+      )
+    where id = old.patient_id;
+
+    return old;
+  end if;
+
+  update public.patients
+    set last_visit_at = (
+      select max(v.visit_date)
+      from public.visits v
+      where v.patient_id = new.patient_id
+    )
+  where id = new.patient_id;
+
+  if tg_op = 'UPDATE' and old.patient_id is distinct from new.patient_id then
+    update public.patients
+      set last_visit_at = (
+        select max(v.visit_date)
+        from public.visits v
+        where v.patient_id = old.patient_id
+      )
+    where id = old.patient_id;
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.audit_visit_changes()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_doctor_id uuid;
+  v_entity_id uuid;
+  v_action text;
+  v_payload jsonb;
+begin
+  if tg_op = 'DELETE' then
+    v_doctor_id := old.doctor_id;
+    v_entity_id := old.id;
+    v_action := 'delete';
+    v_payload := jsonb_build_object('old', to_jsonb(old));
+  elsif tg_op = 'UPDATE' then
+    v_doctor_id := new.doctor_id;
+    v_entity_id := new.id;
+    v_action := 'update';
+    v_payload := jsonb_build_object('old', to_jsonb(old), 'new', to_jsonb(new));
+  else
+    v_doctor_id := new.doctor_id;
+    v_entity_id := new.id;
+    v_action := 'create';
+    v_payload := jsonb_build_object('new', to_jsonb(new));
+  end if;
+
+  insert into public.audit_events (
+    doctor_id,
+    actor_id,
+    entity_type,
+    entity_id,
+    action,
+    payload
+  )
+  values (
+    v_doctor_id,
+    coalesce(auth.uid(), v_doctor_id),
+    'visit',
+    v_entity_id,
+    v_action,
+    v_payload
+  );
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists set_visits_updated_at on public.visits;
+create trigger set_visits_updated_at
+before update on public.visits
+for each row
+execute function public.touch_updated_at();
+
+drop trigger if exists sync_patient_last_visit_after_change on public.visits;
+create trigger sync_patient_last_visit_after_change
+after insert or update or delete on public.visits
+for each row
+execute function public.sync_patient_last_visit();
+
+drop trigger if exists audit_visit_changes_after_write on public.visits;
+create trigger audit_visit_changes_after_write
+after insert or update or delete on public.visits
+for each row
+execute function public.audit_visit_changes();
+
+alter table public.doctors enable row level security;
+alter table public.patients enable row level security;
+alter table public.visits enable row level security;
+alter table public.audit_events enable row level security;
+
+drop policy if exists "Doctors can view their profile" on public.doctors;
+create policy "Doctors can view their profile"
+on public.doctors
+for select
+using (id = auth.uid());
+
+drop policy if exists "Doctors can create their profile" on public.doctors;
+create policy "Doctors can create their profile"
+on public.doctors
+for insert
+with check (id = auth.uid());
+
+drop policy if exists "Doctors can update their profile" on public.doctors;
+create policy "Doctors can update their profile"
+on public.doctors
+for update
+using (id = auth.uid())
+with check (id = auth.uid());
+
+drop policy if exists "Doctors can view their patients" on public.patients;
+create policy "Doctors can view their patients"
+on public.patients
+for select
+using (doctor_id = auth.uid());
+
+drop policy if exists "Doctors can create their patients" on public.patients;
+create policy "Doctors can create their patients"
+on public.patients
+for insert
+with check (doctor_id = auth.uid());
+
+drop policy if exists "Doctors can update their patients" on public.patients;
+create policy "Doctors can update their patients"
+on public.patients
+for update
+using (doctor_id = auth.uid())
+with check (doctor_id = auth.uid());
+
+drop policy if exists "Doctors can delete their patients" on public.patients;
+create policy "Doctors can delete their patients"
+on public.patients
+for delete
+using (doctor_id = auth.uid());
+
+drop policy if exists "Doctors can view their visits" on public.visits;
+create policy "Doctors can view their visits"
+on public.visits
+for select
+using (doctor_id = auth.uid());
+
+drop policy if exists "Doctors can create their visits" on public.visits;
+create policy "Doctors can create their visits"
+on public.visits
+for insert
+with check (doctor_id = auth.uid());
+
+drop policy if exists "Doctors can update their visits" on public.visits;
+create policy "Doctors can update their visits"
+on public.visits
+for update
+using (doctor_id = auth.uid())
+with check (doctor_id = auth.uid());
+
+drop policy if exists "Doctors can delete their visits" on public.visits;
+create policy "Doctors can delete their visits"
+on public.visits
+for delete
+using (doctor_id = auth.uid());
+
+drop policy if exists "Doctors can view their audit trail" on public.audit_events;
+create policy "Doctors can view their audit trail"
+on public.audit_events
+for select
+using (doctor_id = auth.uid());
+
+insert into storage.buckets (id, name, public)
+values
+  ('visit-audio', 'visit-audio', false),
+  ('prescriptions', 'prescriptions', false),
+  ('doctor-assets', 'doctor-assets', false)
+on conflict (id) do update
+set public = excluded.public;
+
+drop policy if exists "Doctors can read own private files" on storage.objects;
+create policy "Doctors can read own private files"
+on storage.objects
+for select
+to authenticated
+using (
+  bucket_id in ('visit-audio', 'prescriptions', 'doctor-assets')
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "Doctors can upload own private files" on storage.objects;
+create policy "Doctors can upload own private files"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id in ('visit-audio', 'prescriptions', 'doctor-assets')
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "Doctors can update own private files" on storage.objects;
+create policy "Doctors can update own private files"
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id in ('visit-audio', 'prescriptions', 'doctor-assets')
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id in ('visit-audio', 'prescriptions', 'doctor-assets')
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "Doctors can delete own private files" on storage.objects;
+create policy "Doctors can delete own private files"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id in ('visit-audio', 'prescriptions', 'doctor-assets')
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+
+-- =============================================================================
+-- PART 2 — Multi-role + multi-clinic + multi-doctor visits + pre-visit AI summary
+-- =============================================================================
+
+-- 1) Clinics
+create table if not exists public.clinics (
+  id uuid primary key default extensions.gen_random_uuid(),
+  name text not null,
+  address text,
+  phone text,
+  invite_code text unique not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists clinics_invite_code_idx on public.clinics (invite_code);
+
+-- 2) Add role + clinic_id to doctors (kept named "doctors" to avoid breaking existing FKs)
+alter table public.doctors
+  add column if not exists role text not null default 'doctor'
+    check (role in ('doctor', 'reception', 'admin'));
+
+alter table public.doctors
+  add column if not exists clinic_id uuid references public.clinics(id) on delete set null;
+
+-- 3) Add clinic_id to patients & visits
+alter table public.patients
+  add column if not exists clinic_id uuid references public.clinics(id) on delete set null;
+
+alter table public.visits
+  add column if not exists clinic_id uuid references public.clinics(id) on delete set null;
+
+alter table public.visits
+  add column if not exists created_by uuid references public.doctors(id) on delete set null;
+
+alter table public.visits
+  add column if not exists pre_visit_summary text;
+
+alter table public.visits
+  add column if not exists pre_visit_summary_generated_at timestamptz;
+
+-- 4) Multi-doctor assignment per visit
+create table if not exists public.visit_doctors (
+  visit_id uuid not null references public.visits(id) on delete cascade,
+  doctor_id uuid not null references public.doctors(id) on delete cascade,
+  role text not null default 'attending'
+    check (role in ('attending', 'resident', 'consultant')),
+  assigned_at timestamptz not null default now(),
+  primary key (visit_id, doctor_id)
+);
+
+create index if not exists visit_doctors_doctor_idx
+  on public.visit_doctors (doctor_id, assigned_at desc);
+
+-- 5) Helper: current user's clinic id (for RLS)
+create or replace function public.current_clinic_id()
+returns uuid
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select clinic_id from public.doctors where id = auth.uid();
+$$;
+
+-- 6) Backfill: each existing doctor gets their own clinic if they don't have one
+do $$
+declare
+  d record;
+  new_id uuid;
+begin
+  for d in
+    select id, full_name, clinic_name, clinic_address, clinic_phone
+    from public.doctors
+    where clinic_id is null
+  loop
+    insert into public.clinics (name, address, phone, invite_code)
+    values (
+      coalesce(nullif(d.clinic_name, ''), d.full_name || '''s Clinic'),
+      d.clinic_address,
+      d.clinic_phone,
+      upper(substring(md5(random()::text || d.id::text) for 8))
+    )
+    returning id into new_id;
+
+    -- The original signup is the clinic admin (only member at backfill time).
+    update public.doctors set clinic_id = new_id, role = 'admin' where id = d.id;
+    update public.patients set clinic_id = new_id where doctor_id = d.id and clinic_id is null;
+    update public.visits set clinic_id = new_id where doctor_id = d.id and clinic_id is null;
+
+    -- Backfill visit_doctors so the existing doctor is the attending on past visits
+    insert into public.visit_doctors (visit_id, doctor_id, role)
+    select v.id, d.id, 'attending'
+    from public.visits v
+    where v.doctor_id = d.id
+    on conflict do nothing;
+  end loop;
+end $$;
+
+-- 7) Replace patient/visit RLS with clinic-scoped policies
+
+-- Patients
+drop policy if exists "Doctors can view their patients" on public.patients;
+drop policy if exists "Doctors can create their patients" on public.patients;
+drop policy if exists "Doctors can update their patients" on public.patients;
+drop policy if exists "Doctors can delete their patients" on public.patients;
+
+drop policy if exists "Clinic members can view patients" on public.patients;
+create policy "Clinic members can view patients"
+on public.patients for select
+using (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can create patients" on public.patients;
+create policy "Clinic members can create patients"
+on public.patients for insert
+with check (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can update patients" on public.patients;
+create policy "Clinic members can update patients"
+on public.patients for update
+using (clinic_id = public.current_clinic_id())
+with check (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can delete patients" on public.patients;
+create policy "Clinic members can delete patients"
+on public.patients for delete
+using (clinic_id = public.current_clinic_id());
+
+-- Visits
+drop policy if exists "Doctors can view their visits" on public.visits;
+drop policy if exists "Doctors can create their visits" on public.visits;
+drop policy if exists "Doctors can update their visits" on public.visits;
+drop policy if exists "Doctors can delete their visits" on public.visits;
+
+drop policy if exists "Clinic members can view visits" on public.visits;
+create policy "Clinic members can view visits"
+on public.visits for select
+using (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can create visits" on public.visits;
+create policy "Clinic members can create visits"
+on public.visits for insert
+with check (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can update visits" on public.visits;
+create policy "Clinic members can update visits"
+on public.visits for update
+using (clinic_id = public.current_clinic_id())
+with check (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can delete visits" on public.visits;
+create policy "Clinic members can delete visits"
+on public.visits for delete
+using (clinic_id = public.current_clinic_id());
+
+-- Doctors: members can view colleagues in same clinic; users always see themselves.
+drop policy if exists "Doctors can view their profile" on public.doctors;
+drop policy if exists "Members can view clinic colleagues" on public.doctors;
+create policy "Members can view clinic colleagues"
+on public.doctors for select
+using (clinic_id = public.current_clinic_id() or id = auth.uid());
+
+-- Audit events: scoped through doctor's clinic
+drop policy if exists "Doctors can view their audit trail" on public.audit_events;
+drop policy if exists "Clinic members can view audit" on public.audit_events;
+create policy "Clinic members can view audit"
+on public.audit_events for select
+using (
+  exists (
+    select 1 from public.doctors d
+    where d.id = audit_events.doctor_id
+      and d.clinic_id = public.current_clinic_id()
+  )
+);
+
+-- visit_doctors RLS
+alter table public.visit_doctors enable row level security;
+
+drop policy if exists "Clinic members can view visit_doctors" on public.visit_doctors;
+create policy "Clinic members can view visit_doctors"
+on public.visit_doctors for select
+using (
+  exists (
+    select 1 from public.visits v
+    where v.id = visit_doctors.visit_id
+      and v.clinic_id = public.current_clinic_id()
+  )
+);
+
+drop policy if exists "Clinic members can manage visit_doctors" on public.visit_doctors;
+create policy "Clinic members can manage visit_doctors"
+on public.visit_doctors for all
+using (
+  exists (
+    select 1 from public.visits v
+    where v.id = visit_doctors.visit_id
+      and v.clinic_id = public.current_clinic_id()
+  )
+)
+with check (
+  exists (
+    select 1 from public.visits v
+    where v.id = visit_doctors.visit_id
+      and v.clinic_id = public.current_clinic_id()
+  )
+);
+
+-- clinics RLS
+alter table public.clinics enable row level security;
+
+drop policy if exists "Members can view their clinic" on public.clinics;
+create policy "Members can view their clinic"
+on public.clinics for select
+using (id = public.current_clinic_id());
+
+drop policy if exists "Members can update their clinic" on public.clinics;
+create policy "Members can update their clinic"
+on public.clinics for update
+using (id = public.current_clinic_id())
+with check (id = public.current_clinic_id());
+
+drop policy if exists "Authenticated users can create clinics" on public.clinics;
+create policy "Authenticated users can create clinics"
+on public.clinics for insert
+to authenticated
+with check (true);
+
+-- 8) Default clinic_id on inserts via trigger
+create or replace function public.set_clinic_id_from_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cid uuid;
+begin
+  if new.clinic_id is null then
+    select clinic_id into v_cid from public.doctors where id = auth.uid();
+    if v_cid is not null then
+      new.clinic_id := v_cid;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists set_patients_clinic_id on public.patients;
+create trigger set_patients_clinic_id
+before insert on public.patients
+for each row
+execute function public.set_clinic_id_from_user();
+
+drop trigger if exists set_visits_clinic_id on public.visits;
+create trigger set_visits_clinic_id
+before insert on public.visits
+for each row
+execute function public.set_clinic_id_from_user();
+
+-- 9) Idempotent admin promotion: solo-member clinics get an admin
+update public.doctors d
+set role = 'admin'
+where d.clinic_id is not null
+  and d.role <> 'admin'
+  and (
+    select count(*) from public.doctors d2 where d2.clinic_id = d.clinic_id
+  ) = 1;
+
+
+-- =============================================================================
+-- PART 3 — Rename "reception" role to "medical_assistant"
+-- =============================================================================
+
+alter table public.doctors drop constraint if exists doctors_role_check;
+
+update public.doctors set role = 'medical_assistant' where role = 'reception';
+
+alter table public.doctors
+  add constraint doctors_role_check
+  check (role in ('doctor', 'medical_assistant', 'admin'));
+
+
+-- =============================================================================
+-- PART 4 — Seed Krypton Labs team
+-- =============================================================================
+-- Idempotent: skips emails that already exist.
+-- Watch the "Messages" tab in the SQL Editor for the temp passwords.
+
+create extension if not exists pgcrypto;
+
+do $$
+declare
+  target_clinic uuid;
+  rec record;
+  new_user_id uuid;
+  identity_id uuid;
+  team_members text[][] := array[
+    -- email, full_name, role, temp_password, qualification, registration_number
+    array['venkat@kryptonlabs.ai',         'Venkat',          'doctor',            'Venkat2026!',      'MBBS', ''],
+    array['abhijit@kryptonlabs.ai',        'Abhijit',         'doctor',            'Abhijit2026!',     'MBBS', ''],
+    array['chiranjeevi@kryptonlabs.ai',    'Chiranjeevi',     'doctor',            'Chiranjeevi2026!', 'MBBS', ''],
+    array['saidharamtej@kryptonlabs.ai',   'Sai Dharam Tej',  'medical_assistant', 'SaiDharam2026!',   '',     '']
+  ];
+  i int;
+begin
+  -- Find the clinic to attach these accounts to: the first admin's clinic.
+  select clinic_id into target_clinic
+  from public.doctors
+  where role = 'admin' and clinic_id is not null
+  order by created_at asc
+  limit 1;
+
+  if target_clinic is null then
+    raise exception 'No admin clinic found. Sign up your admin account in the app first, then re-run this script.';
+  end if;
+
+  raise notice 'Seeding into clinic %', target_clinic;
+
+  for i in 1 .. array_length(team_members, 1) loop
+    declare
+      m_email text := team_members[i][1];
+      m_name text := team_members[i][2];
+      m_role text := team_members[i][3];
+      m_password text := team_members[i][4];
+      m_qual text := team_members[i][5];
+      m_regno text := team_members[i][6];
+    begin
+      select id into new_user_id from auth.users where email = m_email;
+      if new_user_id is not null then
+        raise notice '  - % already exists (id %), skipping', m_email, new_user_id;
+        continue;
+      end if;
+
+      new_user_id := gen_random_uuid();
+      identity_id := gen_random_uuid();
+
+      insert into auth.users (
+        instance_id,
+        id,
+        aud,
+        role,
+        email,
+        encrypted_password,
+        email_confirmed_at,
+        raw_app_meta_data,
+        raw_user_meta_data,
+        created_at,
+        updated_at,
+        confirmation_token,
+        email_change,
+        email_change_token_new,
+        recovery_token,
+        is_super_admin,
+        is_sso_user,
+        is_anonymous
+      ) values (
+        '00000000-0000-0000-0000-000000000000',
+        new_user_id,
+        'authenticated',
+        'authenticated',
+        m_email,
+        crypt(m_password, gen_salt('bf')),
+        now(),
+        jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email')),
+        jsonb_build_object('full_name', m_name),
+        now(),
+        now(),
+        '',
+        '',
+        '',
+        '',
+        false,
+        false,
+        false
+      );
+
+      insert into auth.identities (
+        id,
+        user_id,
+        identity_data,
+        provider,
+        provider_id,
+        last_sign_in_at,
+        created_at,
+        updated_at
+      ) values (
+        identity_id,
+        new_user_id,
+        jsonb_build_object(
+          'sub', new_user_id::text,
+          'email', m_email,
+          'email_verified', true,
+          'phone_verified', false
+        ),
+        'email',
+        new_user_id::text,
+        now(),
+        now(),
+        now()
+      );
+
+      insert into public.doctors (
+        id,
+        full_name,
+        qualification,
+        registration_number,
+        clinic_id,
+        role,
+        preferred_language
+      ) values (
+        new_user_id,
+        m_name,
+        nullif(m_qual, ''),
+        nullif(m_regno, ''),
+        target_clinic,
+        m_role,
+        'en'
+      );
+
+      raise notice '  + Created % (%) — temp password: %', m_email, m_role, m_password;
+    end;
+  end loop;
+
+  raise notice 'Done. Share the temp passwords above with each team member; they can rotate after first login.';
+end $$;
+-- =============================================================================
+-- Demo-frontend compatibility: visit.status workflow, appointments,
+-- richer clinic profile fields, invite-code regeneration support.
+-- =============================================================================
+
+-- 1) Visit lifecycle status
+--    intake          : MA captured patient, no doctor assigned yet
+--    queued          : assigned to doctor, waiting in their queue
+--    in_progress     : doctor is consulting / recording
+--    awaiting_review : AI extraction complete, doctor needs to review
+--    completed       : doctor reviewed and saved
+--    cancelled       : abandoned
+alter table public.visits
+  add column if not exists status text not null default 'queued'
+    check (status in ('intake', 'queued', 'in_progress', 'awaiting_review', 'completed', 'cancelled'));
+
+alter table public.visits
+  add column if not exists completed_at timestamptz;
+
+create index if not exists visits_clinic_status_date_idx
+  on public.visits (clinic_id, status, visit_date desc);
+
+-- Backfill: visits that already have audio + extraction → awaiting_review;
+--           visits with confirmed_diagnosis filled → completed (assume reviewed);
+--           remainder stays queued.
+update public.visits
+  set status = case
+    when confirmed_diagnosis is not null and updated_at > visit_date + interval '1 minute' then 'completed'
+    when audio_url is not null and (provisional_diagnosis is not null or confirmed_diagnosis is not null) then 'awaiting_review'
+    when audio_url is not null then 'in_progress'
+    else 'queued'
+  end
+  where true;
+
+update public.visits
+  set completed_at = updated_at
+  where status = 'completed' and completed_at is null;
+
+-- 2) Richer clinic profile (city/state/email/established + letterhead text)
+alter table public.clinics
+  add column if not exists city text,
+  add column if not exists state text,
+  add column if not exists email text,
+  add column if not exists established_year integer,
+  add column if not exists letterhead_header text,
+  add column if not exists letterhead_footer text default 'AI-generated drafts reviewed and approved by the doctor. This prescription is valid for 30 days from date of issue.';
+
+-- 3) Appointments
+create table if not exists public.appointments (
+  id uuid primary key default extensions.gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  patient_id uuid references public.patients(id) on delete set null,
+  doctor_id uuid not null references public.doctors(id) on delete cascade,
+  scheduled_at timestamptz not null,
+  duration_minutes integer not null default 15,
+  type text not null default 'regular'
+    check (type in ('regular', 'follow_up', 'emergency', 'procedure')),
+  priority text not null default 'normal'
+    check (priority in ('normal', 'urgent', 'routine')),
+  status text not null default 'scheduled'
+    check (status in ('scheduled', 'checked_in', 'completed', 'cancelled', 'no_show')),
+  notes text,
+  created_by uuid references public.doctors(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists appointments_clinic_date_idx
+  on public.appointments (clinic_id, scheduled_at);
+
+create index if not exists appointments_doctor_date_idx
+  on public.appointments (doctor_id, scheduled_at);
+
+create index if not exists appointments_patient_date_idx
+  on public.appointments (patient_id, scheduled_at desc);
+
+drop trigger if exists set_appointments_updated_at on public.appointments;
+create trigger set_appointments_updated_at
+before update on public.appointments
+for each row
+execute function public.touch_updated_at();
+
+drop trigger if exists set_appointments_clinic_id on public.appointments;
+create trigger set_appointments_clinic_id
+before insert on public.appointments
+for each row
+execute function public.set_clinic_id_from_user();
+
+alter table public.appointments enable row level security;
+
+drop policy if exists "Clinic members can view appointments" on public.appointments;
+create policy "Clinic members can view appointments"
+on public.appointments for select
+using (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can create appointments" on public.appointments;
+create policy "Clinic members can create appointments"
+on public.appointments for insert
+with check (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can update appointments" on public.appointments;
+create policy "Clinic members can update appointments"
+on public.appointments for update
+using (clinic_id = public.current_clinic_id())
+with check (clinic_id = public.current_clinic_id());
+
+drop policy if exists "Clinic members can delete appointments" on public.appointments;
+create policy "Clinic members can delete appointments"
+on public.appointments for delete
+using (clinic_id = public.current_clinic_id());
+
+-- 4) Invite-code regeneration helper (admin-only enforced in API route)
+create or replace function public.regenerate_clinic_invite_code(p_clinic uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_code text;
+  caller_role text;
+  caller_clinic uuid;
+begin
+  select role, clinic_id into caller_role, caller_clinic
+  from public.doctors where id = auth.uid();
+
+  if caller_role is null or caller_clinic is null then
+    raise exception 'Not a clinic member';
+  end if;
+
+  if caller_clinic <> p_clinic then
+    raise exception 'Cannot regenerate another clinic''s invite code';
+  end if;
+
+  if caller_role <> 'admin' then
+    raise exception 'Only admins can regenerate invite codes';
+  end if;
+
+  loop
+    new_code := upper(substring(md5(random()::text || clock_timestamp()::text) for 8));
+    exit when not exists (select 1 from public.clinics where invite_code = new_code);
+  end loop;
+
+  update public.clinics set invite_code = new_code where id = p_clinic;
+  return new_code;
+end;
+$$;
+
+grant execute on function public.regenerate_clinic_invite_code(uuid) to authenticated;
+-- =============================================================================
+-- API usage events — per-call cost tracking for Sarvam STT and Claude.
+-- =============================================================================
+-- Every Sarvam transcription, Claude extraction, and Claude pre-visit summary
+-- writes one row here with token / duration counts and a pre-computed USD cost
+-- so admins can audit spend over time. Inserts come from server-side API
+-- routes only (using the service-role admin client) — never from the client.
+-- =============================================================================
+
+create table if not exists public.api_usage_events (
+  id uuid primary key default extensions.gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  user_id uuid references public.doctors(id) on delete set null,
+  visit_id uuid references public.visits(id) on delete set null,
+
+  -- Which provider + model handled the call.
+  service text not null check (
+    service in (
+      'sarvam_stt',
+      'claude_haiku_4_5',
+      'claude_sonnet_4_6',
+      'claude_opus_4_7'
+    )
+  ),
+  -- What we asked it to do: 'transcribe', 'extract', 'pre_visit_summary', etc.
+  operation text not null,
+
+  -- Sarvam-specific
+  audio_duration_seconds numeric(10, 2),
+
+  -- Claude-specific (token counts)
+  input_tokens int,
+  output_tokens int,
+  cache_creation_input_tokens int,
+  cache_read_input_tokens int,
+
+  -- Computed USD cost. Stored at insert time so price changes don't rewrite history.
+  cost_usd numeric(12, 6) not null default 0,
+
+  -- Free-form metadata (e.g. job id, model id string, request id).
+  metadata jsonb,
+
+  created_at timestamptz not null default now()
+);
+
+create index if not exists api_usage_events_clinic_idx
+  on public.api_usage_events (clinic_id, created_at desc);
+
+create index if not exists api_usage_events_visit_idx
+  on public.api_usage_events (visit_id);
+
+create index if not exists api_usage_events_service_idx
+  on public.api_usage_events (service, created_at desc);
+
+-- RLS: clinic members can read their clinic's usage. Inserts only via the
+-- admin client on the server (which bypasses RLS). No client-side INSERT policy.
+alter table public.api_usage_events enable row level security;
+
+drop policy if exists "Clinic members can view usage" on public.api_usage_events;
+create policy "Clinic members can view usage"
+on public.api_usage_events for select
+using (clinic_id = public.current_clinic_id());
+
+-- Convenience: monthly totals per clinic + service. Useful for an admin
+-- dashboard widget without recomputing each request.
+create or replace view public.api_usage_monthly as
+select
+  clinic_id,
+  service,
+  date_trunc('month', created_at)::date as month,
+  count(*)                              as call_count,
+  sum(coalesce(audio_duration_seconds, 0)) as audio_seconds,
+  sum(coalesce(input_tokens, 0))           as input_tokens,
+  sum(coalesce(output_tokens, 0))          as output_tokens,
+  sum(coalesce(cache_creation_input_tokens, 0)) as cache_creation_tokens,
+  sum(coalesce(cache_read_input_tokens, 0))     as cache_read_tokens,
+  sum(cost_usd)                            as cost_usd
+from public.api_usage_events
+group by clinic_id, service, date_trunc('month', created_at);
+
+-- The view inherits RLS from the underlying table when accessed via
+-- security_invoker, but Postgres views are by default security_definer in
+-- terms of permissions. To keep things tight, recreate as security_invoker:
+alter view public.api_usage_monthly set (security_invoker = true);

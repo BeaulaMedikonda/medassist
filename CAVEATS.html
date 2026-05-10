@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Hello Doctor — Operational Caveats</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1.25rem; color: #0f172a; line-height: 1.55; }
+  h1 { font-size: 1.75rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; padding-bottom: .25rem; border-bottom: 1px solid #e2e8f0; }
+  h3 { font-size: .95rem; margin-top: 1.25rem; }
+  code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+  pre { background: #f8fafc; border: 1px solid #e2e8f0; padding: .75rem 1rem; border-radius: 8px; overflow-x: auto; }
+  table { border-collapse: collapse; margin: .75rem 0; }
+  th, td { border: 1px solid #e2e8f0; padding: .35rem .75rem; text-align: left; font-size: .9rem; }
+  th { background: #f8fafc; }
+  .note { background: #fffbeb; border-left: 4px solid #f59e0b; padding: .75rem 1rem; border-radius: 4px; margin: .75rem 0; font-size: .92rem; }
+  .ok { background: #ecfdf5; border-left: 4px solid #10b981; padding: .75rem 1rem; border-radius: 4px; margin: .75rem 0; font-size: .92rem; }
+  .meta { color: #64748b; font-size: .85rem; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0 1rem; }
+  ul, ol { padding-left: 1.5rem; }
+</style>
+</head>
+<body>
+
+<h1>Hello Doctor — Operational Caveats</h1>
+<p class="meta">Things that work in dev but need a decision before / right after going to production. Each item names the file or env var that controls it.</p>
+
+<div class="ok">
+  <strong>Status:</strong> the project is currently <em>not deployed anywhere</em> — running on local <code>npm run dev</code>. The "Vercel" caveats below only matter <strong>if and when</strong> you decide to host the app on Vercel. They are kept here so they don't get lost when you eventually deploy.
+</div>
+
+<h2>1. Vercel function timeouts <span class="meta">(deployment-only)</span></h2>
+<p><strong>Doesn't apply right now</strong> — local <code>next dev</code> has no timeout cap, so any recording length works. <em>Only relevant if you deploy to Vercel.</em></p>
+<p>Long-running API routes (<code>/api/transcribe</code>, <code>/api/extract</code>, <code>/api/pre-visit-summary</code>) declare <code>export const maxDuration = …</code> in seconds. Vercel enforces a hard cap per plan:</p>
+<table>
+  <tr><th>Plan</th><th>Default cap</th><th>Max requestable</th></tr>
+  <tr><td>Hobby (free)</td><td>60 s</td><td>60 s</td></tr>
+  <tr><td>Pro</td><td>90 s</td><td>800 s</td></tr>
+  <tr><td>Enterprise</td><td>90 s</td><td>900 s</td></tr>
+</table>
+<p>"Hobby" is Vercel's free tier — the one you get on signup with no payment method. If you ever push this to <code>vercel.com</code> on the free plan, the transcribe endpoint will be killed after 60 seconds, which means anything longer than ~3 minutes of audio will fail (transcription typically takes 10–30% of audio duration plus queue time). Pro is $20/month and lifts that to 800 s.</p>
+<ul>
+  <li><code>/api/transcribe</code> is set to <code>maxDuration = 800</code>. Will fail on Hobby for any recording over a few minutes. Move to Pro before testing long recordings on Vercel, or refactor to a webhook flow (Sarvam can call back on completion).</li>
+  <li><code>/api/extract</code> is set to <code>maxDuration = 300</code>. Fine on Pro.</li>
+  <li><code>/api/pre-visit-summary</code> is <code>maxDuration = 60</code>. Fits Hobby.</li>
+</ul>
+<p><strong>If you stay on Hobby:</strong> raising <code>SARVAM_JOB_TIMEOUT_MS</code> won't help — Vercel will kill the function first. The fix is the webhook approach.</p>
+<p><strong>If you host somewhere else</strong> (Render, Fly, Railway, your own box): no fixed function timeout, this whole caveat is moot.</p>
+
+<h2>2. Sarvam batch API timing</h2>
+<p>The batch API is a queue-and-process pipeline, not synchronous:</p>
+<ul>
+  <li><strong>Queue wait</strong> before processing starts: usually under 60 s, can spike to a few minutes during peak load. We can't see queue position, only poll status.</li>
+  <li><strong>Processing time</strong> after queueing: roughly 10–30% of audio duration. So a 15-min recording typically processes in 2–5 minutes; 25 min in 3–8 minutes.</li>
+  <li><strong>Polling cadence</strong>: 5 s (<code>SARVAM_POLL_INTERVAL_MS</code>). This is fine — Sarvam's quota is generous on status checks.</li>
+  <li><strong>Max audio length</strong>: capped at 25 min in the recorder UI (<code>TRANSCRIPTION_MAX_MINUTES</code>). Sarvam's batch API officially supports much longer files but this matches our timeout budget.</li>
+</ul>
+
+<h2>3. Audio format</h2>
+<p>Browser <code>MediaRecorder</code> writes <code>audio/webm;codecs=opus</code> by default (Safari falls back to <code>audio/mp4</code>/AAC). Sarvam's batch API accepts both formats per their current docs, but if you start seeing <code>400 unsupported audio</code> errors:</p>
+<ol>
+  <li>Check the actual mime type in Supabase Storage on the <code>visit-audio</code> bucket.</li>
+  <li>If WebM is rejected, the cleanest fix is to convert to WAV server-side before upload — needs <code>fluent-ffmpeg</code> plus an ffmpeg static binary on the server. Vercel's filesystem is read-only, so on Vercel you'd need to package the binary or use a service like Replicate.</li>
+</ol>
+
+<h2>4. Auth provider config</h2>
+<p>We use <strong>email + password</strong> today, not phone OTP. To make this work cleanly:</p>
+<ul>
+  <li>In Supabase dashboard → Authentication → Providers → Email: turn <strong>"Confirm email" OFF</strong> for development. Otherwise, signup succeeds but the user can't log in until they click an email link, and Supabase's dev SMTP delivery is flaky.</li>
+  <li>For production: turn confirm-email back <strong>on</strong>, and configure SMTP under Authentication → Email Templates. Customize the templates to match the clinic brand.</li>
+  <li>To switch to phone OTP later: configure Twilio (or MessageBird) under Authentication → Providers → Phone, then change the login flow in <code>app/login/page.tsx</code> to call <code>signInWithOtp({ phone })</code>.</li>
+</ul>
+
+<h2>5. PDF generation</h2>
+<p>The print page (<code>/emr/[id]/visits/[vid]/print</code>) uses a print-optimised HTML page + browser <code>window.print()</code> — the user prints to PDF or paper from the OS print dialog. Why not server-rendered PDF?</p>
+<ul>
+  <li>We can fully support Devanagari / Tamil / Telugu / Bengali via Google Fonts loaded on the page (already wired up).</li>
+  <li>Server-rendered PDFs (<code>@react-pdf/renderer</code>) require bundling <code>.ttf</code> files for every Indian script. Each font adds ~250 KB to the deployment.</li>
+  <li>If you later need API-level PDF generation (e.g. emailing the prescription as an attachment), use Puppeteer-Core + Chromium-AWS-Lambda and reuse the print page's HTML.</li>
+</ul>
+
+<h2>6. Database type generic</h2>
+<p>The Supabase clients (<code>lib/supabase/{browser,server,admin}.ts</code>) are created without the <code>Database</code> generic. Reason: postgrest-js v2.x does not match a hand-written <code>Database</code> interface unless every named row type satisfies <code>Record&lt;string, unknown&gt;</code> exactly, which TypeScript only allows for <code>type</code> aliases (not <code>interface</code>s). Everything works at runtime; we cast <code>data as Patient</code> / <code>as Visit</code> after <code>select('*')</code> and use <code>update(... as never)</code> on the few admin-write paths.</p>
+<p>To opt into strict typing later: run <code>supabase gen types typescript --project-id &lt;ref&gt;</code> and import the generated <code>Database</code> from there. The generated types satisfy the postgrest constraint.</p>
+
+<h2>7. Audio retention</h2>
+<p><code>AUDIO_RETENTION_DAYS=30</code> in <code>.env</code> is <strong>descriptive, not enforced</strong>. Nothing deletes audio yet. Two options:</p>
+<ul>
+  <li><strong>Cron job in Supabase</strong> (recommended): under Database → Cron, add a daily job that runs <code>select … from storage.objects where created_at &lt; now() - interval '30 days'</code> and deletes.</li>
+  <li><strong>Cleanup on visit save</strong>: simpler but unreliable.</li>
+</ul>
+<p>Until you wire one of these up, audio accumulates indefinitely in Supabase Storage. <em>This applies regardless of where the app is hosted</em> — Supabase is your storage backend in dev too.</p>
+
+<h2>8. RLS policies and the admin client</h2>
+<p><code>lib/supabase/admin.ts</code> uses the service role key and bypasses RLS — <strong>only used inside server-side API routes</strong> (<code>/api/transcribe</code>, <code>/api/extract</code>, <code>/api/pre-visit-summary</code>). Never expose service role calls to the client. Audit: if you grep <code>"supabaseAdmin"</code> and find a usage in a <code>"use client"</code> file, that's a leak.</p>
+
+<h2>9. Pre-visit AI summary cost</h2>
+<p><code>/api/pre-visit-summary</code> calls Claude Haiku 4.5 with prompt-caching on the system prompt. After the first call, subsequent calls hit cache (75% cheaper input). The visit row caches the result in <code>pre_visit_summary</code> so we don't bill twice unless the doctor clicks Refresh.</p>
+<p>Order-of-magnitude per visit: &lt;500 input tokens (cached) + 200 output tokens = roughly <strong>0.05 ¢ per visit</strong> on Haiku 4.5.</p>
+
+<h2>10. Multi-clinic users</h2>
+<p>A user account belongs to <strong>exactly one clinic</strong> today (<code>doctors.clinic_id</code>). If you need a single doctor to work at two clinics, the cleanest path is two accounts (different emails). A real solution would split <code>doctors</code> into <code>users</code> + <code>clinic_memberships</code> (many-to-many) — moderate refactor.</p>
+
+<h2>11. Migration order</h2>
+<p>Migrations in <code>supabase/migrations/</code> are timestamped and need to be applied in order. After cloning a fresh project:</p>
+<ol>
+  <li>Run <code>20260428115000_initial_setup.sql</code> first.</li>
+  <li>Then <code>20260428160000_multi_role.sql</code>.</li>
+  <li>Then <code>20260428170000_rename_role_to_medical_assistant.sql</code>.</li>
+  <li>Then <code>20260428180000_seed_team.sql</code> (optional seed).</li>
+  <li>Then <code>20260503000000_demo_compat.sql</code> (adds <code>visits.status</code>, <code>visits.completed_at</code>, <code>appointments</code> table, and richer clinic fields used by the new dashboard / appointments UI).</li>
+</ol>
+<p>The Supabase CLI (<code>supabase db push</code>) does this automatically; the dashboard SQL Editor does not — paste them in order. Or paste <code>supabase/full-setup.sql</code> (or <code>full-setup.txt</code>) once; it now includes all five migrations and is idempotent.</p>
+<div class="note">A <code>.txt</code> copy of every <code>.sql</code> file lives next to it in <code>supabase/</code> for easy paste into the Supabase Dashboard SQL Editor.</div>
+
+<h2>12. Visit status workflow</h2>
+<p><code>visits.status</code> is the source of truth for dashboard counters. It is set automatically by:</p>
+<ul>
+  <li><strong>Intake screens</strong> — <code>app/(app)/emr/new/ReceptionIntakeForm.tsx</code> writes <code>queued</code>; the new patient modal writes <code>intake</code> if no doctor is picked, <code>queued</code> otherwise.</li>
+  <li><strong>Recording start</strong> — <code>DoctorQuickIntakeForm.tsx</code> writes <code>in_progress</code> when the doctor picks "Save & start recording", <code>queued</code> for "Open blank visit".</li>
+  <li><strong>AI extraction</strong> — <code>app/api/extract/route.ts</code> flips the row to <code>awaiting_review</code> when Claude returns (won't downgrade an already-<code>completed</code> visit).</li>
+  <li><strong>Review save</strong> — <code>app/(app)/emr/[id]/visits/[vid]/review/ReviewScreen.tsx</code> writes <code>completed</code> plus <code>completed_at = now()</code> when the doctor hits Save.</li>
+</ul>
+<p>If you add a new code path that creates a visit, set <code>status</code> explicitly so the queue counters stay correct.</p>
+
+<h2>13. Appointments</h2>
+<p>Appointments live in their own table with clinic-scoped RLS (same pattern as <code>patients</code> / <code>visits</code>). The list and booking modal at <code>/appointments</code> use the browser Supabase client directly (no API route needed for CRUD). Day view is anchored to the <code>?date=YYYY-MM-DD</code> query param; absent it, today.</p>
+<p>The doctor dashboard pulls today's appointments filtered to the signed-in doctor; the admin dashboard surfaces them in the recent-activity timeline.</p>
+
+<h2>14. Invite-code regeneration</h2>
+<p><code>POST /api/clinic/regenerate-invite</code> calls the <code>regenerate_clinic_invite_code</code> function (security-definer, admin-only). The current code stops working immediately on regeneration — there is no grace period. The admin dashboard and clinic-settings panel both expose the regenerate button.</p>
+
+<hr />
+<p class="meta">Last reviewed: 2026-05-03.</p>
+
+</body>
+</html>

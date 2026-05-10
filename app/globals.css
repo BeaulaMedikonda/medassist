@@ -1,0 +1,322 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============================================================================
+   Base — html/body, selection, scrollbars, theme tokens
+   ============================================================================= */
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-feature-settings: "cv11", "ss01";
+    letter-spacing: -0.005em;
+  }
+  .dark body {
+    @apply bg-ink-950 text-ink-100;
+  }
+
+  * {
+    @apply border-slate-200;
+  }
+  .dark * {
+    @apply border-ink-800;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    @apply outline-none;
+  }
+
+  ::selection {
+    @apply bg-brand-100 text-brand-900;
+  }
+  .dark ::selection {
+    @apply bg-brand-700/40 text-brand-100;
+  }
+
+  /* Subtle ambient gradient on app shell only (not login) — gives the
+     "premium" hero feel without dominating the content. */
+  .app-bg {
+    background-image: radial-gradient(at 30% -10%, rgba(208, 235, 255, 0.55) 0px, transparent 50%),
+                      radial-gradient(at 80% -10%, rgba(195, 250, 232, 0.35) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+  .dark .app-bg {
+    background-image: radial-gradient(at 30% -10%, rgba(28, 126, 214, 0.14) 0px, transparent 50%),
+                      radial-gradient(at 80% -10%, rgba(18, 184, 134, 0.10) 0px, transparent 50%);
+  }
+}
+
+/* =============================================================================
+   Components — surfaces, typography, inputs, buttons, badges, nav
+   ============================================================================= */
+@layer components {
+  /* ---- Surfaces ---- */
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-card transition-colors;
+  }
+  .dark .card {
+    @apply border-ink-800 bg-ink-900 shadow-none;
+  }
+  .card-flat {
+    @apply rounded-xl border border-slate-200 bg-white;
+  }
+  .dark .card-flat {
+    @apply border-ink-800 bg-ink-900;
+  }
+  .surface-muted {
+    @apply rounded-xl bg-slate-50;
+  }
+  .dark .surface-muted {
+    @apply bg-ink-900/60;
+  }
+  .surface-elevated {
+    @apply rounded-xl border border-slate-200 bg-white shadow-elevated;
+  }
+  .dark .surface-elevated {
+    @apply border-ink-800 bg-ink-900 shadow-none;
+  }
+
+  /* ---- Typography helpers ---- */
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600;
+  }
+  .dark .label {
+    @apply text-ink-400;
+  }
+  .label-sm {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-slate-500;
+  }
+  .dark .label-sm {
+    @apply text-ink-500;
+  }
+  .text-eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  }
+  .dark .text-eyebrow {
+    @apply text-ink-500;
+  }
+  .text-muted {
+    @apply text-slate-500;
+  }
+  .dark .text-muted {
+    @apply text-ink-500;
+  }
+  .text-faint {
+    @apply text-slate-400;
+  }
+  .dark .text-faint {
+    @apply text-ink-600;
+  }
+
+  /* ---- Inputs ---- */
+  .input-base {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-500 focus:shadow-ring disabled:bg-slate-50 disabled:text-slate-500;
+  }
+  .dark .input-base {
+    @apply border-ink-700 bg-ink-900 text-ink-100 placeholder:text-ink-600 focus:border-brand-400 disabled:bg-ink-900/50 disabled:text-ink-600;
+  }
+  .input-flush {
+    @apply w-full rounded-lg border border-transparent bg-slate-50 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-300 focus:bg-white focus:shadow-ring;
+  }
+  .dark .input-flush {
+    @apply bg-ink-900/70 text-ink-100 placeholder:text-ink-600 focus:border-brand-500 focus:bg-ink-900;
+  }
+
+  /* ---- Buttons ---- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white shadow-soft hover:bg-brand-700 hover:shadow-glow active:bg-brand-800 focus:shadow-ring;
+  }
+  .dark .btn-primary {
+    @apply bg-brand-600 hover:bg-brand-500;
+  }
+  .btn-secondary {
+    @apply btn border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 active:bg-slate-100;
+  }
+  .dark .btn-secondary {
+    @apply border-ink-700 bg-ink-900 text-ink-200 hover:border-ink-600 hover:bg-ink-800 active:bg-ink-800;
+  }
+  .btn-ghost {
+    @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+  }
+  .dark .btn-ghost {
+    @apply text-ink-400 hover:bg-ink-800 hover:text-ink-100;
+  }
+  .btn-light {
+    @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
+  }
+  .dark .btn-light {
+    @apply bg-brand-900/40 text-brand-300 hover:bg-brand-900/60;
+  }
+  .btn-danger {
+    @apply btn bg-rose-600 text-white hover:bg-rose-700;
+  }
+  .btn-danger-light {
+    @apply btn bg-rose-50 text-rose-700 hover:bg-rose-100;
+  }
+  .dark .btn-danger-light {
+    @apply bg-rose-900/30 text-rose-300 hover:bg-rose-900/50;
+  }
+
+  /* ---- Badges ---- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
+  }
+  .badge-ai {
+    @apply badge bg-brand-50 text-brand-700;
+  }
+  .dark .badge-ai {
+    @apply bg-brand-900/40 text-brand-300;
+  }
+  .badge-new {
+    @apply badge bg-accent-100 text-accent-800;
+  }
+  .dark .badge-new {
+    @apply bg-accent-900/40 text-accent-300;
+  }
+  .badge-modified {
+    @apply badge bg-amber-100 text-amber-800;
+  }
+  .dark .badge-modified {
+    @apply bg-amber-900/40 text-amber-300;
+  }
+  .badge-stopped {
+    @apply badge bg-rose-100 text-rose-700;
+  }
+  .dark .badge-stopped {
+    @apply bg-rose-900/40 text-rose-300;
+  }
+  .badge-continued {
+    @apply badge bg-slate-100 text-slate-600;
+  }
+  .dark .badge-continued {
+    @apply bg-ink-800 text-ink-400;
+  }
+
+  /* ---- Status pills ---- */
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold;
+  }
+
+  /* ---- Sidebar nav ---- */
+  .nav-link {
+    @apply flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900;
+  }
+  .dark .nav-link {
+    @apply text-ink-400 hover:bg-ink-800 hover:text-ink-100;
+  }
+  .nav-link-active {
+    @apply bg-brand-50 text-brand-700 hover:bg-brand-50 hover:text-brand-700;
+  }
+  .dark .nav-link-active {
+    @apply bg-brand-900/40 text-brand-300 hover:bg-brand-900/40 hover:text-brand-300;
+  }
+
+  /* ---- Sections ---- */
+  .section-title {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  }
+  .dark .section-title {
+    @apply text-ink-500;
+  }
+
+  /* ---- Skeleton ---- */
+  .skeleton {
+    @apply animate-pulse rounded-md bg-slate-200;
+  }
+  .dark .skeleton {
+    @apply bg-ink-800;
+  }
+
+  /* ---- Hero / accented containers (used on dashboards) ---- */
+  .hero-card {
+    @apply rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-brand-50/40 shadow-card;
+  }
+  .dark .hero-card {
+    @apply border-ink-800 bg-gradient-to-br from-ink-900 via-ink-900 to-brand-900/15 shadow-none;
+  }
+
+  /* ---- Avatar with subtle ring ---- */
+  .avatar-ring {
+    @apply ring-1 ring-slate-200/60;
+  }
+  .dark .avatar-ring {
+    @apply ring-ink-700/60;
+  }
+
+  /* ---- Divider ---- */
+  .divider {
+    @apply border-t border-slate-200;
+  }
+  .dark .divider {
+    @apply border-ink-800;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .glass {
+    @apply bg-white/80 backdrop-blur-md;
+  }
+  .dark .glass {
+    @apply bg-ink-900/80;
+  }
+}
+
+/* =============================================================================
+   Print
+   ============================================================================= */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .dark body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
+
+.scroll-smooth-y {
+  scrollbar-gutter: stable;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225);
+  border-radius: 999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgb(55 58 64);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(74 78 84);
+}

@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello Doctor — ABDM, FHIR R4, ICD-10 &amp; Consent Manager</title>
+    <style>
+      :root {
+        --bg: #f7f8fa;
+        --fg: #1a1b1e;
+        --muted: #5b6471;
+        --rule: #e3e6ea;
+        --card: #ffffff;
+        --accent: #228be6;
+        --accent-50: #e7f5ff;
+        --accent-900: #0b3a66;
+        --warn: #f59f00;
+        --warn-50: #fff8e1;
+        --ok: #2f9e44;
+        --ok-50: #ebfbee;
+        --rose: #e03131;
+        --rose-50: #fff5f5;
+        --code-bg: #f1f3f5;
+      }
+      * { box-sizing: border-box; }
+      body {
+        font: 15px/1.6 "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+        margin: 0; padding: 40px 24px;
+        background: var(--bg); color: var(--fg);
+      }
+      main { max-width: 940px; margin: 0 auto; }
+      h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.02em; }
+      h2 { font-size: 22px; margin: 36px 0 8px; letter-spacing: -0.01em;
+           padding-top: 18px; border-top: 1px solid var(--rule); }
+      h3 { font-size: 16px; margin: 22px 0 6px; color: var(--accent-900); }
+      h4 { font-size: 14px; margin: 16px 0 4px; color: var(--fg); }
+      p, li { color: #34373d; }
+      .lede { font-size: 16px; color: var(--muted); margin: 0 0 24px; }
+      .toc { font-size: 13px; color: var(--muted); margin: 0 0 24px;
+             padding: 12px 16px; background: var(--card);
+             border: 1px solid var(--rule); border-radius: 8px; }
+      .toc ol { margin: 0; padding-left: 24px; }
+      .toc a { color: var(--accent-900); text-decoration: none; }
+      .toc a:hover { text-decoration: underline; }
+      code {
+        font: 13px/1.4 ui-monospace, "JetBrains Mono", Menlo, monospace;
+        background: var(--code-bg); padding: 1px 5px; border-radius: 4px;
+      }
+      pre {
+        background: #1a1b1e; color: #f1f3f5;
+        padding: 14px 16px; border-radius: 8px;
+        font: 12.5px/1.5 ui-monospace, Menlo, monospace;
+        overflow-x: auto;
+      }
+      pre code { background: transparent; padding: 0; color: inherit; }
+      .card {
+        background: var(--card); border: 1px solid var(--rule);
+        border-radius: 10px; padding: 18px 20px; margin: 12px 0;
+      }
+      .callout { border-left: 3px solid var(--accent); background: var(--accent-50);
+                 padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+      .callout-warn { border-left-color: var(--warn); background: var(--warn-50); }
+      .callout-ok   { border-left-color: var(--ok);   background: var(--ok-50); }
+      .callout-rose { border-left-color: var(--rose); background: var(--rose-50); }
+      table { width: 100%; border-collapse: collapse; margin: 12px 0;
+              font-size: 13.5px; }
+      th, td { padding: 8px 10px; text-align: left; vertical-align: top;
+               border-bottom: 1px solid var(--rule); }
+      th { font-weight: 600; color: var(--muted); font-size: 12px;
+           text-transform: uppercase; letter-spacing: 0.04em; }
+      .pill { display: inline-block; font-size: 11px; font-weight: 600;
+              padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+      .pill-ok      { background: #d3f9d8; color: #2b8a3e; }
+      .pill-partial { background: #fff3bf; color: #846800; }
+      .pill-missing { background: #ffe3e3; color: #c92a2a; }
+      .pill-blue    { background: #d0ebff; color: #1864ab; }
+      .small { font-size: 12.5px; color: var(--muted); }
+      ul.tight li { margin: 2px 0; }
+      .step-num {
+        display: inline-flex; width: 22px; height: 22px;
+        align-items: center; justify-content: center;
+        border-radius: 50%; background: var(--accent); color: white;
+        font-size: 12px; font-weight: 700; margin-right: 6px;
+      }
+      .flow {
+        background: var(--card); border: 1px dashed var(--rule);
+        padding: 14px 18px; border-radius: 8px; margin: 14px 0;
+        font: 13px/1.7 ui-monospace, Menlo, monospace; color: #34373d;
+        white-space: pre-wrap;
+      }
+      .glossary dt { font-weight: 600; color: var(--accent-900); margin-top: 8px; }
+      .glossary dd { margin: 0 0 4px 0; color: #34373d; }
+      .checklist { list-style: none; padding-left: 0; }
+      .checklist li { padding: 4px 0 4px 28px; position: relative; }
+      .checklist li::before {
+        content: ""; position: absolute; left: 0; top: 8px;
+        width: 16px; height: 16px; border-radius: 4px;
+        background: #d3f9d8; border: 1px solid #2b8a3e;
+      }
+      .checklist li.todo::before {
+        background: #ffe3e3; border-color: #c92a2a;
+      }
+      .checklist li.partial::before {
+        background: #fff3bf; border-color: #846800;
+      }
+      .checklist li::after {
+        position: absolute; left: 3px; top: 5px;
+        font-size: 12px; font-weight: 700; color: #2b8a3e;
+        content: "✓";
+      }
+      .checklist li.todo::after { content: "•"; color: #c92a2a; left: 6px; }
+      .checklist li.partial::after { content: "~"; color: #846800; }
+      .checklist .note {
+        display: block; color: var(--muted); font-size: 12.5px;
+        margin-top: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>ABDM, FHIR R4, ICD-10 &amp; Consent Manager</h1>
+        <p class="lede">
+          A guided tour of the regulatory and technical stack that Hello Doctor's
+          EMR plugs into — what it is, where it came from, exactly how the pieces
+          fit together for an Indian OPD clinic, and a precise checklist of what
+          is built, partially built, and not yet started.
+        </p>
+        <div class="toc">
+          <strong>Contents</strong>
+          <ol>
+            <li><a href="#abdm">What ABDM is, in plain English</a></li>
+            <li><a href="#players">The four roles in the ABDM ecosystem</a></li>
+            <li><a href="#fhir">FHIR R4 — the wire format ABDM mandates</a></li>
+            <li><a href="#mapping">How ABDM uses FHIR (profiles &amp; coding systems)</a></li>
+            <li><a href="#icd10">What ICD-10 is and why we use it</a></li>
+            <li><a href="#endpoint">How Hello Doctor bundles FHIR as an endpoint API</a></li>
+            <li><a href="#cm">Consent Manager (HIE-CM) — what it actually does</a></li>
+            <li><a href="#cm-cost">Consent Manager — is it free? compliance requirements</a></li>
+            <li><a href="#done">What's done</a></li>
+            <li><a href="#partial">What's partially done</a></li>
+            <li><a href="#pending">What's pending</a></li>
+            <li><a href="#glossary">Glossary</a></li>
+          </ol>
+        </div>
+      </header>
+
+      <h2 id="abdm">1 · What ABDM is, in plain English</h2>
+      <p>
+        <strong>ABDM</strong> stands for <em>Ayushman Bharat Digital Mission</em>.
+        It was launched by the Government of India in September 2021 and is run
+        by the <strong>National Health Authority (NHA)</strong>. Think of it as
+        India's UPI for healthcare — a national, free, open-API layer that lets
+        every player in the system (clinics, hospitals, labs, pharmacies, insurers,
+        and patients themselves) move clinical data around securely without each
+        building point-to-point integrations.
+      </p>
+      <p>The mission has four practical goals:</p>
+      <ul class="tight">
+        <li><strong>One health ID per citizen (ABHA).</strong> A 14-digit number
+          that uniquely identifies a patient across hospitals, labs, and insurers.
+          Free, voluntary, based on Aadhaar / mobile / email.</li>
+        <li><strong>One longitudinal record per citizen.</strong> Records stay
+          with the facility that generated them; the patient's ABHA app fetches
+          any record they consent to share.</li>
+        <li><strong>One registry of real providers.</strong> HPR (doctors) +
+          HFR (facilities) let any system verify credentials.</li>
+        <li><strong>One open standard for the data.</strong> FHIR R4 + ICD-10 +
+          LOINC + SNOMED CT + UCUM. No proprietary formats.</li>
+      </ul>
+
+      <h2 id="players">2 · The four roles in the ABDM ecosystem</h2>
+      <table>
+        <thead><tr><th style="width:18%">Role</th><th>What it does</th><th>Hello Doctor's relationship</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>HIP</strong><br/><span class="small">Health Information Provider</span></td>
+            <td>Generates and stores clinical records. Exposes a FHIR endpoint that serves records on consent.</td>
+            <td><strong>This is us.</strong></td>
+          </tr>
+          <tr>
+            <td><strong>HIU</strong><br/><span class="small">Health Information User</span></td>
+            <td>Requests records (a specialist hospital, an insurer, the patient via PHR).</td>
+            <td>Same backend can serve as both later.</td>
+          </tr>
+          <tr>
+            <td><strong>HRP / CM</strong><br/><span class="small">Health Repository / Consent Manager</span></td>
+            <td>Brokers consent and encrypted data transfer. NHA operates the only national CM today.</td>
+            <td>External integration — see §7.</td>
+          </tr>
+          <tr>
+            <td><strong>ABHA holder</strong></td>
+            <td>The patient. Uses a PHR app to view records and grant/revoke consent.</td>
+            <td>Our patients (ABHA optional to use Hello Doctor).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="fhir">3 · FHIR R4 — the wire format ABDM mandates</h2>
+      <p>
+        <strong>FHIR</strong> (<em>Fast Healthcare Interoperability Resources</em>,
+        pronounced "fire") is HL7's modern healthcare data standard. R4 is the
+        fourth and currently stable major release (Oct 2019). ABDM specifies R4
+        exactly — not R3, not the in-progress R5.
+      </p>
+      <p>
+        Where older standards (HL7 v2, CDA) used pipe-delimited or XML message
+        formats, FHIR represents each clinical concept as a <strong>resource</strong>
+        — a JSON or XML object with a fixed schema, stable URL, and explicit
+        references to other resources. The ~150 resource types cover everything
+        from <code>Patient</code> to <code>ImagingStudy</code> to <code>Coverage</code>.
+      </p>
+      <p>An OPD consultation typically involves:
+        <code>Patient</code>, <code>Practitioner</code>, <code>Encounter</code>,
+        <code>Condition</code>, <code>Observation</code>, <code>MedicationRequest</code>,
+        <code>AllergyIntolerance</code>, <code>ServiceRequest</code>, and a
+        <code>Composition</code> wrapper that ties them together.</p>
+
+      <h3>The Bundle</h3>
+      <p>
+        Resources travel together inside a <code>Bundle</code>:
+      </p>
+      <pre><code>{
+  "resourceType": "Bundle",
+  "type": "document",
+  "entry": [
+    { "fullUrl": "urn:uuid:...", "resource": { "resourceType": "Composition", ... } },
+    { "fullUrl": "urn:uuid:...", "resource": { "resourceType": "Patient", ... } },
+    ...
+  ]
+}</code></pre>
+      <p>
+        For ABDM exchange, <code>Bundle.type = "document"</code> is required —
+        the first entry must be a <code>Composition</code> that anchors all
+        other resources via <code>section.entry[].reference</code>.
+      </p>
+
+      <h2 id="mapping">4 · How ABDM uses FHIR — profiles &amp; coding systems</h2>
+      <p>
+        ABDM tightens base FHIR with <strong>profiles</strong> — published
+        constraints that say "for an Indian OPD record, these fields are
+        required, those codings are mandatory". Profiles live at NRCES:
+        <code>nrces.in/ndhm/fhir/r4</code>.
+      </p>
+
+      <h3>The 8 ABDM profiles relevant to clinics</h3>
+      <table>
+        <thead><tr><th>Profile</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>OPConsultRecord</code></td><td>OPD consultation note. <strong>This is what Hello Doctor emits.</strong></td></tr>
+          <tr><td><code>DischargeSummary</code></td><td>Inpatient discharge record</td></tr>
+          <tr><td><code>DiagnosticReport</code> bundle</td><td>Lab / imaging report</td></tr>
+          <tr><td><code>PrescriptionRecord</code></td><td>Standalone Rx without full consult</td></tr>
+          <tr><td><code>HealthDocumentRecord</code></td><td>Scanned PDFs / unstructured documents</td></tr>
+          <tr><td><code>ImmunizationRecord</code></td><td>Vaccination record</td></tr>
+          <tr><td><code>WellnessRecord</code></td><td>Self-reported metrics from PHR apps</td></tr>
+          <tr><td><code>InvoiceDocument</code></td><td>Billing record</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Mandated vocabularies</h3>
+      <table>
+        <thead><tr><th style="width:14%">Vocabulary</th><th style="width:18%">Used for</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td><strong>ICD-10</strong></td><td>Diagnoses</td><td><code>I10</code> — Essential hypertension</td></tr>
+          <tr><td><strong>LOINC</strong></td><td>Observations &amp; document section types</td><td><code>8480-6</code> — Systolic BP · <code>11488-4</code> — Consult note</td></tr>
+          <tr><td><strong>SNOMED CT</strong></td><td>Clinical concepts (routes, body sites, procedures)</td><td><code>26643006</code> — Oral route</td></tr>
+          <tr><td><strong>UCUM</strong></td><td>Units of measure</td><td><code>mm[Hg]</code> · <code>kg</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="icd10">5 · What ICD-10 is and why we use it</h2>
+      <p>
+        <strong>ICD-10</strong> = <em>International Statistical Classification of
+        Diseases and Related Health Problems, 10th Revision</em>. WHO-maintained,
+        ratified 1990, used worldwide. About 14,000 codes covering every
+        diagnosis, symptom, finding, and external cause of injury.
+      </p>
+      <p>An ICD-10 code is one letter (chapter) + two digits (category) + optional decimal subdivision:</p>
+      <pre><code>J 02 . 9
+│  │   │
+│  │   └─ subdivision (.9 = "unspecified")
+│  └────── category (02 = "acute pharyngitis")
+└───────── chapter (J = "diseases of the respiratory system")</code></pre>
+
+      <h4>Common Indian OPD codes</h4>
+      <table>
+        <thead><tr><th style="width:18%">Code</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>I10</code></td><td>Essential hypertension</td></tr>
+          <tr><td><code>E11.9</code></td><td>Type 2 diabetes mellitus, no complications</td></tr>
+          <tr><td><code>J02.9</code></td><td>Acute pharyngitis, unspecified</td></tr>
+          <tr><td><code>J06.9</code></td><td>Acute upper respiratory infection</td></tr>
+          <tr><td><code>K30</code></td><td>Functional dyspepsia</td></tr>
+          <tr><td><code>R51</code></td><td>Headache</td></tr>
+          <tr><td><code>R10.9</code></td><td>Unspecified abdominal pain</td></tr>
+          <tr><td><code>N39.0</code></td><td>UTI, site not specified</td></tr>
+          <tr><td><code>L20.9</code></td><td>Atopic dermatitis, unspecified</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        Sonnet's extraction prompt is instructed to emit 1–3 ICD-10 codes per
+        diagnosis. The doctor sees them on the review screen (with yellow/green
+        markers showing whether the AI inferred them or quoted from the
+        consultation), edits before saving, and they go on the visit row as
+        <code>icd_codes text[]</code>.
+      </p>
+
+      <h2 id="endpoint">6 · How Hello Doctor bundles FHIR as an endpoint API</h2>
+      <p>
+        On-demand. No nightly export, no separate worker — when an authenticated
+        request hits the endpoint, the Bundle is assembled in-memory from
+        existing Postgres rows.
+      </p>
+      <pre><code>GET /api/fhir/visit/&lt;visit-id&gt;
+Authorization: Supabase session cookie
+Response: 200 OK
+Content-Type: application/fhir+json; charset=utf-8</code></pre>
+
+      <p><strong>Pipeline:</strong></p>
+      <div class="flow">[1] Authenticate          → Supabase session cookie verifies user.
+[2] Authorize             → RLS scopes the visit row to the user's clinic.
+[3] Fetch                 → 4 parallel queries: visit, patient, doctor, allergies[]
+[4] Map                   → lib/fhir/mappings.ts attaches LOINC / UCUM / SNOMED codes,
+                            translates Indian frequency shorthand,
+                            derives birthDate from age if needed.
+[5] Assemble              → lib/fhir/bundle.ts emits the 9 resource types.
+[6] Audit                 → lib/fhir/disclosures.ts logs SHA-256 + bytes
+                            to clinical_disclosures (≥7-year retention).
+[7] Return                → JSON.stringify, application/fhir+json.</div>
+
+      <h2 id="cm">7 · Consent Manager (HIE-CM)</h2>
+      <p>
+        The <strong>Health Information Exchange &amp; Consent Manager</strong>
+        is the brokering layer that lets a patient at, say, AIIMS Delhi pull
+        their consultation history from a clinic in Bangalore without either
+        institution exposing its database. It does <strong>not</strong> store
+        medical records — only signed consent artifacts.
+      </p>
+
+      <div class="flow">
+[1] Patient links HIP                Patient opens their PHR app, searches "Hello Doctor",
+                                     links their record. We receive a discovery callback.
+
+[2] HIU requests records             Specialist hospital calls CM with the patient's ABHA,
+                                     scope (e.g. OPConsultRecord), date range, purpose.
+
+[3] CM forwards to patient           Patient's PHR app prompts: approve / deny.
+
+[4] Patient grants                   CM mints a signed consent artifact (scope, expiry,
+                                     HIU public key).
+
+[5] CM notifies HIP                  CM POSTs the artifact to our consent webhook;
+                                     we verify the signature and store the artifact ID.
+
+[6] HIU requests data                CM tells us "fulfil this consent ID, encrypt to
+                                     this public key, post to this URL".
+
+[7] HIP delivers Bundle              We build the Bundle, encrypt with ECDH + AES-GCM,
+                                     POST to HIU callback.
+
+[8] Audit                            Both ends log the disclosure with the artifact ID,
+                                     timestamp, scope, content hash.
+      </div>
+
+      <h3>What "consent" means as data</h3>
+      <ul class="tight">
+        <li><strong>HI types</strong> — which of the 8 ABDM record types are shareable.</li>
+        <li><strong>Date range</strong>, <strong>purpose</strong>, <strong>frequency</strong>, <strong>hard expiry</strong>.</li>
+        <li><strong>Revocable</strong> any time from the patient's PHR app.</li>
+      </ul>
+
+      <h2 id="cm-cost">8 · Is the Consent Manager free? Compliance requirements</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Cost</th></tr></thead>
+        <tbody>
+          <tr><td>Using NHA's Consent Manager</td><td><strong>Free.</strong> No per-request, per-patient, or subscription fee.</td></tr>
+          <tr><td>ABHA creation for patients</td><td><strong>Free.</strong></td></tr>
+          <tr><td>HFR / HPR / HIP registration</td><td><strong>Free.</strong></td></tr>
+          <tr><td>Sandbox access</td><td><strong>Free.</strong></td></tr>
+          <tr><td>Class-3 Digital Signature Certificate (eMudhra / SafeScrypt)</td><td>~₹3,000–₹15,000 / year</td></tr>
+          <tr><td>Production FQDN + TLS</td><td>~₹500–₹5,000 / year (Let's Encrypt is free)</td></tr>
+          <tr><td>CERT-In empanelled security audit</td><td>~₹50,000–₹2,00,000 one-time, repeat on major changes</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Compliance requirements (non-negotiable):</strong>
+      </p>
+      <ul class="tight">
+        <li>Registered legal entity (CIN, GSTIN), HFR-registered facility.</li>
+        <li>Class-3 X.509 cert; all calls to NHA signed.</li>
+        <li>TLS 1.2+, production FQDN (no preview URLs).</li>
+        <li>ECDH + AES-GCM payload encryption to HIU.</li>
+        <li>Disclosure audit log retained ≥7 years.</li>
+        <li>99% uptime SLA on consent webhook.</li>
+        <li>Honour revocation within 24 hours.</li>
+        <li>Annual CERT-In audit. Named DPO.</li>
+        <li>DPDP Act 2023 compliance — consent receipts, 72-hour breach notification.</li>
+      </ul>
+
+      <h2 id="done">9 · What's done</h2>
+      <p>
+        Everything in this section is committed to the codebase and
+        verifiable by inspection. The data layer that ABDM cares about
+        is complete; the schema is shaped, the extractor populates it, the
+        FHIR exporter emits a conformant Bundle, and audit logging is in place.
+      </p>
+
+      <h3>Schema</h3>
+      <ul class="checklist">
+        <li><strong>Clinics, doctors, patients, visits, appointments, visit_doctors</strong> tables with clinic-scoped RLS.<span class="note">Migrations: 20260428115000_initial_setup.sql, 20260428160000_multi_role.sql, 20260503000000_demo_compat.sql</span></li>
+        <li><strong>Patient ABDM identity</strong> — <code>abha_id</code>, <code>abha_address</code> columns + lookup index.<span class="note">Migration: 20260508000000_abdm_fhir_fields.sql</span></li>
+        <li><strong>Patient FHIR fields</strong> — <code>birthdate</code>, <code>given_name</code>, <code>family_name</code>, structured address (<code>address_line1/2</code>, <code>city</code>, <code>state</code>, <code>postal_code</code>, <code>country</code>).<span class="note">Migration: 20260509000000_abdm_full_compliance.sql</span></li>
+        <li><strong>Doctor HPR ID</strong> — <code>doctors.hpr_id</code> column + lookup index.<span class="note">Same migration. UI capture in /(app)/settings.</span></li>
+        <li><strong>Visit FHIR fields</strong> — <code>icd_codes text[]</code>, <code>encounter_class</code> (default <code>AMB</code>), <code>field_assumptions</code> jsonb.<span class="note">Migrations: 20260508000000_abdm_fhir_fields.sql</span></li>
+        <li><strong>Structured allergies</strong> — <code>patient_allergies</code> table (allergen, reaction, severity, recorded_at) with RLS.<span class="note">Migration: 20260509000000_abdm_full_compliance.sql</span></li>
+        <li><strong>Cost tracking</strong> — <code>api_usage_events</code> with INR rates for Sarvam, Haiku 4.5, Sonnet 4.6, Opus 4.7.<span class="note">Migrations: 20260507000000_api_usage_events.sql, 20260507000001_cost_inr.sql</span></li>
+        <li><strong>Disclosure audit log</strong> — <code>clinical_disclosures</code> append-only table with content SHA-256, byte count, consumer type, and consent artifact ID column for the post-CM future. Monthly summary view.<span class="note">Migration: 20260510000000_clinical_disclosures.sql</span></li>
+      </ul>
+
+      <h3>Extraction pipeline (Sonnet / Haiku prompt)</h3>
+      <ul class="checklist">
+        <li><strong>Doctor speaker identification</strong> from diarized transcript — decisive selection with <code>doctor_id_confidence</code>.</li>
+        <li><strong>All clinical fields</strong> extracted: vitals, chief complaints, HPI, exam findings, provisional and confirmed diagnoses, investigations, prescription with diff statuses, advice, follow-up.</li>
+        <li><strong>ICD-10 codes</strong> — 1–3 per visit, WHO ICD-10 system. Common Indian OPD codes embedded in prompt for grounding.</li>
+        <li><strong>verificationStatus mapping</strong> — provisional vs confirmed routed by spoken language.</li>
+        <li><strong>Investigation phrasing</strong> — comma-separated lab-requisition phrasing so each test becomes a ServiceRequest.</li>
+        <li><strong>Medication phrasing</strong> — canonical dose units, frequency shorthand, lowercase route names that map cleanly to FHIR.</li>
+        <li><strong>Per-field assumption tagging</strong> — every inference-allowed field is marked <code>"stated"</code> or <code>"assumed"</code>.</li>
+        <li><strong>Hard rule: no inference</strong> on advice, prescription medicines, vitals, follow-up days. Server-side normalizer downgrades any <code>"assumed"</code> on these fields to <code>null</code> as a defense in depth.</li>
+        <li><strong>Prescription diff</strong> — <code>new</code> / <code>continued</code> / <code>modified</code> / <code>stopped</code> against previous Rx.</li>
+        <li><strong>Sonnet fallback</strong> on low extraction confidence.</li>
+      </ul>
+
+      <h3>FHIR Bundle export</h3>
+      <ul class="checklist">
+        <li><strong><code>GET /api/fhir/visit/[id]</code></strong> route returning <code>application/fhir+json</code>.</li>
+        <li><strong>OPConsultRecord profile claimed</strong> on the Composition; <code>DocumentBundle</code> on the Bundle; per-resource profile URLs for Patient, Practitioner, Encounter, Condition, MedicationRequest, Observation, AllergyIntolerance, ServiceRequest.</li>
+        <li><strong>Composition with 9 LOINC-coded sections</strong>: Chief complaints, Medical history, Physical examination, Vital signs, Diagnosis, Allergies, Medications, Investigation advice, Advice, Follow-up.</li>
+        <li><strong>Patient resource</strong> with ABHA identifier, structured name (given/family), gender mapping (M/F/O → male/female/other), <code>birthDate</code> always emitted (real value or derived from age), structured Address with country defaulting to <code>IN</code>, telecom.</li>
+        <li><strong>Practitioner resource</strong> with HPR ID as primary identifier and council registration as secondary.</li>
+        <li><strong>Encounter resource</strong> with class <code>AMB</code>, status mapping from visits.status, period, participant.</li>
+        <li><strong>Condition resources</strong> with ICD-10 codings, <code>verificationStatus</code>, <code>clinicalStatus</code>.</li>
+        <li><strong>MedicationRequest resources</strong> with structured <code>dosageInstruction.timing</code> from BD/TDS shorthand, <code>route</code> mapped to SNOMED CT, <code>doseAndRate.doseQuantity</code>, <code>dispenseRequest.expectedSupplyDuration</code> in UCUM Duration.</li>
+        <li><strong>Observation resources</strong> for every vital with LOINC codes (8480-6, 8462-4, 8867-4, 8310-5, 59408-5, 29463-7) and UCUM units.</li>
+        <li><strong>AllergyIntolerance resources</strong> from the structured table; falls back to parsing the legacy free-text column.</li>
+        <li><strong>ServiceRequest resources</strong> — one per investigation, split from the comma-separated text.</li>
+        <li><strong>Cross-resource references</strong> via <code>urn:uuid:</code> Bundle.entry.fullUrl.</li>
+      </ul>
+
+      <h3>UI for ABDM data</h3>
+      <ul class="checklist">
+        <li><strong>Patient intake form</strong> captures DOB, ABHA ID, ABHA address, given/family-name split (auto from full name with manual override at save), structured address.</li>
+        <li><strong>Doctor settings form</strong> captures HPR ID alongside council registration number.</li>
+        <li><strong>Yellow/green field markers</strong> on every inference-allowed clinical field (chief complaints, HPI, exam findings, provisional/confirmed diagnosis, ICD codes, investigations, follow-up notes). Fades to neutral once the doctor edits the value.</li>
+        <li><strong>ICD-10 chips</strong> — codes render as monospace pills below the input for clarity.</li>
+        <li><strong>Assumption legend</strong> banner shown above the form when any markers are present.</li>
+        <li><strong>Provider mentions stripped</strong> from user-facing UI ("Sarvam", "Claude", "en-te" all removed; replaced with neutral wording).</li>
+      </ul>
+
+      <h3>Audit &amp; logging</h3>
+      <ul class="checklist">
+        <li><strong>Per-call cost log</strong> — <code>api_usage_events</code> populated by every transcribe / extract / pre-visit-summary call with INR cost, tokens, audio duration, model used.</li>
+        <li><strong>Disclosure audit</strong> — <code>recordDisclosure()</code> in <code>lib/fhir/disclosures.ts</code> writes a row for every FHIR Bundle export with SHA-256 of the released body, byte count, consumer type, actor.</li>
+        <li><strong>Audit failures never break the request</strong> — try/catch wraps every audit insert and logs to console only.</li>
+      </ul>
+
+      <h3>Validator harness</h3>
+      <ul class="checklist">
+        <li><strong>Synthetic fixture generator</strong> — <code>scripts/fhir/generate-fixture.ts</code> creates a complete OPD visit (ABHA-bearing patient, HPR-bearing doctor, full prescription, vitals, allergy, investigation) and emits a Bundle.</li>
+        <li><strong>Validator wrapper</strong> — <code>scripts/fhir/validate.sh</code> generates the fixture by default. Set <code>FHIR_STRICT_VALIDATE=1</code> to download the HL7 Java validator and run against the NRCES IG (<code>ndhm.in#6.5.0</code> by default) and the OPConsultRecord profile.</li>
+        <li><strong>npm scripts</strong> — <code>npm run fhir:fixture</code>, <code>npm run fhir:validate</code>, <code>FHIR_STRICT_VALIDATE=1 npm run fhir:validate:strict</code>.</li>
+        <li><strong>CI workflow</strong> — <code>.github/workflows/fhir-validate.yml</code> triggers on changes to <code>lib/fhir/**</code>, <code>types/db.ts</code>, or scripts. Caches the validator jar and IG packages between runs.</li>
+      </ul>
+
+      <h2 id="partial">10 · What's partially done</h2>
+
+      <ul class="checklist">
+        <li class="partial"><strong>FHIR Bundle export</strong> works for a single visit. Needed for full ABDM:
+          <span class="note">A version of the same export wired to ABDM Consent Manager flow — verifies a CM-issued consent artifact, encrypts the Bundle to the HIU's public key (ECDH + AES-GCM), and POSTs to the requester's callback URL instead of returning JSON to the browser.</span></li>
+        <li class="partial"><strong>Disclosure audit log</strong> records manual exports today. Needs:
+          <span class="note">Linking each row to a verified consent artifact ID once the consent webhook exists; recording HIU public-key fingerprint and request ID in metadata.</span></li>
+        <li class="partial"><strong>Patient address</strong> is structured in the schema but the legacy free-text <code>patients.address</code> column still exists and may be used by older rows. The exporter falls back to it.
+          <span class="note">A one-time backfill could split legacy free-text addresses into structured fields; not strictly required for compliance.</span></li>
+        <li class="partial"><strong>Allergies</strong> are read from the structured table when present; exporter falls back to parsing free-text <code>known_allergies</code> when the table is empty for a patient.
+          <span class="note">No UI yet to add/edit per-allergy rows individually; extraction during a recording does not populate this table.</span></li>
+        <li class="partial"><strong>ICD-10 codes</strong> are emitted by the AI and editable as a comma-separated field with chip preview. Needed for richer UX:
+          <span class="note">A code-search picker (autocomplete against an ICD-10 lookup) so doctors can swap a <code>.9</code> "unspecified" code for a more specific match without typing.</span></li>
+        <li class="partial"><strong>Verification status</strong> is decided by which field (provisional vs confirmed) the AI fills. There is no explicit UI control to flip a diagnosis from provisional to confirmed without retyping it in the other field.</li>
+        <li class="partial"><strong>Investigation extraction</strong> writes a comma-separated string. The exporter splits to one ServiceRequest per item but the items are free text — no LOINC codes attached. ABDM accepts free-text but LOINC mapping is preferred for reporting.</li>
+      </ul>
+
+      <h2 id="pending">11 · What's pending</h2>
+      <p>
+        These items are not yet started. They are grouped by whether they
+        require external dependencies (NHA sandbox credentials, legal entity)
+        or can be built immediately.
+      </p>
+
+      <h3>Can be built today (no NHA dependency)</h3>
+      <ul class="checklist">
+        <li class="todo"><strong>ICD-10 code-picker</strong> with autocomplete against a bundled ICD-10 dictionary (~14k codes; one-time JSON download in the browser).</li>
+        <li class="todo"><strong>Per-allergy editor</strong> on the patient detail page — add / edit / remove rows in <code>patient_allergies</code> with allergen, reaction, severity.</li>
+        <li class="todo"><strong>FHIR validator integration tests</strong> covering edge cases beyond the happy-path fixture (missing DOB, no ABHA, no HPR, multiple ICD codes, stopped medicines, no allergies, no investigations).</li>
+        <li class="todo"><strong>Bundle download button</strong> on the review screen — currently the FHIR endpoint exists but no UI button calls it.</li>
+        <li class="todo"><strong>Disclosure audit viewer</strong> for admin — read-only table view with filter by patient, date, consumer type.</li>
+        <li class="todo"><strong>Verification-status flip control</strong> in the review screen — single button to mark a provisional diagnosis as confirmed.</li>
+        <li class="todo"><strong>Encounter.reason mapping</strong> — emit <code>Encounter.reasonCode</code> from chief complaints when the doctor presents a single primary reason.</li>
+        <li class="todo"><strong>SNOMED-CT-IN drug coding</strong> (optional but preferred) — map common Indian drug brand names to India National Drug Code via a static lookup table.</li>
+        <li class="todo"><strong>Server-side address structuring</strong> — backfill legacy free-text addresses into the structured columns where pattern-detectable.</li>
+      </ul>
+
+      <h3>Blocked on NHA HIP registration</h3>
+      <p>
+        These all require sandbox credentials and a registered legal entity
+        before any code can be written or tested.
+      </p>
+      <ul class="checklist">
+        <li class="todo"><strong>ABHA verification flow (M1)</strong> — OTP, Aadhaar, mobile-based verification screens. A patient can enter their ABHA at intake and we verify it with NHA before linking.</li>
+        <li class="todo"><strong>HIP discovery webhook</strong> — endpoint that receives "do you have records for ABHA X?" queries from a patient's PHR app. Returns yes/no without leaking patient existence.</li>
+        <li class="todo"><strong>HIP linking webhook</strong> — endpoint that receives the patient's authorisation to attach our clinic to their ABHA record book.</li>
+        <li class="todo"><strong>Consent notification webhook</strong> — <code>POST /api/abdm/consent/notify</code> that receives signed consent artifacts from the CM, verifies the CM's X.509 signature, stores the artifact ID, scope, expiry.</li>
+        <li class="todo"><strong>Consent revocation webhook</strong> — receives revocation notice from CM; marks artifact invalid; denies any subsequent requests against it.</li>
+        <li class="todo"><strong>Encrypted Bundle delivery</strong> — variant of the FHIR export that derives an ECDH shared secret with the HIU's published public key, encrypts the Bundle with AES-256-GCM, and POSTs to the requester's callback URL.</li>
+        <li class="todo"><strong>X.509 request signing</strong> — every outbound API call to NHA signed with our DSC's private key.</li>
+        <li class="todo"><strong>CM-signature verification</strong> — verify NHA's signature on every inbound consent artifact against NHA's published public key chain.</li>
+        <li class="todo"><strong>Consent dashboard for patients</strong> at the clinic — read-only view of active consents, expiry dates, revocation status (issuance happens in the patient's PHR app, not ours).</li>
+        <li class="todo"><strong>Disclosure audit linkage</strong> — every CM-driven disclosure references the consent artifact ID; admin viewer filters by it.</li>
+      </ul>
+
+      <h3>Non-code work</h3>
+      <ul class="checklist">
+        <li class="todo"><strong>Incorporate the legal entity</strong> (private limited or LLP). Obtain CIN and GSTIN.</li>
+        <li class="todo"><strong>Register the clinic on HFR</strong> (Health Facility Registry). Online via NHA portal.</li>
+        <li class="todo"><strong>Register doctors on HPR</strong> (Healthcare Professional Registry). Online via NHA portal.</li>
+        <li class="todo"><strong>Provision a production FQDN</strong> with valid TLS (Let's Encrypt or paid). No preview URLs.</li>
+        <li class="todo"><strong>Buy a Class-3 Digital Signature Certificate</strong> from an Indian licensed CA (eMudhra, SafeScrypt, etc).</li>
+        <li class="todo"><strong>Apply for NHA sandbox access</strong>; receive sandbox client credentials.</li>
+        <li class="todo"><strong>Pass the M1 sandbox test script</strong> for ABHA identity flows.</li>
+        <li class="todo"><strong>Pass the M2 sandbox test script</strong> for record linking.</li>
+        <li class="todo"><strong>Pass the M3 sandbox test script</strong> for consent-driven information sharing.</li>
+        <li class="todo"><strong>Schedule the NHA live demo</strong> against the certified profiles.</li>
+        <li class="todo"><strong>Engage a CERT-In empanelled auditor</strong>; remediate findings.</li>
+        <li class="todo"><strong>Appoint a Data Protection Officer</strong> (DPO) and publish contact details.</li>
+        <li class="todo"><strong>Draft and publish a privacy policy</strong> compliant with DPDP Act 2023 (consent receipts, principal rights, breach-notification protocol).</li>
+        <li class="todo"><strong>Publish a grievance redressal contact</strong> integrated with NHA's grievance portal; commit to 7-day response SLA.</li>
+        <li class="todo"><strong>Submit M3 certification application</strong> to NHA. On approval, list on ABDM's public HIP directory and switch from sandbox to live environment.</li>
+      </ul>
+
+      <h2 id="glossary">12 · Glossary</h2>
+      <dl class="glossary">
+        <dt>ABDM</dt><dd>Ayushman Bharat Digital Mission. India's national digital health stack.</dd>
+        <dt>ABHA</dt><dd>Ayushman Bharat Health Account. The 14-digit health ID for a citizen.</dd>
+        <dt>NHA</dt><dd>National Health Authority. The government body that operates ABDM.</dd>
+        <dt>NRCES</dt><dd>National Resource Centre for EHR Standards. Publishes the FHIR profiles ABDM uses.</dd>
+        <dt>FHIR</dt><dd>Fast Healthcare Interoperability Resources. HL7's modern data standard, R4 is the version ABDM uses.</dd>
+        <dt>Profile</dt><dd>A FHIR <code>StructureDefinition</code> that constrains a base resource for a specific use case.</dd>
+        <dt>Bundle</dt><dd>A FHIR container for grouping multiple resources into one document.</dd>
+        <dt>Composition</dt><dd>The resource that anchors a FHIR document — a table of contents pointing to all the other resources in the Bundle.</dd>
+        <dt>HIP</dt><dd>Health Information Provider. A facility that produces records (us).</dd>
+        <dt>HIU</dt><dd>Health Information User. A facility / app that consumes records.</dd>
+        <dt>HIE-CM</dt><dd>Health Information Exchange &amp; Consent Manager.</dd>
+        <dt>HFR</dt><dd>Health Facility Registry.</dd>
+        <dt>HPR</dt><dd>Healthcare Professional Registry.</dd>
+        <dt>PHR</dt><dd>Personal Health Record. The patient-facing app where consent is granted.</dd>
+        <dt>ICD-10</dt><dd>International Classification of Diseases, 10th Revision. Diagnosis codes.</dd>
+        <dt>LOINC</dt><dd>Logical Observation Identifiers Names and Codes. Observations and section types.</dd>
+        <dt>SNOMED CT</dt><dd>Systematized Nomenclature of Medicine — Clinical Terms. Clinical concepts.</dd>
+        <dt>UCUM</dt><dd>Unified Code for Units of Measure.</dd>
+        <dt>DPDP Act</dt><dd>Digital Personal Data Protection Act 2023.</dd>
+        <dt>DSC</dt><dd>Digital Signature Certificate (Class-3 X.509).</dd>
+        <dt>CERT-In</dt><dd>Indian Computer Emergency Response Team. Empanels security auditors required for ABDM compliance.</dd>
+      </dl>
+    </main>
+  </body>
+</html>

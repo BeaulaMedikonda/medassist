@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello Doctor — STT pipeline options: cost × resources × quality</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --fg: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --brand: #059669;
+        --brand-tint: #ecfdf5;
+        --brand-tint-2: #d1fae5;
+        --warn: #b45309;
+        --warn-tint: #fef3c7;
+        --danger: #b91c1c;
+        --danger-tint: #fee2e2;
+        --ok: #047857;
+        --info: #0369a1;
+        --info-tint: #e0f2fe;
+        --bar1: #10b981;
+        --bar2: #f59e0b;
+        --bar3: #ef4444;
+        --bar4: #6366f1;
+      }
+      html { background: var(--bg); }
+      body {
+        font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter,
+          system-ui, sans-serif;
+        color: var(--fg);
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 32px 24px 80px;
+      }
+      h1 { font-size: 30px; line-height: 1.15; margin: 0 0 4px; letter-spacing: -0.02em; }
+      h2 { font-size: 22px; margin: 40px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); letter-spacing: -0.01em; }
+      h3 { font-size: 17px; margin: 24px 0 6px; }
+      h4 { font-size: 14px; margin: 14px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      p, li { color: #1e293b; }
+      .lede { color: var(--muted); margin: 0 0 28px; font-size: 16px; }
+      .meta { color: var(--muted); font-size: 12px; margin-bottom: 24px; }
+
+      .tldr {
+        background: linear-gradient(135deg, var(--brand-tint), #ffffff);
+        border: 1px solid var(--brand-tint-2);
+        border-radius: 16px;
+        padding: 22px 24px;
+        margin: 24px 0 36px;
+      }
+      .tldr h3 { margin-top: 0; color: var(--brand); }
+      .tldr ol { padding-left: 24px; margin: 8px 0 0; }
+      .tldr li { margin: 6px 0; }
+      .tldr strong { color: var(--fg); }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px 20px;
+        margin: 14px 0;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+      }
+
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+      @media (max-width: 760px) {
+        .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      }
+
+      table {
+        border-collapse: collapse; width: 100%; font-size: 13.5px;
+        background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+        margin: 12px 0;
+      }
+      thead th {
+        text-align: left; background: #f1f5f9; padding: 10px 12px; font-weight: 600;
+        border-bottom: 1px solid var(--border); white-space: nowrap;
+      }
+      td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+      tbody tr:last-child td { border-bottom: 0; }
+      tbody tr.recommended { background: var(--brand-tint); }
+      tbody tr.recommended td:first-child::before { content: "★ "; color: var(--bar2); }
+
+      .pill {
+        display: inline-block; padding: 2px 8px; border-radius: 999px;
+        font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .pill-ok { background: var(--brand-tint-2); color: var(--ok); }
+      .pill-warn { background: var(--warn-tint); color: var(--warn); }
+      .pill-bad { background: var(--danger-tint); color: var(--danger); }
+      .pill-info { background: var(--info-tint); color: var(--info); }
+
+      /* Bar chart */
+      .bar {
+        display: flex; align-items: center; gap: 10px; margin: 6px 0;
+      }
+      .bar-label {
+        flex: 0 0 220px; font-size: 13px; color: var(--fg);
+      }
+      .bar-track {
+        flex: 1; height: 22px; background: #f1f5f9; border-radius: 6px; overflow: hidden;
+        position: relative;
+      }
+      .bar-fill {
+        height: 100%; display: flex; align-items: center; padding: 0 8px;
+        color: white; font-size: 11px; font-weight: 600; white-space: nowrap;
+      }
+
+      .kv { display: grid; grid-template-columns: 160px 1fr; gap: 4px 14px; font-size: 13.5px; margin: 6px 0; }
+      .kv dt { color: var(--muted); }
+      .kv dd { margin: 0; }
+
+      code { background: #0f172a; color: #e2e8f0; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+      pre {
+        background: #0f172a; color: #e2e8f0; padding: 14px 16px; border-radius: 10px;
+        overflow: auto; font-size: 13px; line-height: 1.5;
+      }
+
+      .callout {
+        border-left: 4px solid var(--brand); background: var(--brand-tint);
+        padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0;
+      }
+      .callout-warn { border-left-color: var(--warn); background: var(--warn-tint); }
+      .callout-info { border-left-color: var(--info); background: var(--info-tint); }
+      .callout-danger { border-left-color: var(--danger); background: var(--danger-tint); }
+
+      .footnote { color: var(--muted); font-size: 12px; }
+      ul { padding-left: 22px; }
+      li { margin: 4px 0; }
+
+      .check::before { content: "✓ "; color: var(--ok); font-weight: 700; }
+      .cross::before { content: "✗ "; color: var(--danger); font-weight: 700; }
+
+      .step {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 24px; height: 24px; border-radius: 999px;
+        background: var(--brand); color: white; font-size: 13px; font-weight: 700;
+        margin-right: 8px;
+      }
+
+      .legend {
+        display: flex; gap: 14px; flex-wrap: wrap;
+        font-size: 12px; color: var(--muted); margin: 10px 0;
+      }
+      .legend-item { display: flex; align-items: center; gap: 6px; }
+      .legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
+
+      .price-tag {
+        font-size: 18px; font-weight: 700; color: var(--brand); letter-spacing: -0.02em;
+      }
+      .price-sub {
+        font-size: 11px; color: var(--muted); display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello Doctor — STT pipeline: cost × resources × output quality</h1>
+    <p class="lede">
+      Comparison of every realistic option for getting Telugu/Hindi-mixed OPD audio into structured EMR fields.
+      Spans the current Sarvam pipeline, three local-Whisper variants, two Gemini paths, GPT-4o audio, and the hybrid options.
+      All numbers are practical April 2026 estimates — measure before committing.
+    </p>
+    <p class="meta">Volume assumption: 3-doctor clinic, 50 visits/doctor/day × 25 days × 12 months = <strong>45,000 visits/year</strong>. Single-doctor figures = ÷ 3.</p>
+
+    <div class="tldr">
+      <h3>TL;DR — three options worth piloting, in order</h3>
+      <ol>
+        <li><strong>Gemini 2.5 Flash audio → JSON</strong> (single API call for transcript + extraction). Cheapest, fastest to ship, no GPU. Test first.</li>
+        <li><strong>Local IndicConformer + Claude Sonnet 4.6</strong> (transcript local, extraction cloud). Best accuracy on Indian medical content. Requires a GPU box. Pays back in ~2 months.</li>
+        <li><strong>Keep Sarvam</strong> as a fallback behind an env flag for the first 3 months on either of the above.</li>
+      </ol>
+      <p style="margin: 10px 0 0; font-size: 13px; color: var(--muted);">
+        Skip GPT-4o audio (10× more expensive than Gemini for similar quality) and SeamlessM4T (non-commercial license).
+      </p>
+    </div>
+
+    <h2>1. Cost per visit (5-minute consultation)</h2>
+
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background: var(--bar1)"></span> Cheapest</div>
+      <div class="legend-item"><span class="legend-swatch" style="background: var(--bar2)"></span> Mid</div>
+      <div class="legend-item"><span class="legend-swatch" style="background: var(--bar3)"></span> Expensive</div>
+      <div class="legend-item"><span class="legend-swatch" style="background: var(--bar4)"></span> Hardware-amortised</div>
+    </div>
+
+    <div class="card">
+      <h4>Per-visit ₹ (lower is better)</h4>
+      <div class="bar">
+        <div class="bar-label">Gemini 2.5 Flash (one-shot)</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 5%; background: var(--bar1);">~₹0.20</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label">Local IndicConformer + Claude</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 16%; background: var(--bar4);">~₹0.65 + GPU</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label">Local Whisper-v3 + Claude</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 16%; background: var(--bar4);">~₹0.65 + GPU</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label">Gemini 2.5 Pro (one-shot)</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 28%; background: var(--bar2);">~₹1.10</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label"><strong>Sarvam + Claude (current)</strong></div>
+        <div class="bar-track"><div class="bar-fill" style="width: 90%; background: var(--bar3);">~₹3.60</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label">GPT-4o audio (one-shot)</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 100%; background: var(--bar3);">~₹32</div></div>
+      </div>
+    </div>
+
+    <p class="footnote">
+      Prices estimated at: Sarvam ~₹3 per 5-min batch; Claude Sonnet 4.6 input $3/M, output $15/M (with 75% prompt-cache discount on system prompt);
+      Gemini 2.5 Flash audio ~$0.075/M input + $0.30/M output; Gemini 2.5 Pro audio ~$1.25/M input + $5/M output;
+      GPT-4o audio ~$40/M input + $80/M output. ₹84/USD. Telugu uses ~1.5–2× more tokens than English.
+    </p>
+
+    <h2>2. Annual cost @ 45,000 visits/year</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Pipeline</th>
+          <th>Year-1 ₹</th>
+          <th>Year-2+ ₹</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="recommended">
+          <td><strong>Gemini 2.5 Flash one-shot</strong></td>
+          <td>~₹9,000</td>
+          <td>~₹9,000</td>
+          <td>Cheapest, no hardware. Per-call cost dominates.</td>
+        </tr>
+        <tr>
+          <td>Local IndicConformer + Claude</td>
+          <td>~₹70,000</td>
+          <td>~₹35,000</td>
+          <td>Year 1 includes ~₹40k GPU + ₹5k power. Year 2+ is mostly Claude calls + power.</td>
+        </tr>
+        <tr>
+          <td>Gemini 2.5 Pro one-shot</td>
+          <td>~₹50,000</td>
+          <td>~₹50,000</td>
+          <td>~5× quality boost over Flash — worth it if Flash's Telugu accuracy is too low.</td>
+        </tr>
+        <tr>
+          <td>Sarvam + Claude (current)</td>
+          <td>~₹162,000</td>
+          <td>~₹162,000</td>
+          <td>Today's bill. Reference baseline.</td>
+        </tr>
+        <tr>
+          <td>GPT-4o audio one-shot</td>
+          <td>~₹14,40,000</td>
+          <td>~₹14,40,000</td>
+          <td>Dramatically more expensive than every other option. Skip.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="footnote">
+      "+Claude" pipelines include the existing Claude Sonnet extraction call (~₹0.50 cached) and Haiku 4.5 pre-visit summary (~₹0.13). Gemini one-shot pipelines fold both into a single call.
+    </p>
+
+    <h2>3. Output quality matrix</h2>
+
+    <p>Five dimensions that matter for OPD: Telugu word accuracy, code-mixed Telugu/English handling, drug-name accuracy (medico-legal), speaker diarisation, and structured extraction.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Pipeline</th>
+          <th>Telugu WER</th>
+          <th>Code-mix</th>
+          <th>Drug names</th>
+          <th>Diarisation</th>
+          <th>Field extraction</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sarvam + Claude (current)</strong></td>
+          <td><span class="pill pill-ok">~10%</span></td>
+          <td><span class="pill pill-ok">Good</span></td>
+          <td><span class="pill pill-ok">High</span></td>
+          <td><span class="pill pill-ok">Native</span></td>
+          <td><span class="pill pill-ok">Sonnet 4.6</span></td>
+        </tr>
+        <tr>
+          <td><strong>IndicConformer + Claude</strong></td>
+          <td><span class="pill pill-ok">~10–15%</span></td>
+          <td><span class="pill pill-ok">Native</span></td>
+          <td><span class="pill pill-ok">High</span></td>
+          <td><span class="pill pill-warn">Add pyannote</span></td>
+          <td><span class="pill pill-ok">Sonnet 4.6</span></td>
+        </tr>
+        <tr>
+          <td>IndicWhisper + Claude</td>
+          <td><span class="pill pill-ok">~12%</span></td>
+          <td><span class="pill pill-ok">Good</span></td>
+          <td><span class="pill pill-ok">High</span></td>
+          <td><span class="pill pill-warn">Add pyannote</span></td>
+          <td><span class="pill pill-ok">Sonnet 4.6</span></td>
+        </tr>
+        <tr>
+          <td>Whisper-v3 (translate) + Claude</td>
+          <td><span class="pill pill-warn">~22–28%</span></td>
+          <td><span class="pill pill-warn">Decent</span></td>
+          <td><span class="pill pill-warn">Mid</span></td>
+          <td><span class="pill pill-warn">Add pyannote</span></td>
+          <td><span class="pill pill-ok">Sonnet 4.6</span></td>
+        </tr>
+        <tr>
+          <td><strong>Gemini 2.5 Flash one-shot</strong></td>
+          <td><span class="pill pill-warn">Unknown — test</span></td>
+          <td><span class="pill pill-ok">Good</span></td>
+          <td><span class="pill pill-warn">Mid — verify</span></td>
+          <td><span class="pill pill-warn">Heuristic</span></td>
+          <td><span class="pill pill-ok">In-call</span></td>
+        </tr>
+        <tr>
+          <td>Gemini 2.5 Pro one-shot</td>
+          <td><span class="pill pill-ok">Likely high</span></td>
+          <td><span class="pill pill-ok">Good</span></td>
+          <td><span class="pill pill-ok">Higher than Flash</span></td>
+          <td><span class="pill pill-warn">Heuristic</span></td>
+          <td><span class="pill pill-ok">In-call</span></td>
+        </tr>
+        <tr>
+          <td>GPT-4o audio one-shot</td>
+          <td><span class="pill pill-warn">Unknown — test</span></td>
+          <td><span class="pill pill-ok">Good</span></td>
+          <td><span class="pill pill-warn">Unknown</span></td>
+          <td><span class="pill pill-warn">Heuristic</span></td>
+          <td><span class="pill pill-ok">In-call</span></td>
+        </tr>
+        <tr>
+          <td>Vosk Telugu</td>
+          <td><span class="pill pill-bad">~40%</span></td>
+          <td><span class="pill pill-bad">Poor</span></td>
+          <td><span class="pill pill-bad">Low</span></td>
+          <td><span class="pill pill-bad">None</span></td>
+          <td><span class="pill pill-warn">External</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="footnote">
+      WER = Word Error Rate. Code-mix = how well the model handles Telugu sentences with English drug names / shorthand mixed in.
+      "Heuristic" diarisation = the model labels speakers from voice + content cues (no dedicated model). Reliable for 2-speaker visits, degrades with 3+ speakers.
+    </p>
+
+    <h2>4. Hardware & infra requirements</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Pipeline</th>
+          <th>Minimum hardware</th>
+          <th>Cloud / SaaS deps</th>
+          <th>Network egress / call</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Sarvam + Claude</td>
+          <td>None — Vercel/Supabase only</td>
+          <td>Sarvam, Anthropic</td>
+          <td>~5 MB audio out + 4 KB JSON in</td>
+        </tr>
+        <tr>
+          <td>IndicConformer + Claude</td>
+          <td><strong>RTX 3060 12 GB minimum</strong>, 32 GB RAM, Linux box</td>
+          <td>Anthropic only</td>
+          <td>~4 KB transcript + JSON</td>
+        </tr>
+        <tr>
+          <td>Whisper-v3 (faster-whisper) + Claude</td>
+          <td>RTX 3060 8 GB OK, 16 GB RAM</td>
+          <td>Anthropic only</td>
+          <td>~4 KB transcript + JSON</td>
+        </tr>
+        <tr>
+          <td>Whisper.cpp on Apple Silicon</td>
+          <td>M2/M3 Mac with 16 GB unified mem</td>
+          <td>Anthropic only</td>
+          <td>~4 KB transcript + JSON</td>
+        </tr>
+        <tr>
+          <td><strong>Gemini 2.5 Flash one-shot</strong></td>
+          <td>None</td>
+          <td>Google Vertex / Gemini API</td>
+          <td>~5 MB audio out + 4 KB JSON in</td>
+        </tr>
+        <tr>
+          <td>Gemini 2.5 Pro one-shot</td>
+          <td>None</td>
+          <td>Google Vertex / Gemini API</td>
+          <td>~5 MB audio out + 4 KB JSON in</td>
+        </tr>
+        <tr>
+          <td>GPT-4o audio</td>
+          <td>None</td>
+          <td>OpenAI</td>
+          <td>~5 MB audio out + 4 KB JSON in</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>5. Latency (5-min recording, end-to-end)</h2>
+
+    <div class="card">
+      <div class="bar">
+        <div class="bar-label">Local IndicConformer + Claude</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 8%; background: var(--bar1);">~30s</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label">Whisper-v3 + Claude (RTX 3060)</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 14%; background: var(--bar1);">~45s</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label">Gemini 2.5 Flash one-shot</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 18%; background: var(--bar1);">~60s</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label">Gemini 2.5 Pro one-shot</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 25%; background: var(--bar2);">~80s</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label">GPT-4o audio one-shot</div>
+        <div class="bar-track"><div class="bar-fill" style="width: 35%; background: var(--bar2);">~120s</div></div>
+      </div>
+      <div class="bar">
+        <div class="bar-label"><strong>Sarvam + Claude (current)</strong></div>
+        <div class="bar-track"><div class="bar-fill" style="width: 85%; background: var(--bar3);">~3-5min (queue + batch)</div></div>
+      </div>
+    </div>
+    <p class="footnote">
+      Sarvam latency dominated by their batch queue, which is variable. Local pipelines have predictable latency. Cloud one-shot pipelines depend on API responsiveness.
+    </p>
+
+    <h2>6. Risk & compliance</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Pipeline</th>
+          <th>Audio leaves clinic?</th>
+          <th>Audit trail (transcript)</th>
+          <th>Vendor lock-in</th>
+          <th>DPDP-Act posture</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Sarvam + Claude</td>
+          <td>Yes — to Sarvam (India-hosted), then Anthropic (US)</td>
+          <td><span class="pill pill-ok">Saved</span></td>
+          <td>Two vendors — manageable</td>
+          <td><span class="pill pill-ok">India residency on Sarvam</span></td>
+        </tr>
+        <tr class="recommended">
+          <td>IndicConformer + Claude</td>
+          <td>Only transcript text leaves — to Anthropic (US)</td>
+          <td><span class="pill pill-ok">Saved</span></td>
+          <td>One vendor (Anthropic)</td>
+          <td><span class="pill pill-ok">Best — audio never leaves clinic</span></td>
+        </tr>
+        <tr>
+          <td>Gemini 2.5 Flash one-shot</td>
+          <td>Yes — audio + transcript to Google</td>
+          <td><span class="pill pill-warn">Only if model emits one</span></td>
+          <td>Google owns entire pipeline</td>
+          <td><span class="pill pill-warn">Vertex India region available with BAA</span></td>
+        </tr>
+        <tr>
+          <td>GPT-4o audio</td>
+          <td>Yes — audio + transcript to OpenAI (US)</td>
+          <td><span class="pill pill-warn">Only if model emits one</span></td>
+          <td>OpenAI owns entire pipeline</td>
+          <td><span class="pill pill-bad">No India region; BAA via Azure OpenAI</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-warn">
+      <strong>Audit trail caveat for one-shot pipelines.</strong>
+      If you go Gemini or GPT-4o, ask the model to emit BOTH the structured JSON
+      AND a separate <code>transcript</code> field. Otherwise you have no record
+      of what the AI heard, and that's a real problem for medico-legal review and
+      for re-running extraction against an improved model later.
+    </div>
+
+    <h2>7. Detailed write-ups</h2>
+
+    <div class="card">
+      <h3>Option A — Sarvam + Claude (current)</h3>
+      <div class="kv">
+        <dt>What it is</dt>
+        <dd>Audio → Sarvam Saaras v3 batch (translate + diarise) → Claude Sonnet 4.6 (extract) → EMR JSON.</dd>
+        <dt>Strengths</dt>
+        <dd>Working today. Best diarisation for noisy 3-speaker scenarios. Indian-hosted ASR (DPDP-friendly). No hardware to manage.</dd>
+        <dt>Weaknesses</dt>
+        <dd>Slowest of all options — batch queue + processing takes 2–5 min. Most expensive sustainably.</dd>
+        <dt>When to keep it</dt>
+        <dd>For the first 3–6 months, run as a fallback behind <code>STT_PROVIDER=sarvam</code> while you validate alternatives. Don't rip it out.</dd>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Option B — Local IndicConformer + Claude</h3>
+      <div class="kv">
+        <dt>What it is</dt>
+        <dd>Self-hosted FastAPI service running AI4Bharat's IndicConformer 600M (Telugu ASR) + pyannote.audio 3.1 (diarisation). Optionally IndicTrans2 for Telugu→English MT, OR send Telugu directly to Claude Sonnet 4.6 (which translates and extracts in one call).</dd>
+        <dt>Strengths</dt>
+        <dd>Highest Telugu accuracy among open-source models (~10–15% WER). Code-mix native. Fast (30 s end-to-end on RTX 3060). Audio never leaves clinic. Pays back in ~2 months at 3-doctor volume.</dd>
+        <dt>Weaknesses</dt>
+        <dd>Requires a Linux GPU box (₹40k+ one-time) + ops burden of keeping it alive. Diarisation is a separate model to deploy. ~2-day proof-of-concept effort minimum.</dd>
+        <dt>When to pick it</dt>
+        <dd>If clinic data sensitivity matters (DPDP-Act, hospital partnerships) or if monthly volume is 5,000+ visits where the GPU pays back fast.</dd>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Option C — Gemini 2.5 Flash one-shot ★</h3>
+      <div class="kv">
+        <dt>What it is</dt>
+        <dd>Single Gemini API call: audio in, structured EMR JSON out. Replace both Sarvam and the Claude extract call with one Google call. Add <code>transcript</code> field to the schema so audit trail is preserved.</dd>
+        <dt>Strengths</dt>
+        <dd>Cheapest end-to-end (~₹0.20/visit). Fast (~60s). No hardware. One vendor. Long context — handles 25-min recordings without chunking. Good code-mix performance.</dd>
+        <dt>Weaknesses</dt>
+        <dd>Telugu medical accuracy unverified — needs a 10-recording side-by-side evaluation before commit. Diarisation is heuristic, not a dedicated model. Vendor lock-in to Google. Audio leaves the clinic.</dd>
+        <dt>When to pick it</dt>
+        <dd>If cost reduction is the primary driver and the side-by-side evaluation comes back acceptable on prescription accuracy. The 1-day evaluation is the cheapest experiment available.</dd>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Option D — Gemini 2.5 Pro one-shot</h3>
+      <div class="kv">
+        <dt>What it is</dt>
+        <dd>Same as Option C but on the larger Pro model — better reasoning, better Telugu, ~5× the cost of Flash but still 3× cheaper than Sarvam+Claude.</dd>
+        <dt>Strengths</dt>
+        <dd>Highest cloud-only quality. Stronger structured-output adherence. Deep reasoning helpful for nuanced extraction (e.g. "patient said allergic to penicillin once 5 years ago — note but don't escalate").</dd>
+        <dt>Weaknesses</dt>
+        <dd>Slower than Flash. More expensive than Flash. Same data residency caveats.</dd>
+        <dt>When to pick it</dt>
+        <dd>If Option C's evaluation shows Flash dropping drug names or misattributing speakers and you want to stay cloud-only.</dd>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Option E — GPT-4o audio one-shot</h3>
+      <div class="kv">
+        <dt>What it is</dt>
+        <dd>OpenAI's audio-native model. Sends audio directly via <code>input_audio</code> content type, returns text/JSON.</dd>
+        <dt>Strengths</dt>
+        <dd>Strong general intelligence. Good code-mix. Works.</dd>
+        <dt>Weaknesses</dt>
+        <dd>~10× the cost of Gemini Flash for similar quality. Slower than other options. No India data residency without going through Azure OpenAI.</dd>
+        <dt>When to pick it</dt>
+        <dd>Skip. Cost makes it a non-starter at OPD volumes. Re-evaluate when OpenAI ships cheaper audio pricing.</dd>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Option F — Whisper Large-v3 (translate mode) + Claude</h3>
+      <div class="kv">
+        <dt>What it is</dt>
+        <dd>OpenAI's open-source Whisper running locally with <code>task=translate</code> — outputs English directly. Fed to Claude for extraction.</dd>
+        <dt>Strengths</dt>
+        <dd>Single ASR step (skips MT). MIT-licensed. Apple Silicon friendly via whisper.cpp. Simplest local setup.</dd>
+        <dt>Weaknesses</dt>
+        <dd>Telugu WER is ~22–28% (compared to IndicConformer's ~10–15%). Drug names get mangled more often.</dd>
+        <dt>When to pick it</dt>
+        <dd>Day-1 local proof of concept before committing to IndicConformer. Or as a degraded fallback if IndicConformer container dies.</dd>
+      </div>
+    </div>
+
+    <h2>8. Decision flow</h2>
+
+    <pre>Do you have a Linux GPU box?
+  ├── No → Are you willing to pay ~₹9k/year for cloud STT?
+  │         ├── Yes → Run Option C (Gemini Flash) eval, pilot if it passes
+  │         └── No  → Stay on Sarvam, revisit when GPU is available
+  │
+  └── Yes → Is your bottleneck cost or accuracy?
+            ├── Cost     → Run Option C (Gemini Flash) eval
+            └── Accuracy → Run Option B (IndicConformer) eval
+                          ├── Drug-name accuracy ≥ Sarvam → Ship Option B
+                          └── Drug-name accuracy < Sarvam → Try Option D (Gemini Pro) or stay on Sarvam
+</pre>
+
+    <h2>9. Recommended action plan</h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>Week 1 — Cheap experiment</h4>
+        <ol>
+          <li><span class="step">1</span>Take 10 real recordings (different doctors, different languages, different lengths).</li>
+          <li><span class="step">2</span>Run them through current Sarvam + Claude pipeline. Save the extracted JSON.</li>
+          <li><span class="step">3</span>Run the same audio through Gemini 2.5 Flash with a prompt that emits <code>{transcript, extraction}</code>.</li>
+          <li><span class="step">4</span>Manually score: drug names matched? Diagnosis matched? Vitals matched? Speaker attribution correct?</li>
+        </ol>
+        <p class="footnote">Cost: ~₹100 in API calls + 1 day of work. Decisive answer on whether Option C is viable.</p>
+      </div>
+      <div class="card">
+        <h4>Week 2 — If C passes, ship it</h4>
+        <ol>
+          <li><span class="step">1</span>Add <code>STT_PROVIDER=sarvam|gemini</code> env flag.</li>
+          <li><span class="step">2</span>Implement <code>lib/ai/gemini-audio.ts</code> that returns the existing <code>SarvamResult</code> shape so nothing else changes.</li>
+          <li><span class="step">3</span>Default to Gemini, fall back to Sarvam on error.</li>
+          <li><span class="step">4</span>Monitor extraction quality for 4 weeks against Sarvam shadow runs.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h4>Week 2 (alt) — If C fails, try B</h4>
+        <ol>
+          <li><span class="step">1</span>Rent an RTX 4090 on Runpod for 1 week (~₹4k).</li>
+          <li><span class="step">2</span>Containerise IndicConformer + IndicTrans2 + pyannote behind FastAPI.</li>
+          <li><span class="step">3</span>Run the same 10 recordings; compare against Sarvam.</li>
+          <li><span class="step">4</span>If B passes, buy a permanent RTX 3060 12 GB and deploy.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h4>Don't do (yet)</h4>
+        <ul class="check-list">
+          <li class="cross">Don't tear out Sarvam — keep as fallback.</li>
+          <li class="cross">Don't switch to GPT-4o audio at current pricing.</li>
+          <li class="cross">Don't deploy SeamlessM4T (CC-BY-NC, non-commercial).</li>
+          <li class="cross">Don't deploy Vosk (~40% WER on Telugu).</li>
+          <li class="cross">Don't run Whisper on CPU (latency win disappears).</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>10. Open questions worth answering before any commit</h2>
+
+    <ul>
+      <li><strong>Is data residency a hard requirement?</strong> If yes, IndicConformer + Claude (Option B) is the only path that keeps audio in India. Gemini and GPT-4o both leave India by default.</li>
+      <li><strong>Are visits regularly &gt; 15 minutes?</strong> If yes, Gemini Pro / Flash both handle long context fine. Whisper local needs VAD-based chunking.</li>
+      <li><strong>How often do you have 3+ speakers (family member translating)?</strong> If frequent, dedicated diarisation (pyannote / Sarvam) beats Gemini's heuristic.</li>
+      <li><strong>What does the Sarvam contract look like?</strong> If you have a fixed monthly fee, the cost case for switching weakens. If pay-per-use, the case is strongest.</li>
+      <li><strong>Does the team have Python ops capacity?</strong> Gemini path needs none. IndicConformer path needs someone to monitor a Python service.</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Bottom line.</strong> The cheapest experiment with the biggest information gain is the Week 1 evaluation against Gemini 2.5 Flash. ₹100 and one day of your time will tell you whether you can save ~₹150,000/year while shipping faster transcripts. Do that first; everything else follows.
+    </div>
+
+    <p class="footnote">
+      All prices are April 2026 estimates. Confirm with vendor pricing pages before
+      committing. WER and BLEU numbers are from public benchmarks (Kathbath,
+      Indic-SUPERB, FLORES-Telugu) and AI4Bharat / NVIDIA / OpenAI papers — real
+      OPD audio with overlapping speakers and ambient noise is typically 1.5–2× harder than benchmark conditions.
+    </p>
+  </body>
+</html>

@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello Doctor — Architecture</title>
+    <style>
+      :root {
+        --bg: #1a1b1e;
+        --bg-elev: #25262b;
+        --bg-elev-2: #2c2e33;
+        --fg: #e9ecef;
+        --fg-dim: #adb5bd;
+        --fg-faint: #868e96;
+        --rule: #373a40;
+        --rule-soft: #2c2e33;
+        --brand: #4dabf7;
+        --brand-dim: #1971c2;
+        --brand-bg: rgba(34, 139, 230, 0.12);
+        --accent: #38d9a9;
+        --accent-bg: rgba(56, 217, 169, 0.10);
+        --warn: #ffd43b;
+        --warn-bg: rgba(255, 212, 59, 0.10);
+        --rose: #ff8787;
+        --rose-bg: rgba(255, 135, 135, 0.10);
+        --code-bg: #16171a;
+        --code-fg: #ced4da;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0; padding: 40px 24px;
+        font: 14.5px/1.65 "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg); color: var(--fg);
+        letter-spacing: -0.005em;
+      }
+      main { max-width: 1080px; margin: 0 auto; }
+      header { margin-bottom: 36px; }
+      h1 { font-size: 32px; margin: 0 0 6px; letter-spacing: -0.025em; color: #fff; }
+      h2 {
+        font-size: 22px; margin: 40px 0 12px; letter-spacing: -0.015em;
+        padding-top: 22px; border-top: 1px solid var(--rule); color: #fff;
+      }
+      h3 { font-size: 16px; margin: 24px 0 8px; color: var(--brand); letter-spacing: -0.005em; }
+      h4 { font-size: 13px; margin: 16px 0 6px; color: var(--fg-dim);
+           text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+      p, li { color: var(--fg); }
+      .lede { font-size: 16px; color: var(--fg-dim); margin: 0 0 8px; max-width: 720px; }
+      .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+      .badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 3px 9px; border-radius: 999px;
+        font-size: 11.5px; font-weight: 600;
+        background: var(--brand-bg); color: var(--brand);
+        border: 1px solid rgba(34, 139, 230, 0.3);
+      }
+      .badge-accent { background: var(--accent-bg); color: var(--accent); border-color: rgba(56, 217, 169, 0.3); }
+      .badge-warn   { background: var(--warn-bg); color: var(--warn); border-color: rgba(255, 212, 59, 0.3); }
+      .badge-faint  { background: rgba(173,181,189,0.08); color: var(--fg-dim); border-color: var(--rule); }
+      .toc {
+        font-size: 13px; color: var(--fg-dim);
+        background: var(--bg-elev); border: 1px solid var(--rule);
+        padding: 14px 20px; border-radius: 10px; margin-bottom: 24px;
+        column-count: 2; column-gap: 32px;
+      }
+      .toc ol { margin: 0; padding-left: 22px; }
+      .toc li { padding: 1px 0; break-inside: avoid; }
+      .toc a { color: var(--brand); text-decoration: none; }
+      .toc a:hover { text-decoration: underline; }
+      code {
+        font: 12.5px/1.45 ui-monospace, "JetBrains Mono", Menlo, monospace;
+        background: var(--code-bg); color: var(--code-fg);
+        padding: 1px 5px; border-radius: 4px;
+        border: 1px solid var(--rule-soft);
+      }
+      pre {
+        background: var(--code-bg); color: var(--code-fg);
+        border: 1px solid var(--rule);
+        padding: 14px 16px; border-radius: 8px;
+        font: 12.5px/1.6 ui-monospace, Menlo, monospace;
+        overflow-x: auto; margin: 12px 0;
+      }
+      pre code { background: transparent; padding: 0; border: none; }
+      .card {
+        background: var(--bg-elev); border: 1px solid var(--rule);
+        border-radius: 10px; padding: 18px 20px; margin: 14px 0;
+      }
+      .grid {
+        display: grid; gap: 14px;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        margin: 14px 0;
+      }
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+      @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+      .tile {
+        background: var(--bg-elev); border: 1px solid var(--rule);
+        padding: 14px 16px; border-radius: 8px;
+      }
+      .tile h4 { margin-top: 0; }
+      table {
+        width: 100%; border-collapse: collapse; margin: 12px 0;
+        font-size: 13px; background: var(--bg-elev);
+        border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;
+      }
+      th, td { padding: 9px 12px; text-align: left; vertical-align: top;
+               border-bottom: 1px solid var(--rule-soft); }
+      tbody tr:last-child td { border-bottom: none; }
+      th { font-weight: 600; color: var(--fg-dim); font-size: 11px;
+           text-transform: uppercase; letter-spacing: 0.05em;
+           background: var(--bg-elev-2); }
+      tr:hover td { background: var(--bg-elev-2); }
+      .method {
+        display: inline-block; min-width: 48px; text-align: center;
+        font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em;
+        padding: 2px 7px; border-radius: 4px; font-family: ui-monospace, Menlo, monospace;
+      }
+      .m-get   { background: rgba(34, 139, 230, 0.18); color: var(--brand); }
+      .m-post  { background: rgba(56, 217, 169, 0.18); color: var(--accent); }
+      .m-patch { background: rgba(255, 212, 59, 0.18); color: var(--warn); }
+      .m-del   { background: rgba(255, 135, 135, 0.18); color: var(--rose); }
+      .ascii {
+        background: var(--code-bg); color: var(--code-fg);
+        border: 1px solid var(--rule); border-radius: 8px;
+        padding: 16px 20px; margin: 14px 0;
+        font: 12px/1.55 ui-monospace, Menlo, monospace;
+        white-space: pre; overflow-x: auto;
+      }
+      .pill {
+        display: inline-block; padding: 1px 7px; border-radius: 999px;
+        font-size: 10.5px; font-weight: 600; vertical-align: middle;
+        margin-left: 6px;
+      }
+      .pill-doc { background: rgba(34, 139, 230, 0.18); color: var(--brand); }
+      .pill-ma  { background: rgba(56, 217, 169, 0.18); color: var(--accent); }
+      .pill-adm { background: rgba(255, 212, 59, 0.18); color: var(--warn); }
+      .pill-pub { background: rgba(173,181,189,0.15); color: var(--fg-dim); }
+      ul.tight li { margin: 2px 0; }
+      .col-pk { color: var(--warn); font-weight: 700; }
+      .col-fk { color: var(--brand); }
+      .col-type { color: var(--fg-faint); font-size: 11.5px; }
+      .small { font-size: 12px; color: var(--fg-dim); }
+      .legend {
+        display: flex; flex-wrap: wrap; gap: 14px;
+        font-size: 12px; color: var(--fg-dim); margin: 8px 0 18px;
+      }
+      .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+      a { color: var(--brand); }
+      ::selection { background: rgba(34,139,230,0.4); color: #fff; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Hello Doctor — Architecture</h1>
+        <p class="lede">
+          Voice-driven EMR for Indian OPD clinics. The doctor records the
+          consultation, the system transcribes and drafts a structured EMR,
+          the doctor reviews and saves. Everything is ABDM / FHIR R4 ready.
+        </p>
+        <div class="badge-row">
+          <span class="badge">Next.js 15 · App Router</span>
+          <span class="badge">React 18 · Server Components</span>
+          <span class="badge">Supabase · Postgres + RLS + Storage</span>
+          <span class="badge">Sarvam Saaras v3 · STT</span>
+          <span class="badge">Claude Sonnet 4.6 / Haiku 4.5</span>
+          <span class="badge">FHIR R4 · ABDM OPConsultRecord</span>
+          <span class="badge-accent badge">Tailwind CSS · dark/light</span>
+        </div>
+        <div class="toc" style="margin-top:24px">
+          <strong style="color:var(--fg)">Contents</strong>
+          <ol>
+            <li><a href="#overview">System overview</a></li>
+            <li><a href="#stack">Tech stack</a></li>
+            <li><a href="#topology">Runtime topology</a></li>
+            <li><a href="#screens">Screens (routes)</a></li>
+            <li><a href="#endpoints">API endpoints</a></li>
+            <li><a href="#schema">Database schema</a></li>
+            <li><a href="#features">Features by role</a></li>
+            <li><a href="#flows">Key flows</a></li>
+            <li><a href="#ai">AI pipeline (STT → extraction → review)</a></li>
+            <li><a href="#fhir">FHIR / ABDM layer</a></li>
+            <li><a href="#auth">Auth &amp; RLS model</a></li>
+            <li><a href="#ui">UI system &amp; theming</a></li>
+            <li><a href="#cost">Cost tracking (INR)</a></li>
+            <li><a href="#audit">Audit &amp; compliance logs</a></li>
+            <li><a href="#fs">Source layout</a></li>
+          </ol>
+        </div>
+      </header>
+
+      <h2 id="overview">1 · System overview</h2>
+      <p>
+        Hello Doctor turns a consultation conversation into a clinic-ready EMR
+        in minutes. A medical assistant captures vitals at intake; the doctor
+        records the consult; the audio is transcribed, structured by an LLM,
+        and presented to the doctor for review. The reviewed visit is saved
+        as a Postgres row that maps cleanly to a FHIR R4
+        <code>OPConsultRecord</code> Bundle for ABDM exchange.
+      </p>
+      <div class="ascii">
+   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+   │  MA / Front  │    │   Doctor     │    │    Admin     │
+   │   desk       │    │              │    │              │
+   └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+          │ intake +          │ record +          │ team +
+          │ vitals            │ review            │ clinic profile
+          ▼                   ▼                   ▼
+   ┌────────────────────────────────────────────────────────┐
+   │             Hello Doctor (Next.js App Router)          │
+   │  ┌──────────────────────────────────────────────────┐  │
+   │  │ Server components · API routes · Edge handlers   │  │
+   │  └──────────────────────────────────────────────────┘  │
+   └──┬───────────────┬────────────────┬─────────────────┬──┘
+      │               │                │                 │
+      ▼               ▼                ▼                 ▼
+   Supabase        Sarvam            Anthropic        FHIR validator
+   Postgres+RLS    Saaras v3 STT     Claude           (HL7 — local/CI)
+   Storage         (translate +      Haiku 4.5
+   Auth            diarize)          / Sonnet 4.6
+        </div>
+
+      <h2 id="stack">2 · Tech stack</h2>
+      <div class="grid">
+        <div class="tile">
+          <h4>Frontend</h4>
+          <ul class="tight">
+            <li>Next.js 15 App Router</li>
+            <li>React 18 server + client components</li>
+            <li>Tailwind CSS v3 (<code>darkMode: "class"</code>)</li>
+            <li>Mantine-inspired blue palette + warm <code>ink</code> dark scale</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h4>Backend</h4>
+          <ul class="tight">
+            <li>Next.js route handlers (Node runtime)</li>
+            <li>Supabase Postgres with Row Level Security</li>
+            <li>Service-role admin client for privileged writes (audit, FHIR export)</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h4>Storage</h4>
+          <ul class="tight">
+            <li>Supabase Storage bucket <code>visit-audio</code> (encrypted, 30-day TTL)</li>
+            <li>Supabase Storage bucket <code>doctor-assets</code> (signature, letterhead)</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h4>AI services</h4>
+          <ul class="tight">
+            <li>Sarvam Saaras v3 — Indian-language STT + diarization + English translation</li>
+            <li>Claude Haiku 4.5 — extraction (default), pre-visit summary</li>
+            <li>Claude Sonnet 4.6 — fallback for low-confidence extractions</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h4>Standards</h4>
+          <ul class="tight">
+            <li>FHIR R4 (HL7)</li>
+            <li>ABDM OPConsultRecord profile (NRCES IG)</li>
+            <li>ICD-10 (diagnoses), LOINC (vitals/sections), SNOMED CT (routes), UCUM (units)</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h4>Tooling</h4>
+          <ul class="tight">
+            <li>TypeScript 5.6</li>
+            <li>HL7 <code>validator_cli.jar</code> in CI (GitHub Actions)</li>
+            <li><code>tsx</code> for fixture generation</li>
+          </ul>
+        </div>
+      </div>
+
+      <h2 id="topology">3 · Runtime topology</h2>
+      <div class="ascii">
+                       ┌───────────────────┐
+                       │   Browser (PWA)   │
+                       │  Tailwind + React │
+                       └─────────┬─────────┘
+                                 │ HTTPS
+                                 ▼
+   ┌──────────────────────────────────────────────────────────────────┐
+   │                      Next.js (Node runtime)                      │
+   │                                                                  │
+   │   App Router                  Route handlers                     │
+   │   ─────────────               ─────────────────                  │
+   │   /(app)/dashboard            POST /api/transcribe               │
+   │   /(app)/appointments         POST /api/extract                  │
+   │   /(app)/emr/...              POST /api/pre-visit-summary        │
+   │   /(app)/settings             GET  /api/fhir/visit/[id]          │
+   │                               POST /api/clinic                   │
+   │                               POST /api/clinic/regenerate-invite │
+   │                               POST /api/team/members             │
+   │                               PATCH/DELETE /api/team/members/[id]│
+   │                               POST /api/emr-number               │
+   └─────────┬──────────────────────────────┬────────────────┬───────┘
+             │ supabase-js (cookie auth)    │ fetch          │ fetch
+             ▼                              ▼                ▼
+   ┌────────────────────────┐    ┌─────────────────┐  ┌──────────────┐
+   │   Supabase             │    │  Sarvam Saaras  │  │  Anthropic   │
+   │ ──────────             │    │     v3 (batch)  │  │   API        │
+   │ Postgres + RLS         │    └─────────────────┘  └──────────────┘
+   │ Storage (audio,assets) │
+   │ Auth (email+password)  │
+   └────────────────────────┘
+        </div>
+
+      <h2 id="screens">4 · Screens (routes)</h2>
+      <p class="legend">
+        <span class="legend-item"><span class="pill pill-doc">DOC</span> Doctor</span>
+        <span class="legend-item"><span class="pill pill-ma">MA</span> Medical assistant</span>
+        <span class="legend-item"><span class="pill pill-adm">ADM</span> Admin</span>
+        <span class="legend-item"><span class="pill pill-pub">PUB</span> Public / unauthenticated</span>
+      </p>
+      <table>
+        <thead><tr><th style="width:30%">Route</th><th style="width:14%">Roles</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>/</code></td><td><span class="pill pill-pub">PUB</span></td><td>Marketing landing → redirects to dashboard if signed in.</td></tr>
+          <tr><td><code>/login</code></td><td><span class="pill pill-pub">PUB</span></td><td>Email + password sign-in. Email link option for invite-onboarded staff.</td></tr>
+          <tr><td><code>/onboarding</code></td><td><span class="pill pill-pub">PUB</span></td><td>First-run flow: create new clinic OR join with invite code. Auto-promotes the only clinic member to admin.</td></tr>
+          <tr><td><code>/(app)/dashboard</code></td><td><span class="pill pill-doc">DOC</span> <span class="pill pill-ma">MA</span> <span class="pill pill-adm">ADM</span></td><td>Role-aware home. MA sees pending intake + queue. Doctor sees their queue, in-progress, awaiting-review counters and quick consultation launcher. Admin sees clinic-wide stats.</td></tr>
+          <tr><td><code>/(app)/appointments</code></td><td><span class="pill pill-doc">DOC</span> <span class="pill pill-ma">MA</span> <span class="pill pill-adm">ADM</span></td><td>Week-strip calendar with appointment counts. Doctors see only their own; MA/admin see all clinic doctors. Book new appointment via modal.</td></tr>
+          <tr><td><code>/(app)/emr</code></td><td><span class="pill pill-doc">DOC</span> <span class="pill pill-ma">MA</span> <span class="pill pill-adm">ADM</span></td><td>Patient directory with search (by name, phone, EMR number). Last-visit indicator + chronic-condition pills.</td></tr>
+          <tr><td><code>/(app)/emr/new</code></td><td><span class="pill pill-ma">MA</span> <span class="pill pill-doc">DOC</span></td><td>Reception or doctor quick-intake forms. MA flow assigns to doctor + optional appointment time.</td></tr>
+          <tr><td><code>/(app)/emr/[id]</code></td><td><span class="pill pill-doc">DOC</span> <span class="pill pill-ma">MA</span> <span class="pill pill-adm">ADM</span></td><td>Patient detail page: profile, allergies, chronic conditions, visit timeline.</td></tr>
+          <tr><td><code>/(app)/emr/[id]/visits/new</code></td><td><span class="pill pill-doc">DOC</span></td><td>Start a new visit. Two modes: <em>Record consultation</em> (audio recorder) or <em>Manual entry</em> (open review screen blank).</td></tr>
+          <tr><td><code>/(app)/emr/[id]/visits/[vid]/intake</code></td><td><span class="pill pill-ma">MA</span></td><td>Front-desk vitals + chief complaint capture for an in-progress visit.</td></tr>
+          <tr><td><code>/(app)/emr/[id]/visits/[vid]/review</code></td><td><span class="pill pill-doc">DOC</span></td><td>The main EMR review screen. AI-drafted fields with yellow (assumed) / green (captured) markers, prescription editor with diff against previous Rx, vitals, plan, transcript drawer.</td></tr>
+          <tr><td><code>/(app)/emr/[id]/visits/[vid]/print</code></td><td><span class="pill pill-doc">DOC</span></td><td>Printable prescription with letterhead + signature.</td></tr>
+          <tr><td><code>/(app)/settings</code></td><td><span class="pill pill-doc">DOC</span> <span class="pill pill-adm">ADM</span></td><td>Doctor profile (name, qualification, council reg, HPR ID), signature/letterhead upload.</td></tr>
+          <tr><td><code>/(app)/settings/team</code></td><td><span class="pill pill-adm">ADM</span></td><td>Add/remove clinic staff, change roles, regenerate invite code.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="endpoints">5 · API endpoints</h2>
+      <table>
+        <thead><tr><th style="width:8%"></th><th style="width:30%">Endpoint</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><span class="method m-post">POST</span></td><td><code>/api/transcribe</code></td><td>Send a visit's stored audio to Sarvam Saaras v3. Stores transcript text + diarized speaker turns + detected language on the visit row. Logs cost row.</td></tr>
+          <tr><td><span class="method m-post">POST</span></td><td><code>/api/extract</code></td><td>Run Claude on the diarized transcript. Identifies the doctor speaker, extracts every clinical field, ICD-10 codes, prescription medicines with diff status, follow-up, and the per-field assumption map. Falls back to Sonnet on low confidence. Persists to the visit. Logs cost row.</td></tr>
+          <tr><td><span class="method m-post">POST</span></td><td><code>/api/pre-visit-summary</code></td><td>Generate a 4-section briefer (Patient context, Today, Recent pattern, Watchpoints) from intake + last 2 visits. Cached on the visit; <code>force: true</code> regenerates.</td></tr>
+          <tr><td><span class="method m-get">GET</span></td><td><code>/api/fhir/visit/[id]</code></td><td>Emit the visit as a FHIR R4 OPConsultRecord Bundle. <code>application/fhir+json</code>. Logs a row to <code>clinical_disclosures</code>.</td></tr>
+          <tr><td><span class="method m-post">POST</span></td><td><code>/api/clinic</code></td><td>Update clinic profile (name, address, city, state, established year, letterhead). Admin-only.</td></tr>
+          <tr><td><span class="method m-post">POST</span></td><td><code>/api/clinic/regenerate-invite</code></td><td>Mint a new 8-char invite code. Admin-only; enforced by <code>regenerate_clinic_invite_code()</code> SQL function.</td></tr>
+          <tr><td><span class="method m-post">POST</span></td><td><code>/api/team/members</code></td><td>Invite a colleague by email; sends sign-up link with the clinic's invite code prefilled.</td></tr>
+          <tr><td><span class="method m-patch">PATCH</span></td><td><code>/api/team/members/[id]</code></td><td>Change a member's role (doctor / medical_assistant / admin). Admin-only.</td></tr>
+          <tr><td><span class="method m-del">DEL</span></td><td><code>/api/team/members/[id]</code></td><td>Remove a member from the clinic.</td></tr>
+          <tr><td><span class="method m-post">POST</span></td><td><code>/api/emr-number</code></td><td>Generate a clinic-unique EMR number (e.g. <code>HD-2026-00042</code>). Used at patient creation.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="schema">6 · Database schema</h2>
+      <p class="small">
+        Postgres in Supabase. All tables enforce clinic-scoped Row Level
+        Security via <code>public.current_clinic_id()</code>.
+        <span class="col-pk">PK</span> = primary key &nbsp;
+        <span class="col-fk">FK</span> = foreign key &nbsp;
+        <span class="col-type">type</span> in light grey.
+      </p>
+
+      <h3><code>clinics</code></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td>Primary key.</td></tr>
+          <tr><td>name, address, phone, city, state, email</td><td><span class="col-type">text</span></td><td>Clinic profile.</td></tr>
+          <tr><td>invite_code</td><td><span class="col-type">text unique</span></td><td>8-char join code; rotatable by admin.</td></tr>
+          <tr><td>established_year</td><td><span class="col-type">integer</span></td><td>For letterhead.</td></tr>
+          <tr><td>letterhead_header, letterhead_footer</td><td><span class="col-type">text</span></td><td>Print-time content.</td></tr>
+          <tr><td>created_at</td><td><span class="col-type">timestamptz</span></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>doctors</code> <span class="small">(holds all clinic staff — name kept for FK continuity)</span></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td>= <code>auth.users.id</code></td></tr>
+          <tr><td><span class="col-fk">clinic_id</span></td><td><span class="col-type">uuid → clinics.id</span></td><td>RLS scope.</td></tr>
+          <tr><td>full_name, qualification</td><td><span class="col-type">text</span></td><td></td></tr>
+          <tr><td>registration_number</td><td><span class="col-type">text</span></td><td>State Medical Council number.</td></tr>
+          <tr><td>hpr_id</td><td><span class="col-type">text</span></td><td>ABDM Healthcare Professional Registry ID.</td></tr>
+          <tr><td>role</td><td><span class="col-type">text</span></td><td><code>doctor</code> | <code>medical_assistant</code> | <code>admin</code></td></tr>
+          <tr><td>signature_url, letterhead_url</td><td><span class="col-type">text</span></td><td>Storage paths.</td></tr>
+          <tr><td>preferred_language</td><td><span class="col-type">text</span></td><td>UI default.</td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>patients</code></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td><span class="col-fk">clinic_id</span></td><td><span class="col-type">uuid → clinics.id</span></td><td>RLS scope.</td></tr>
+          <tr><td>emr_number</td><td><span class="col-type">text unique</span></td><td>Clinic-unique.</td></tr>
+          <tr><td>full_name</td><td><span class="col-type">text</span></td><td>Display name.</td></tr>
+          <tr><td>given_name, family_name</td><td><span class="col-type">text</span></td><td>FHIR Patient.name.given / family.</td></tr>
+          <tr><td>age, birthdate</td><td><span class="col-type">int / date</span></td><td>birthdate preferred for FHIR; age fallback.</td></tr>
+          <tr><td>sex</td><td><span class="col-type">M | F | O</span></td><td>Mapped to FHIR gender at export.</td></tr>
+          <tr><td>phone, email</td><td><span class="col-type">text</span></td><td>FHIR Patient.telecom.</td></tr>
+          <tr><td>address_line1, address_line2, city, state, postal_code, country</td><td><span class="col-type">text</span></td><td>Structured address. Country defaults <code>IN</code>.</td></tr>
+          <tr><td>blood_group</td><td><span class="col-type">text</span></td><td></td></tr>
+          <tr><td>known_allergies, chronic_conditions</td><td><span class="col-type">text</span></td><td>Free-text legacy. Allergies preferentially read from <code>patient_allergies</code>.</td></tr>
+          <tr><td>abha_id, abha_address</td><td><span class="col-type">text</span></td><td>ABDM identity. Indexed.</td></tr>
+          <tr><td>last_visit_at</td><td><span class="col-type">timestamptz</span></td><td>Maintained by trigger.</td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>patient_allergies</code></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td><span class="col-fk">patient_id</span></td><td><span class="col-type">uuid → patients.id</span></td><td></td></tr>
+          <tr><td>allergen</td><td><span class="col-type">text</span></td><td>One row per allergen.</td></tr>
+          <tr><td>reaction</td><td><span class="col-type">text</span></td><td>FHIR AllergyIntolerance.reaction.manifestation.</td></tr>
+          <tr><td>severity</td><td><span class="col-type">mild | moderate | severe</span></td><td>FHIR AllergyIntolerance.criticality.</td></tr>
+          <tr><td>recorded_at</td><td><span class="col-type">timestamptz</span></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>visits</code></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td><span class="col-fk">patient_id</span></td><td><span class="col-type">uuid → patients.id</span></td><td></td></tr>
+          <tr><td><span class="col-fk">doctor_id</span></td><td><span class="col-type">uuid → doctors.id</span></td><td>Primary attending.</td></tr>
+          <tr><td><span class="col-fk">clinic_id</span></td><td><span class="col-type">uuid → clinics.id</span></td><td>RLS scope.</td></tr>
+          <tr><td><span class="col-fk">created_by</span></td><td><span class="col-type">uuid → doctors.id</span></td><td>Whoever opened the visit (often MA).</td></tr>
+          <tr><td>visit_date, completed_at</td><td><span class="col-type">timestamptz</span></td><td>Encounter.period.</td></tr>
+          <tr><td>status</td><td><span class="col-type">enum</span></td><td><code>intake → queued → in_progress → awaiting_review → completed</code> (or <code>cancelled</code>).</td></tr>
+          <tr><td>encounter_class</td><td><span class="col-type">text default 'AMB'</span></td><td>FHIR Encounter.class. Always ambulatory in OPD.</td></tr>
+          <tr><td>bp_systolic, bp_diastolic, pulse, temperature_f, spo2, weight_kg, height_cm</td><td><span class="col-type">numeric</span></td><td>Captured at intake or by AI from recording.</td></tr>
+          <tr><td>chief_complaints, history_present_illness, past_history, examination_findings</td><td><span class="col-type">text</span></td><td>Clinical narrative.</td></tr>
+          <tr><td>provisional_diagnosis, confirmed_diagnosis</td><td><span class="col-type">text</span></td><td>FHIR Condition with verificationStatus mapped from which one is set.</td></tr>
+          <tr><td>icd_codes</td><td><span class="col-type">text[]</span></td><td>1–3 ICD-10 codes per Condition.</td></tr>
+          <tr><td>investigations_ordered</td><td><span class="col-type">text</span></td><td>Comma-separated; split into ServiceRequest[] at export.</td></tr>
+          <tr><td>prescription</td><td><span class="col-type">jsonb</span></td><td>{ medicines[]: { name, dose, frequency, duration, route, instructions, status } }</td></tr>
+          <tr><td>advice, follow_up_date, follow_up_notes</td><td><span class="col-type">text / date / text</span></td><td>Plan.</td></tr>
+          <tr><td>field_assumptions</td><td><span class="col-type">jsonb</span></td><td>Per-field <code>"stated" | "assumed" | null</code> for the yellow/green UI.</td></tr>
+          <tr><td>audio_url</td><td><span class="col-type">text</span></td><td>Path in <code>visit-audio</code> bucket.</td></tr>
+          <tr><td>transcript_text, transcript_original, transcript_language</td><td><span class="col-type">text</span></td><td>From Sarvam.</td></tr>
+          <tr><td>transcript_speakers</td><td><span class="col-type">jsonb</span></td><td>Diarized turns.</td></tr>
+          <tr><td>doctor_speaker_id, doctor_id_confidence</td><td><span class="col-type">text</span></td><td>Which speaker tag is the doctor.</td></tr>
+          <tr><td>llm_extraction_raw</td><td><span class="col-type">jsonb</span></td><td>Full Claude response for audit / re-run.</td></tr>
+          <tr><td>pre_visit_summary, pre_visit_summary_generated_at</td><td><span class="col-type">text / ts</span></td><td>4-section briefer.</td></tr>
+          <tr><td>doctor_notes</td><td><span class="col-type">text</span></td><td>Internal — not printed.</td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>visit_doctors</code> <span class="small">(many-to-many for multi-doctor visits)</span></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk col-fk">visit_id, doctor_id</span></td><td><span class="col-type">uuid</span></td><td>Composite PK.</td></tr>
+          <tr><td>role</td><td><span class="col-type">attending | resident | consultant</span></td><td></td></tr>
+          <tr><td>assigned_at</td><td><span class="col-type">timestamptz</span></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>appointments</code></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td><span class="col-fk">clinic_id, patient_id, doctor_id, created_by</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td>scheduled_at, duration_minutes</td><td><span class="col-type">timestamptz / int</span></td><td>Default 15 min.</td></tr>
+          <tr><td>type</td><td><span class="col-type">regular | follow_up | emergency | procedure</span></td><td></td></tr>
+          <tr><td>priority</td><td><span class="col-type">normal | urgent | routine</span></td><td></td></tr>
+          <tr><td>status</td><td><span class="col-type">scheduled | checked_in | completed | cancelled | no_show</span></td><td></td></tr>
+          <tr><td>notes</td><td><span class="col-type">text</span></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>api_usage_events</code></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td><span class="col-fk">clinic_id, user_id, visit_id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td>service</td><td><span class="col-type">sarvam_stt | claude_haiku_4_5 | claude_sonnet_4_6 | claude_opus_4_7</span></td><td></td></tr>
+          <tr><td>operation</td><td><span class="col-type">text</span></td><td><code>transcribe</code>, <code>extract</code>, <code>pre_visit_summary</code>.</td></tr>
+          <tr><td>audio_duration_seconds</td><td><span class="col-type">numeric</span></td><td>Sarvam only.</td></tr>
+          <tr><td>input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens</td><td><span class="col-type">int</span></td><td>Claude only.</td></tr>
+          <tr><td>cost_inr</td><td><span class="col-type">numeric(12,4)</span></td><td>Computed at insert. ₹45/hour Sarvam, USD-equivalent × 85 for Claude.</td></tr>
+          <tr><td>metadata, created_at</td><td><span class="col-type">jsonb / ts</span></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>clinical_disclosures</code> <span class="small">(append-only, ≥7-year retention)</span></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td><span class="col-fk">clinic_id, patient_id, visit_id, actor_id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td>consumer_type</td><td><span class="col-type">enum</span></td><td><code>self_print</code> | <code>patient_pdf</code> | <code>fhir_export</code> | <code>abdm_hiu</code> | <code>referral</code> | <code>insurer</code></td></tr>
+          <tr><td>consumer_label, consent_artifact_id</td><td><span class="col-type">text</span></td><td>For ABDM HIU disclosures.</td></tr>
+          <tr><td>bundle_profile</td><td><span class="col-type">text default 'OPConsultRecord'</span></td><td></td></tr>
+          <tr><td>content_sha256, content_bytes</td><td><span class="col-type">text / int</span></td><td>Proof-without-storage.</td></tr>
+          <tr><td>disclosed_at</td><td><span class="col-type">timestamptz</span></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3><code>audit_events</code> <span class="small">(write-side audit on visits)</span></h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type / FK</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="col-pk">id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td><span class="col-fk">doctor_id, actor_id, entity_id</span></td><td><span class="col-type">uuid</span></td><td></td></tr>
+          <tr><td>entity_type</td><td><span class="col-type">visit</span></td><td>Reserved for future entity types.</td></tr>
+          <tr><td>action</td><td><span class="col-type">create | update | delete</span></td><td></td></tr>
+          <tr><td>payload</td><td><span class="col-type">jsonb</span></td><td>Diff snapshot.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="features">7 · Features by role</h2>
+
+      <div class="grid-2">
+        <div class="tile">
+          <h4 style="color:var(--accent)">Medical Assistant</h4>
+          <ul class="tight">
+            <li>Pending intake queue (visits in <code>intake</code>)</li>
+            <li>New patient + new visit modal with vitals + chief complaint</li>
+            <li>Assign one or more doctors per visit (attending / resident / consultant)</li>
+            <li>Optional appointment booking at intake time</li>
+            <li>Capture/edit ABHA ID, ABHA address, structured address</li>
+            <li>Front-desk vitals re-entry on <code>/intake</code> screen</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h4 style="color:var(--brand)">Doctor</h4>
+          <ul class="tight">
+            <li>Personal queue: queued, in-progress, awaiting-review counters</li>
+            <li>Quick consultation launcher (search patient → start recording)</li>
+            <li>Audio recorder with live waveform (max 25 min)</li>
+            <li>Auto-pipeline: upload → transcribe (Sarvam) → extract (Claude)</li>
+            <li>Review screen with yellow (assumed) / green (captured) field markers</li>
+            <li>Prescription editor with diff against last visit (<code>new</code> / <code>continued</code> / <code>modified</code> / <code>stopped</code>)</li>
+            <li>Speaker flip (re-attribute doctor ↔ patient + re-extract)</li>
+            <li>Pre-visit AI summary (Patient context · Today · Recent pattern · Watchpoints)</li>
+            <li>Print-ready prescription with letterhead + signature</li>
+            <li>FHIR Bundle export (single click) for referral / patient handoff</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h4 style="color:var(--warn)">Admin</h4>
+          <ul class="tight">
+            <li>Clinic profile (name, address, established year, letterhead)</li>
+            <li>Team management — invite by email, change roles, remove</li>
+            <li>Invite-code rotation</li>
+            <li>Cost &amp; usage view (per service, per month, INR)</li>
+            <li>Disclosure audit log (read-only, append-only)</li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h4 style="color:var(--fg-dim)">Cross-cutting</h4>
+          <ul class="tight">
+            <li>Dark / light theme toggle (no flash, persisted in <code>localStorage</code>)</li>
+            <li>Keyboard-friendly modals + focus management</li>
+            <li>Mobile drawer navigation</li>
+            <li>Toast notifications for success / error / info</li>
+            <li>Search-as-you-type patient lookup</li>
+            <li>Audio retention 30 days; transcript + structured fields kept indefinitely</li>
+          </ul>
+        </div>
+      </div>
+
+      <h2 id="flows">8 · Key flows</h2>
+
+      <h3>8.1 New visit (MA-led)</h3>
+      <div class="ascii">
+MA → /(app)/dashboard → "New patient" modal
+  ↓
+  POST /api/emr-number              (mint clinic-unique HD-2026-NNNNN)
+  INSERT patients                   (ABHA ID, address, age/DOB, sex, allergies, conditions)
+  INSERT visits (status='queued', vitals, chief_complaints)
+  INSERT visit_doctors[]            (assigned doctors with role)
+  INSERT appointments[]             (optional, per assigned doctor)
+  void POST /api/pre-visit-summary  (background — Claude Haiku, cached on visit row)
+        </div>
+
+      <h3>8.2 Doctor records consultation</h3>
+      <div class="ascii">
+Doctor opens patient → "Record consultation"
+  ↓
+  Browser: MediaRecorder captures webm/opus
+  Upload to Storage bucket `visit-audio` (path: ${doctorId}/${visitId}.${ext})
+  UPDATE visits SET audio_url = path, status='in_progress'
+  ↓
+  POST /api/transcribe              (Sarvam Saaras v3 batch — translate=en, diarize=true)
+       UPDATE visits SET transcript_text, transcript_speakers, transcript_language
+       INSERT api_usage_events     (sarvam_stt, audio_duration_seconds, cost_inr)
+  ↓
+  POST /api/extract                 (Claude Haiku 4.5 default; Sonnet 4.6 fallback if low conf.)
+       Identifies doctor speaker, extracts every clinical field,
+       emits ICD-10 codes + per-field assumption map.
+       UPDATE visits SET <all clinical fields>, status='awaiting_review'
+       INSERT api_usage_events     (claude_*, input/output tokens, cost_inr)
+  ↓
+  Redirect → /(app)/emr/[id]/visits/[vid]/review
+        </div>
+
+      <h3>8.3 Review and save</h3>
+      <div class="ascii">
+Review screen renders:
+  • PreVisitSummary (4-section briefer)
+  • SpeakerBanner ("Identified Dr. X as SPEAKER_1 — flip if wrong")
+  • AssumptionLegend (green = captured, yellow = inferred)
+  • EditableFields with `assumption` prop coloring each field
+  • PrescriptionEditor with status-coloured rows (new/continued/modified/stopped)
+  • TranscriptPanel (collapsible)
+
+Doctor edits as needed → "Save"
+  ↓
+  UPDATE visits SET <edited fields>, status='completed', completed_at=now()
+  ↓
+  Optional → "Save & print" → /print → window.print()
+        </div>
+
+      <h3>8.4 FHIR export (manual today; consent-driven post-ABDM)</h3>
+      <div class="ascii">
+GET /api/fhir/visit/[id]
+  ↓
+  4 parallel queries: visits, patients, doctors, patient_allergies
+  buildOpConsultBundle() in lib/fhir/bundle.ts
+    → Composition with 9 LOINC-coded sections
+    → Patient (ABHA id, structured address, derived birthDate)
+    → Practitioner (HPR id + council reg)
+    → Encounter (class=AMB, period, participant)
+    → Conditions[] (ICD-10 + verificationStatus)
+    → MedicationRequests[] (Timing, Duration, SNOMED route, doseQuantity)
+    → Observations[] (LOINC + UCUM for every vital)
+    → AllergyIntolerances[] (clinicalStatus + criticality)
+    → ServiceRequests[] (one per investigation)
+  ↓
+  recordDisclosure({ consumer_type: 'fhir_export', sha256, bytes })
+  ↓
+  Response: 200 application/fhir+json
+        </div>
+
+      <h2 id="ai">9 · AI pipeline (STT → extraction → review)</h2>
+
+      <h3>Sarvam Saaras v3 (transcription)</h3>
+      <ul class="tight">
+        <li>Batch API — entire audio uploaded once, response is full transcript + diarized turns.</li>
+        <li>Translate mode: input audio in any Indian language, output English text.</li>
+        <li>Diarization tags (SPEAKER_1, SPEAKER_2…) attached per turn.</li>
+        <li>Cost: ₹45 per hour of audio (≈ ₹0.0125 / sec).</li>
+      </ul>
+
+      <h3>Claude extraction prompt (lib/claude/prompts.ts)</h3>
+      <p>Six-step instruction:</p>
+      <ol>
+        <li><strong>Identify the doctor speaker.</strong> Decisive — must commit to one speaker if any clinical content is present. Confidence in <code>doctor_id_confidence</code>.</li>
+        <li><strong>Attribute correctly.</strong> Patient symptoms vs. doctor findings/diagnosis.</li>
+        <li><strong>Extract.</strong> Strict JSON; no preamble; never invent; never hedge inside clinical fields.</li>
+        <li><strong>Tag inference.</strong> Per-field <code>field_assumptions</code> map: <code>stated</code> / <code>assumed</code> / <code>null</code>. Inference is <em>forbidden</em> for advice, prescription, follow_up_days, vitals.</li>
+        <li><strong>ICD-10 code.</strong> 1–3 WHO ICD-10 codes for the most likely diagnosis. Common Indian OPD codes listed in the prompt for grounding. <code>verificationStatus</code> = confirmed vs. provisional decided by doctor's spoken language.</li>
+        <li><strong>Prescription diff.</strong> Status flag per medicine against previous Rx: <code>new</code> / <code>continued</code> / <code>modified</code> / <code>stopped</code>.</li>
+      </ol>
+
+      <h3>Yellow / green markers</h3>
+      <p>
+        Every inference-allowed field returns a marker. The
+        <code>EditableField</code> component reads it and styles the input
+        accordingly: <strong style="color:var(--accent)">green</strong> = AI quoted the conversation,
+        <strong style="color:var(--warn)">yellow</strong> = AI inferred from context (please verify).
+        Once the doctor edits a field so its value differs from the AI's suggestion,
+        the marker fades to neutral. Prescription medicines, advice, and vitals are
+        never tinted yellow — the system disallows AI inference for those.
+      </p>
+
+      <h3>Pre-visit summary</h3>
+      <p>
+        A separate Claude call (Haiku 4.5) produces a ≤180-word brief in 4
+        sections — Patient context, Today, Recent pattern, Watchpoints. Cached
+        on the visit row; regenerated only on intake update.
+      </p>
+
+      <h2 id="fhir">10 · FHIR / ABDM layer</h2>
+      <p>Three modules in <code>lib/fhir/</code>:</p>
+      <ul class="tight">
+        <li><strong><code>mappings.ts</code></strong> — static lookup tables: SYSTEM URLs, sex → FHIR gender, BD/TDS shorthand → Timing.repeat, vital → LOINC + UCUM, route → SNOMED CT, frequency → repeat, duration → UCUM Duration, visits.status → Encounter.status. Includes <code>deriveBirthDate()</code> that falls back to <code>YYYY-01-01</code> from age so Patient.birthDate is always present.</li>
+        <li><strong><code>bundle.ts</code></strong> — <code>buildOpConsultBundle()</code> assembles the FHIR R4 Bundle. ~400 LoC; emits Composition with 9 LOINC-coded sections + cross-referenced resources via <code>urn:uuid:</code> entries.</li>
+        <li><strong><code>disclosures.ts</code></strong> — append-only audit logger. SHA-256 of every released Bundle is logged, never the body.</li>
+      </ul>
+      <p>The validator harness lives in <code>scripts/fhir/</code>:</p>
+      <ul class="tight">
+        <li><code>generate-fixture.ts</code> — synthesize a realistic Bundle from canonical inputs.</li>
+        <li><code>validate.sh</code> — download HL7 <code>validator_cli.jar</code> on first run, validate against NRCES IG.</li>
+        <li><code>.github/workflows/fhir-validate.yml</code> — CI on every push touching <code>lib/fhir/**</code>.</li>
+      </ul>
+
+      <h2 id="auth">11 · Auth &amp; RLS model</h2>
+      <p>
+        Supabase email + password auth. The <code>auth.users.id</code> matches
+        <code>doctors.id</code> (1:1 — every authenticated user has a row in
+        <code>doctors</code>, regardless of clinical role).
+      </p>
+      <h4>RLS policies (clinic-scoped)</h4>
+      <ul class="tight">
+        <li><code>current_clinic_id()</code> — security-definer function returns the caller's <code>doctors.clinic_id</code>.</li>
+        <li>Every clinic-owned table has a single SELECT/INSERT/UPDATE policy: <code>clinic_id = current_clinic_id()</code>.</li>
+        <li><code>set_clinic_id_from_user()</code> trigger backfills <code>clinic_id</code> on insert so app code never has to.</li>
+        <li>Admin-only operations (regenerate invite, change roles, update clinic) are gated by SQL functions with <code>auth.uid()</code> role checks.</li>
+      </ul>
+
+      <h2 id="ui">12 · UI system &amp; theming</h2>
+      <p>
+        Tailwind CSS v3 with <code>darkMode: "class"</code>. Brand palette
+        from Mantine blue, accent from Mantine teal, dark scale (<code>ink</code>)
+        warmer than Tailwind's default slate so dark-mode surfaces don't
+        feel cold.
+      </p>
+      <ul class="tight">
+        <li><strong>Reusable classes</strong> — <code>.card</code>, <code>.btn-primary/secondary/ghost</code>, <code>.input-base/flush</code>, <code>.badge-*</code>, <code>.nav-link[-active]</code>, all with paired <code>.dark</code> variants.</li>
+        <li><strong>Theme toggle</strong> — <code>ThemeScript</code> component in <code>&lt;head&gt;</code> applies the <code>dark</code> class before paint. Persisted in <code>localStorage</code> (<code>hd-theme</code>).</li>
+        <li><strong>App shell</strong> — desktop sidebar (260 px) + mobile hamburger drawer.</li>
+        <li><strong>Audio waveform</strong> — canvas-rendered, reads <code>document.documentElement.classList.contains("dark")</code> at draw time so it adapts to theme switches without a re-render.</li>
+      </ul>
+
+      <h2 id="cost">13 · Cost tracking (INR)</h2>
+      <p>
+        Every Sarvam and Claude call writes a row to <code>api_usage_events</code>.
+        Costs computed at insert with these constants in <code>lib/usage.ts</code>:
+      </p>
+      <table>
+        <thead><tr><th>Service</th><th>Rate (INR)</th></tr></thead>
+        <tbody>
+          <tr><td>Sarvam Saaras v3</td><td>₹45 / hour audio (≈ ₹0.0125 / sec)</td></tr>
+          <tr><td>Claude Haiku 4.5 — input</td><td>₹85 / 1M tokens</td></tr>
+          <tr><td>Claude Haiku 4.5 — output</td><td>₹425 / 1M tokens</td></tr>
+          <tr><td>Claude Sonnet 4.6 — input</td><td>₹255 / 1M tokens</td></tr>
+          <tr><td>Claude Sonnet 4.6 — output</td><td>₹1,275 / 1M tokens</td></tr>
+          <tr><td>Claude Opus 4.7 — input / output</td><td>₹1,275 / ₹6,375 per 1M (not used in default flow)</td></tr>
+        </tbody>
+      </table>
+      <p class="small">
+        Conversion at ₹85 / USD; old rows remain at the rate they were billed at
+        when the conversion changes.
+      </p>
+
+      <h2 id="audit">14 · Audit &amp; compliance logs</h2>
+      <ul class="tight">
+        <li><strong>Cost log</strong> — <code>api_usage_events</code> for every external API call.</li>
+        <li><strong>Write-side audit</strong> — <code>audit_events</code> for visit create/update/delete.</li>
+        <li><strong>Disclosure log</strong> — <code>clinical_disclosures</code> for every clinical-record release (append-only, ≥7-year retention via absent UPDATE/DELETE policies).</li>
+        <li><strong>RLS</strong> — every table has clinic-scoped policies; service role used only for privileged inserts (cost log, disclosure log).</li>
+      </ul>
+
+      <h2 id="fs">15 · Source layout</h2>
+      <pre><code>app/
+  (app)/                       authenticated app shell
+    dashboard/                 role-aware home
+    appointments/              week-strip calendar + booking modal
+    emr/                       patient directory + per-patient EMR
+      [id]/visits/             visit lifecycle (new, intake, review, print)
+    settings/                  doctor profile + team management
+  api/
+    transcribe/                Sarvam STT
+    extract/                   Claude EMR extraction
+    pre-visit-summary/         Claude pre-visit briefer
+    fhir/visit/[id]/           FHIR R4 OPConsultRecord export
+    clinic/                    clinic profile + invite rotation
+    team/members/              roster CRUD
+    emr-number/                clinic-unique EMR number minter
+  login/                       sign-in
+  onboarding/                  first-run flow
+  layout.tsx                   root layout + ThemeScript
+
+components/
+  layout/AppShell.tsx          sidebar + drawer + theme toggle
+  audio/Recorder.tsx           live waveform recorder
+  review/EditableField.tsx     yellow/green field markers
+  prescription/PrescriptionEditor.tsx
+  intake/NewPatientModal.tsx   ABHA + structured address
+  appointments/WeekStrip.tsx
+  dashboard/                   queue counters + role hero
+  ui/                          Toast, Modal, Field, Spinner
+
+lib/
+  claude/
+    prompts.ts                 EXTRACTION_SYSTEM_PROMPT
+    extract.ts                 Claude call + normalization
+    summary.ts                 pre-visit summary
+  fhir/
+    mappings.ts                LOINC/UCUM/SNOMED tables
+    bundle.ts                  buildOpConsultBundle()
+    disclosures.ts             append-only audit logger
+  stt/sarvam.ts                Saaras v3 batch wrapper
+  supabase/{server,browser,admin}.ts
+  usage.ts                     INR cost tracking
+  utils.ts, env.ts, auth.ts, emr.ts
+
+scripts/fhir/
+  generate-fixture.ts          synthesize Bundle for validation
+  validate.sh                  HL7 validator wrapper
+  README.md
+
+supabase/migrations/           ordered SQL + .txt copies for paste
+.github/workflows/
+  fhir-validate.yml            CI gate on every Bundle change
+
+types/db.ts                    Patient, Visit, Doctor, FieldAssumptionsMap, etc.
+docs/
+  abdm-fhir-r4.html
+  architecture.html            (this file)</code></pre>
+    </main>
+  </body>
+</html>
