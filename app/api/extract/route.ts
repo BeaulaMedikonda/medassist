@@ -87,12 +87,13 @@ export async function POST(req: Request) {
 
     const admin = supabaseAdmin();
     const update: Record<string, unknown> = {
-      bp_systolic: result.vitals.bp_systolic,
-      bp_diastolic: result.vitals.bp_diastolic,
-      pulse: result.vitals.pulse,
-      temperature_f: result.vitals.temperature_f,
-      spo2: result.vitals.spo2,
-      weight_kg: result.vitals.weight_kg,
+    ...(result.vitals.bp_systolic  != null && { bp_systolic:    result.vitals.bp_systolic }),
+    ...(result.vitals.bp_diastolic != null && { bp_diastolic:   result.vitals.bp_diastolic }),
+    ...(result.vitals.pulse        != null && { pulse:          result.vitals.pulse }),
+    ...(result.vitals.temperature_f != null && { temperature_f: result.vitals.temperature_f }),
+    ...(result.vitals.spo2         != null && { spo2:           result.vitals.spo2 }),
+    ...(result.vitals.weight_kg    != null && { weight_kg:      result.vitals.weight_kg }),
+
       chief_complaints: result.chief_complaints,
       history_present_illness: result.history_present_illness,
       examination_findings: result.examination_findings,
@@ -110,6 +111,7 @@ export async function POST(req: Request) {
       doctor_speaker_id: result.doctor_speaker_id,
       doctor_id_confidence: result.doctor_id_confidence,
       field_assumptions: result.field_assumptions,
+      speaker_roles: result.speaker_roles ?? {},
       // Don't downgrade a visit a doctor already completed by re-extracting.
       status: (visit as Visit).status === "completed" ? "completed" : "awaiting_review",
       llm_extraction_raw: {

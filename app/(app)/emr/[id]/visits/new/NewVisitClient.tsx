@@ -196,7 +196,7 @@ export function NewVisitClient({
             </div>
           ) : null}
           <Recorder
-            maxMinutes={25}
+            maxMinutes={Number(process.env.NEXT_PUBLIC_TRANSCRIPTION_MAX_MINUTES) || 25}
             externalState={busy ?? undefined}
             externalMessage={errorMsg ?? undefined}
             onComplete={handleRecorderComplete}

@@ -1,3 +1,4 @@
+//lib/stt/sarvam.ts
 import { serverEnv } from "@/lib/env";
 import type { SpeakerTurn } from "@/types/db";
 
@@ -36,6 +37,7 @@ export async function transcribeWithSarvam(
   filename: string,
   contentType: string,
 ): Promise<SarvamResult> {
+  console.log("USING SARVAM PIPELINE");
   if (!serverEnv.sarvamApiKey) {
     throw new Error("SARVAM_API_KEY is not configured");
   }
@@ -141,6 +143,9 @@ async function startJob(jobId: string) {
     job_parameters: {
       model: serverEnv.sarvamSttModel,
       with_diarization: serverEnv.sarvamEnableDiarization,
+      ...(serverEnv.sarvamEnableDiarization && {
+        num_speakers: serverEnv.sarvamNumSpeakers,
+      }),
     },
   };
 
@@ -471,12 +476,12 @@ function parseSarvamResponse(input: Record<string, unknown>): SarvamResult {
 }
 
 function normalizeSpeakerId(s: string) {
-  // Sarvam returns "SPEAKER_00" / "speaker_0" / etc. Normalize to "SPEAKER_1" indexing.
+  // Keep 0-based index: SPEAKER_00 → SPEAKER_0, SPEAKER_01 → SPEAKER_1, etc.
+  // Do NOT add 1 — the extraction prompt receives these labels and must match exactly.
   const m = s.match(/(\d+)/);
-  if (m) return `SPEAKER_${parseInt(m[1], 10) + 1}`;
+  if (m) return `SPEAKER_${parseInt(m[1], 10)}`;
   return s;
 }
-
 export function formatTurnsForPrompt(turns: SpeakerTurn[]): string {
   if (turns.length === 0) return "(diarization unavailable — use full transcript text)";
   return turns

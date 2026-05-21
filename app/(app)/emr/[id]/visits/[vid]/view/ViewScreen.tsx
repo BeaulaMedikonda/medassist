@@ -11,6 +11,7 @@ import type {
   Visit,
 } from "@/types/db";
 import { useToast } from "@/components/ui/Toast";
+import { supabaseBrowser } from "@/lib/supabase/browser";
 import { formatDate, initials, cn } from "@/lib/utils";
 
 export function ViewScreen({
@@ -23,6 +24,42 @@ export function ViewScreen({
   const { push } = useToast();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+    function downloadTranscript(format: "txt" | "json") {
+      const speakers = visit.transcript_speakers as SpeakerTurn[] | null;
+      const filename = `transcript-${visit.id}.${format}`;
+      let content: string;
+      if (format === "json") {
+        const payload = speakers?.length
+          ? { visit_id: visit.id, language: visit.transcript_language, turns: speakers }
+          : { visit_id: visit.id, language: visit.transcript_language, text: visit.transcript_text };
+        content = JSON.stringify(payload, null, 2);
+      } else {
+        content = speakers?.length
+          ? speakers.map((t) => `${t.speaker === visit.doctor_speaker_id ? "DOCTOR" : t.speaker}: ${t.translated_text || t.text}`).join("\n")
+          : visit.transcript_text || "";
+      }
+      const blob = new Blob([content], { type: format === "json" ? "application/json" : "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function downloadAudio() {
+    if (!visit.audio_url) return;
+    const supabase = supabaseBrowser();
+    const { data, error } = await supabase.storage.from("visit-audio").createSignedUrl(visit.audio_url, 60, {
+      download: true,
+    });
+    if (error || !data?.signedUrl) { push({ title: "Audio download failed", variant: "error" }); return; }
+    const a = document.createElement("a");
+    a.href = data.signedUrl;
+    a.download = `audio-${visit.id}.${visit.audio_url.split(".").pop() || "webm"}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
   const a = visit.field_assumptions || null;
 
   async function exportBundle() {
@@ -277,10 +314,13 @@ export function ViewScreen({
 
         {visit.transcript_text || (visit.transcript_speakers && (visit.transcript_speakers as SpeakerTurn[]).length > 0) ? (
           <TranscriptPanel
-            visit={visit}
-            open={transcriptOpen}
-            onToggle={() => setTranscriptOpen((v) => !v)}
-          />
+          visit={visit}
+          open={transcriptOpen}
+          onToggle={() => setTranscriptOpen((v) => !v)}
+          onDownloadTxt={() => downloadTranscript("txt")}
+          onDownloadJson={() => downloadTranscript("json")}
+          onDownloadAudio={visit.audio_url ? downloadAudio : undefined}
+/>
         ) : null}
       </div>
 
@@ -418,18 +458,25 @@ function TranscriptPanel({
   visit,
   open,
   onToggle,
+  onDownloadTxt,
+  onDownloadJson,
+  onDownloadAudio,
 }: {
   visit: Visit;
   open: boolean;
   onToggle: () => void;
+  onDownloadTxt: () => void;
+  onDownloadJson: () => void;
+  onDownloadAudio?: () => void;
 }) {
+
   const turns = (visit.transcript_speakers as SpeakerTurn[] | null) || [];
   const doctorSpeakerId = visit.doctor_speaker_id;
   return (
     <section className="card overflow-hidden">
-      <button
+      <div
         onClick={onToggle}
-        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-ink-800/40"
+        className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-ink-800/40"
       >
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-ink-300">
           <svg viewBox="0 0 20 20" className="h-4 w-4 text-slate-400 dark:text-ink-600">
@@ -442,14 +489,30 @@ function TranscriptPanel({
             </span>
           ) : null}
         </div>
-        <svg
-          viewBox="0 0 20 20"
-          className={cn("h-4 w-4 text-slate-400 dark:text-ink-600 transition", open && "rotate-180")}
-        >
-          <path d="M5 7l5 6 5-6" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open ? (
+        <div className="flex items-center gap-1">
+          {open && (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <button onClick={onDownloadTxt} className="rounded px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-ink-500 dark:hover:bg-ink-800">
+                ↓ TXT
+              </button>
+              <button onClick={onDownloadJson} className="rounded px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-ink-500 dark:hover:bg-ink-800">
+                ↓ JSON
+              </button>
+              {onDownloadAudio && (
+                <button onClick={onDownloadAudio} className="rounded px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-ink-500 dark:hover:bg-ink-800">
+                  ↓ Audio
+                </button>
+              )}
+            </div>
+          )}
+          <svg
+            viewBox="0 0 20 20"
+            className={cn("h-4 w-4 text-slate-400 dark:text-ink-600 transition", open && "rotate-180")}
+          >
+            <path d="M5 7l5 6 5-6" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </div>      {open ? (
         <div className="space-y-1 border-t border-slate-100 px-4 py-4 text-sm dark:border-ink-800">
           {turns.length > 0 ? (
             turns.map((t, i) => (

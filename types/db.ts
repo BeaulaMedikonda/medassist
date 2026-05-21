@@ -1,3 +1,4 @@
+//types/db.ts
 export type Sex = "M" | "F" | "O";
 export type Confidence = "high" | "medium" | "low";
 export type MedicineStatus = "new" | "continued" | "modified" | "stopped";
@@ -207,6 +208,7 @@ export type Visit = {
   doctor_id_confidence: Confidence | null;
   llm_extraction_raw: unknown;
   doctor_notes: string | null;
+  speaker_roles: Record<string, string> | null;
 
   pre_visit_summary: string | null;
   pre_visit_summary_generated_at: string | null;
@@ -238,6 +240,7 @@ export type ExtractionResult = {
   doctor_speaker_id: string | null;
   doctor_id_confidence: Confidence;
   speaker_role_notes: string | null;
+  speaker_roles: Record<string, string>;
   vitals: {
     bp_systolic: number | null;
     bp_diastolic: number | null;

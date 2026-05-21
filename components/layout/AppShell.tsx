@@ -93,6 +93,7 @@ const NAV: NavItem[] = [
     label: "Appointments",
     icon: <CalendarIcon />,
     match: (p) => p.startsWith("/appointments"),
+    roles: ["medical_assistant", "admin"],
   },
   {
     href: "/settings/team",

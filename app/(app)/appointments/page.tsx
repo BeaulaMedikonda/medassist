@@ -45,7 +45,7 @@ export default async function AppointmentsPage({
     .gte("scheduled_at", weekStart.toISOString())
     .lt("scheduled_at", weekEnd.toISOString())
     .order("scheduled_at");
-  if (isDoctor) weekQuery = weekQuery.eq("doctor_id", member.id);
+  //if (isDoctor) weekQuery = weekQuery.eq("doctor_id", member.id);
   const { data: weekApptsRaw } = await weekQuery;
   const weekAppointments = (weekApptsRaw || []) as Appointment[];
 
@@ -74,7 +74,7 @@ export default async function AppointmentsPage({
     .gte("scheduled_at", horizonStart.toISOString())
     .lt("scheduled_at", horizonEnd.toISOString())
     .order("scheduled_at");
-  if (isDoctor) upcomingQuery = upcomingQuery.eq("doctor_id", member.id);
+  //if (isDoctor) upcomingQuery = upcomingQuery.eq("doctor_id", member.id);
   const { data: upcomingRaw } = await upcomingQuery;
   const upcoming = (upcomingRaw || []) as Appointment[];
 
@@ -100,9 +100,10 @@ export default async function AppointmentsPage({
   const allDoctors = ((roster as Array<
     Pick<Doctor, "id" | "full_name" | "qualification" | "role">
   >) || []).filter((d) => d.role === "doctor");
-  const visibleDoctors = isDoctor
-    ? allDoctors.filter((d) => d.id === member.id)
-    : allDoctors;
+  const visibleDoctors = allDoctors;
+  // const visibleDoctors = isDoctor
+  //   ? allDoctors.filter((d) => d.id === member.id)
+  //   : allDoctors;
 
   return (
     <AppointmentsClient

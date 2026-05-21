@@ -80,11 +80,12 @@ export function Recorder({
 
   function pickMimeType(): string {
     const candidates = [
+      "audio/mp4",
       "audio/webm;codecs=opus",
       "audio/webm",
       "audio/ogg;codecs=opus",
-      "audio/mp4",
     ];
+
     for (const c of candidates) {
       if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(c)) {
         return c;

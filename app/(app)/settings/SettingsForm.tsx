@@ -176,12 +176,14 @@ export function SettingsForm({
           file={signatureFile}
           onChange={setSignatureFile}
         />
+        {doctor.role === "doctor" && (
         <AssetField
           label="Letterhead"
           previewUrl={letterheadPreview}
           file={letterheadFile}
           onChange={setLetterheadFile}
         />
+        )}  
       </div>
 
       <div className="mt-8 flex justify-end">
