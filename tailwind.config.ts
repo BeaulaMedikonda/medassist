@@ -36,8 +36,8 @@ const config: Config = {
           800: "#099268",
           900: "#087f5b",
         },
-        // Mantine-style dark surfaces. Custom because Tailwind's slate doesn't
-        // hit the same warm-charcoal feel.
+        // Deep navy dark surfaces — professional, medical-grade.
+        // Light tones (text) kept neutral; dark tones shifted to navy for sidebar/cards.
         ink: {
           50: "#f8f9fa",
           100: "#f1f3f5",
@@ -47,10 +47,10 @@ const config: Config = {
           500: "#adb5bd",
           600: "#868e96",
           700: "#495057",
-          800: "#343a40",
-          900: "#212529",
-          950: "#1a1b1e", // Mantine dark.7 — body bg
-          975: "#141517", // even deeper, for behind-elevated areas
+          800: "#1e2d40",  // navy dark — borders in dark mode
+          900: "#152235",  // deep navy — sidebar & card bg in dark mode
+          950: "#0d1726",  // deeper navy — body bg in dark mode
+          975: "#080f1a",  // deepest navy — below-card areas
         },
       },
       fontFamily: {
@@ -58,14 +58,15 @@ const config: Config = {
         deva: ["Noto Sans Devanagari", "Inter", "system-ui", "sans-serif"],
       },
       boxShadow: {
-        soft: "0 1px 3px rgba(15, 23, 42, 0.04)",
-        card: "0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02)",
-        elevated:
-          "0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04)",
-        deep: "0 10px 25px -5px rgba(15, 23, 42, 0.10), 0 8px 10px -6px rgba(15, 23, 42, 0.06)",
-        ring: "0 0 0 3px rgba(34, 139, 230, 0.18)",
-        // Glow used on hover/focus for primary CTAs
-        glow: "0 0 0 1px rgba(34, 139, 230, 0.20), 0 8px 16px -4px rgba(34, 139, 230, 0.18)",
+        xs:       "0 1px 2px rgba(15, 23, 42, 0.04)",
+        soft:     "0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04)",
+        card:     "0 1px 3px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255,255,255,0.7)",
+        elevated: "0 4px 16px -2px rgba(15, 23, 42, 0.10), 0 2px 6px -1px rgba(15, 23, 42, 0.06)",
+        deep:     "0 20px 40px -8px rgba(15, 23, 42, 0.14), 0 8px 20px -4px rgba(15, 23, 42, 0.08)",
+        ring:     "0 0 0 3px rgba(34, 139, 230, 0.22)",
+        glow:     "0 2px 10px rgba(34, 139, 230, 0.30), 0 0 0 1px rgba(34, 139, 230, 0.18)",
+        "glow-sm":"0 1px 6px rgba(34, 139, 230, 0.22)",
+        inner:    "inset 0 2px 4px rgba(15, 23, 42, 0.06)",
       },
       backgroundImage: {
         "hero-light":

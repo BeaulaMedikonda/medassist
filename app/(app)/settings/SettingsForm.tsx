@@ -106,8 +106,15 @@ export function SettingsForm({
   }
 
   return (
-    <div className="card p-6 sm:p-8">
-      <div className="mb-4 grid gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-ink-900/40 dark:text-ink-500 sm:grid-cols-2">
+    <div className="premium-panel p-6 sm:p-8">
+      <div className="mb-6">
+        <p className="premium-section-kicker">Profile settings</p>
+        <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950 dark:text-ink-100">
+          Account & Prescription Identity
+        </h1>
+      </div>
+
+      <div className="mb-5 grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 dark:bg-ink-900/40 dark:text-ink-500 sm:grid-cols-2">
         <div>
           Signed in as <span className="font-medium text-slate-700 dark:text-ink-300">{email}</span>{" "}
           ·{" "}
@@ -212,7 +219,7 @@ function AssetField({
   return (
     <div>
       <label className="label">{label}</label>
-      <label className="block cursor-pointer rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-3 transition hover:border-brand-400 hover:bg-brand-50 dark:border-ink-700 dark:bg-ink-900/40 dark:hover:border-brand-500 dark:hover:bg-brand-900/20">
+      <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-4 transition hover:border-brand-400 hover:bg-brand-50 dark:border-ink-700 dark:bg-ink-900/40 dark:hover:border-brand-500 dark:hover:bg-brand-900/20">
         <input
           type="file"
           accept="image/*"

@@ -263,7 +263,7 @@
 import { notFound, redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import type { Doctor, Patient, Visit, Medicine } from "@/types/db";
+import type { Doctor, Patient, Visit, Medicine, Immunization } from "@/types/db";
 import { formatDate } from "@/lib/utils";
 import { serverEnv } from "@/lib/env";
 import { PrintAutoLauncher, PrintTriggerButton } from "./PrintAutoLauncher";
@@ -296,11 +296,21 @@ export default async function PrintPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: patient }, { data: visit }, { data: doctor }] =
+  const [
+    { data: patient },
+    { data: visit },
+    { data: doctor },
+    { data: immunizationRows },
+  ] =
     await Promise.all([
       supabase.from("patients").select("*").eq("id", id).maybeSingle(),
       supabase.from("visits").select("*").eq("id", vid).maybeSingle(),
       supabase.from("doctors").select("*").eq("id", user.id).maybeSingle(),
+      supabase
+        .from("immunizations")
+        .select("*")
+        .eq("patient_id", id)
+        .order("date_given", { ascending: false }),
     ]);
 
   if (!patient || !visit || !doctor) notFound();
@@ -316,6 +326,10 @@ export default async function PrintPage({
 
   const meds = (v.prescription?.medicines || []).filter(
     (m) => m.status !== "stopped",
+  );
+  const immunizations = ((immunizationRows || []) as Immunization[]).filter(
+    (record) =>
+      record.visit_id === vid || record.date_given === v.visit_date.slice(0, 10),
   );
 
   const includeNotes = serverEnv.pdfIncludeDoctorNotesByDefault;
@@ -337,7 +351,7 @@ export default async function PrintPage({
       {/*
         ── PRINT STYLES ────────────────────────────────────────────────────
         @page { margin: 0 } removes the browser's own print header/footer
-        (the "5/15/26, 5:06 PM · Hello Doctor" bar you saw in Image 1).
+        (the "5/15/26, 5:06 PM · MedAssist" bar you saw in Image 1).
         -webkit-print-color-adjust forces background images/colors to print.
       */}
       <style>{`
@@ -488,6 +502,8 @@ export default async function PrintPage({
                     </ol>
                   </div>
                 ) : null}
+
+                <PrintImmunizations records={immunizations} />
 
                 <PrintRow label="Advice" value={v.advice} />
                 <PrintRow
@@ -672,6 +688,8 @@ export default async function PrintPage({
               </div>
             ) : null}
 
+            <PrintImmunizations records={immunizations} />
+
             <PrintRow label="Advice" value={v.advice} />
             <PrintRow
               label="Follow-up"
@@ -724,6 +742,47 @@ export default async function PrintPage({
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function PrintImmunizations({ records }: { records: Immunization[] }) {
+  const printable = records.filter((record) => record.status !== "declined");
+  if (printable.length === 0) return null;
+
+  return (
+    <div className="mt-2">
+      <div className="mb-1 flex items-center gap-2 border-b border-slate-200 pb-1">
+        <span className="text-[10px] uppercase tracking-widest text-slate-400">
+          Immunization
+        </span>
+      </div>
+      <ul className="ml-4 list-disc space-y-1">
+        {printable.map((record) => (
+          <li key={record.id}>
+            <span className="font-semibold">{record.vaccine_name}</span>
+            {immunizationLine(record) ? (
+              <span className="text-slate-600"> - {immunizationLine(record)}</span>
+            ) : null}
+            {record.next_due_date ? (
+              <div className="text-[9px] leading-tight text-slate-400">
+                Next due: {formatDate(record.next_due_date)}
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function immunizationLine(record: Immunization): string {
+  return [
+    formatDate(record.date_given),
+    record.dose,
+    record.cvx_code ? `CVX ${record.cvx_code}` : null,
+    record.status !== "completed" ? record.status : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+}
 
 function PrintRow({
   label,

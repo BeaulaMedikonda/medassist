@@ -1,26 +1,27 @@
+//app/onboarding/OnboardingForm.tsx
 "use client";
-
+ 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { TextInput, TextArea } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
-
+ 
 type ClinicMode = "create" | "join";
 type Role = "doctor" | "medical_assistant" | "admin";
-
+ 
 export function OnboardingForm({ userId }: { userId: string }) {
   const router = useRouter();
   const { push } = useToast();
   const [step, setStep] = useState<"clinic" | "profile">("clinic");
   const [busy, setBusy] = useState(false);
-
+ 
   const [mode, setMode] = useState<ClinicMode>("create");
   // Clinic creator becomes the admin by default; joiners pick doctor or medical assistant.
   const [role, setRole] = useState<Role>("doctor");
   const effectiveRole: Role = mode === "create" ? "admin" : role;
-
+ 
   // Clinic step
   const [clinicForm, setClinicForm] = useState({
     name: "",
@@ -28,7 +29,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
     phone: "",
   });
   const [inviteCode, setInviteCode] = useState("");
-
+ 
   // Profile step
   const [profile, setProfile] = useState({
     full_name: "",
@@ -37,18 +38,25 @@ export function OnboardingForm({ userId }: { userId: string }) {
     clinic_phone: "",
   });
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
-
+ 
   // Carries the resolved clinic_id between steps
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [clinicName, setClinicName] = useState<string>("");
-
+ 
+  async function exitOnboarding() {
+    const supabase = supabaseBrowser();
+    await supabase.auth.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
+ 
   function randomInvite() {
     const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
     let s = "";
     for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
     return s;
   }
-
+ 
   async function submitClinic(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -92,19 +100,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
       setBusy(false);
     }
   }
-
-  async function uploadSignature(): Promise<string | null> {
-    if (!signatureFile) return null;
-    const supabase = supabaseBrowser();
-    const ext = signatureFile.name.split(".").pop() || "png";
-    const path = `${userId}/signature-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from("doctor-assets")
-      .upload(path, signatureFile, { cacheControl: "3600", upsert: true });
-    if (error) throw error;
-    return path;
-  }
-
+ 
   async function submitProfile(e: React.FormEvent) {
     e.preventDefault();
     if (!clinicId) {
@@ -117,30 +113,25 @@ export function OnboardingForm({ userId }: { userId: string }) {
     }
     setBusy(true);
     try {
-      const supabase = supabaseBrowser();
-      let signature_url: string | null = null;
-      if (effectiveRole !== "medical_assistant" && signatureFile) {
-        signature_url = await uploadSignature();
-      }
-
-      const { error } = await supabase.from("doctors").insert({
-        id: userId,
-        full_name: profile.full_name.trim(),
-        qualification:
-          effectiveRole !== "medical_assistant" ? profile.qualification.trim() || null : null,
-        registration_number:
-          effectiveRole !== "medical_assistant"
-            ? profile.registration_number.trim() || null
-            : null,
-        clinic_name: clinicName,
-        clinic_phone: profile.clinic_phone.trim() || null,
-        signature_url,
-        preferred_language: "en",
-        role: effectiveRole,
-        clinic_id: clinicId,
+      const res = await fetch("/api/onboarding/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clinicId,
+          clinicName,
+          role: effectiveRole,
+          profile,
+          signature:
+            effectiveRole !== "medical_assistant" && signatureFile
+              ? await fileToPayload(signatureFile)
+              : null,
+        }),
       });
-      if (error) throw error;
-
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || "Could not save profile");
+      }
+ 
       push({
         title: "Welcome!",
         description: `Joined ${clinicName} as ${effectiveRole}`,
@@ -149,13 +140,13 @@ export function OnboardingForm({ userId }: { userId: string }) {
       router.replace("/dashboard");
       router.refresh();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Could not save profile";
+      const msg = getErrorMessage(err, "Could not save profile");
       push({ title: "Setup failed", description: msg, variant: "error" });
     } finally {
       setBusy(false);
     }
   }
-
+ 
   if (step === "clinic") {
     return (
       <form onSubmit={submitClinic} className="card p-6 sm:p-8">
@@ -183,7 +174,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
             Join existing clinic
           </button>
         </div>
-
+ 
         {mode === "create" ? (
           <div className="space-y-4">
             <TextInput
@@ -224,8 +215,11 @@ export function OnboardingForm({ userId }: { userId: string }) {
             />
           </div>
         )}
-
-        <div className="mt-8 flex justify-end">
+ 
+        <div className="mt-8 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+          <button type="button" onClick={exitOnboarding} disabled={busy} className="btn-ghost">
+            Back to login
+          </button>
           <button type="submit" disabled={busy} className="btn-primary">
             {busy ? <Spinner /> : null}
             Continue
@@ -234,7 +228,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
       </form>
     );
   }
-
+ 
   // Profile step
   return (
     <form onSubmit={submitProfile} className="card p-6 sm:p-8">
@@ -244,7 +238,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
       <div className="mb-5 text-base font-semibold text-slate-900 dark:text-ink-100">
         {clinicName}
       </div>
-
+ 
       {mode === "create" ? (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
           <span className="font-semibold">You'll be the clinic admin.</span> You
@@ -278,7 +272,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
           </div>
         </div>
       )}
-
+ 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TextInput
           label="Full name"
@@ -328,14 +322,18 @@ export function OnboardingForm({ userId }: { userId: string }) {
           />
         )}
       </div>
-
+ 
       <div className="mt-8 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button
           type="button"
           onClick={() => setStep("clinic")}
           className="btn-ghost"
+          disabled={busy}
         >
           Back
+        </button>
+        <button type="button" onClick={exitOnboarding} className="btn-ghost" disabled={busy}>
+          Back to login
         </button>
         <button type="submit" disabled={busy} className="btn-primary">
           {busy ? <Spinner /> : null}
@@ -345,7 +343,30 @@ export function OnboardingForm({ userId }: { userId: string }) {
     </form>
   );
 }
-
+ 
+function getErrorMessage(err: unknown, fallback: string) {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+ 
+async function fileToPayload(file: File) {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+  return {
+    name: file.name,
+    type: file.type,
+    data: dataUrl.split(",")[1] || "",
+  };
+}
+ 
 function FileField({
   label,
   file,
@@ -372,3 +393,5 @@ function FileField({
     </div>
   );
 }
+ 
+ 

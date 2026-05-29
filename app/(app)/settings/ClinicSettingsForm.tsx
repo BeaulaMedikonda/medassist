@@ -25,7 +25,7 @@ export function ClinicSettingsForm({ clinic }: { clinic: Clinic }) {
     letterhead_header: clinic.letterhead_header || "",
     letterhead_footer:
       clinic.letterhead_footer ||
-      "AI-generated drafts reviewed and approved by the doctor. This prescription is valid for 30 days from date of issue.",
+      "Drafts reviewed and approved by the doctor. This prescription is valid for 30 days from date of issue.",
   });
 
   function update<K extends keyof typeof form>(key: K, v: string) {
@@ -70,9 +70,9 @@ export function ClinicSettingsForm({ clinic }: { clinic: Clinic }) {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <div className="card p-6 lg:col-span-2 sm:p-8">
+      <div className="premium-panel p-6 lg:col-span-2 sm:p-8">
         <div className="mb-1 flex items-center gap-2">
-          <h2 className="text-base font-bold text-slate-900 dark:text-ink-100">Clinic profile</h2>
+          <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-ink-100">Clinic profile</h2>
           <span className="badge bg-violet-100 text-violet-700">Admin only</span>
         </div>
         <p className="text-xs text-slate-500 dark:text-ink-500">
@@ -154,7 +154,7 @@ export function ClinicSettingsForm({ clinic }: { clinic: Clinic }) {
 
       <div className="space-y-4">
         <InviteCodeBox clinicId={clinic.id} initialCode={clinic.invite_code} />
-        <div className="card p-5 text-xs text-slate-500 dark:text-ink-500">
+        <div className="premium-panel p-5 text-xs text-slate-500 dark:text-ink-500">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-ink-100">Need to add staff?</h3>
           <p className="mt-1">
             Share the invite code above. New members enter it during onboarding so they're added to this clinic.

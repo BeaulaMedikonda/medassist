@@ -60,9 +60,11 @@ export async function transcribeWithSarvam(
 
   const parsed = parseSarvamResponse(result);
 
-  // Sanity check: if parsing produced nothing useful, surface the actual response
-  // shape so we can fix the parser, instead of returning silently empty data.
-  if (parsed.transcript.length === 0 && parsed.turns.length === 0) {
+  // Sanity check: throw only if the response structure is unexpected (no known
+  // transcript key at all). An empty transcript just means no speech was detected.
+  const hasKnownShape =
+    "transcript" in result || "text" in result || "diarized_transcript" in result;
+  if (!hasKnownShape && parsed.transcript.length === 0 && parsed.turns.length === 0) {
     const keys = Object.keys(result);
     const preview = JSON.stringify(result).slice(0, 600);
     throw new Error(
@@ -142,6 +144,7 @@ async function startJob(jobId: string) {
     job_id: jobId,
     job_parameters: {
       model: serverEnv.sarvamSttModel,
+      mode: serverEnv.sarvamSttMode,
       with_diarization: serverEnv.sarvamEnableDiarization,
       ...(serverEnv.sarvamEnableDiarization && {
         num_speakers: serverEnv.sarvamNumSpeakers,

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Local STT options for Telugu — replacing Sarvam in Hello Doctor</title>
+    <title>Local STT options for Telugu — replacing Sarvam in MedAssist</title>
     <style>
       :root {
         --bg: #f8fafc;
@@ -86,9 +86,9 @@
     </style>
   </head>
   <body>
-    <h1>Local STT for Telugu — what could replace Sarvam in Hello Doctor</h1>
+    <h1>Local STT for Telugu — what could replace Sarvam in MedAssist</h1>
     <p class="lede">
-      Comparison of locally-runnable speech-to-text models for Telugu (and code-mixed Telugu/English) — accuracy, hardware needs, diarisation support, and what it would take to swap into Hello Doctor's transcription pipeline.
+      Comparison of locally-runnable speech-to-text models for Telugu (and code-mixed Telugu/English) — accuracy, hardware needs, diarisation support, and what it would take to swap into MedAssist's transcription pipeline.
     </p>
     <p class="meta">Research-only. No code changes have been made.</p>
 
@@ -97,7 +97,7 @@
     </div>
 
     <h2>What we need from the replacement</h2>
-    <p>The Hello Doctor pipeline expects three things from one transcription call:</p>
+    <p>The MedAssist pipeline expects three things from one transcription call:</p>
     <ul>
       <li><strong>Telugu (and Hindi/English code-mixed) ASR</strong> — Indian doctor-patient consultations switch languages mid-sentence. Pure-English models drop accuracy below useful.</li>
       <li><strong>Translation to English</strong> — Claude does extraction in English. The transcript fed to Claude is translated.</li>
@@ -351,7 +351,7 @@
       </tbody>
     </table>
 
-    <h2>What it would cost to swap into Hello Doctor</h2>
+    <h2>What it would cost to swap into MedAssist</h2>
 
     <p>
       The wrapper at <code>lib/stt/sarvam.ts</code> already returns a clean

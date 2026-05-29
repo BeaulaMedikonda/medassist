@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth";
+import { getDoctorAssignedScope } from "@/lib/doctor-access";
 import type { Patient, Visit } from "@/types/db";
 import { NewVisitClient } from "./NewVisitClient";
 
@@ -14,7 +15,7 @@ export default async function NewVisitPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ mode?: string; vid?: string }>;
 }) {
-  await requireMember();
+  const { member, clinic } = await requireMember();
   const supabase = await supabaseServer();
   const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
 
@@ -22,8 +23,17 @@ export default async function NewVisitPage({
     .from("patients")
     .select("*")
     .eq("id", id)
+    .eq("clinic_id", clinic.id)
     .maybeSingle();
   if (!patient) notFound();
+
+  const doctorScope =
+    member.role === "doctor"
+      ? await getDoctorAssignedScope(supabase, member.id, clinic.id)
+      : null;
+  if (doctorScope && !doctorScope.patientIds.has(id)) {
+    notFound();
+  }
 
   // Resume an existing visit if vid is provided (doctor's queue path).
   let existingVisit: Visit | null = null;
@@ -32,8 +42,12 @@ export default async function NewVisitPage({
       .from("visits")
       .select("*")
       .eq("id", resolvedSearchParams.vid)
+      .eq("clinic_id", clinic.id)
       .maybeSingle();
     existingVisit = (v as Visit | null) || null;
+    if (existingVisit && doctorScope && !doctorScope.visitIds.has(existingVisit.id)) {
+      notFound();
+    }
   }
 
   // For prescription diff context, find the previous visit (excluding the one we're resuming).
@@ -41,8 +55,12 @@ export default async function NewVisitPage({
     .from("visits")
     .select("*")
     .eq("patient_id", id)
+    .eq("clinic_id", clinic.id)
     .order("visit_date", { ascending: false })
     .limit(1);
+  if (doctorScope) {
+    prevQuery = prevQuery.in("id", Array.from(doctorScope.visitIds));
+  }
   if (existingVisit) {
     prevQuery = prevQuery.lt("visit_date", existingVisit.visit_date);
   }

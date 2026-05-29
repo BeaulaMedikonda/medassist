@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { publicEnv } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login", "/auth", "/_next", "/favicon.ico", "/manifest"];
+const PUBLIC_PATHS = ["/login", "/auth", "/_next", "/favicon.ico", "/manifest", "/manifest.webmanifest"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({

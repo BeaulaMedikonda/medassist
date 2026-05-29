@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { generatePreVisitSummary } from "@/lib/claude/summary";
 import { recordUsage, modelToService } from "@/lib/usage";
 import { serverEnv } from "@/lib/env";
-import type { Patient, Visit } from "@/types/db";
+import type { Immunization, Patient, Visit } from "@/types/db";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -61,10 +61,19 @@ export async function POST(req: Request) {
       .limit(2);
     const pastVisits = ((pastRows as Visit[]) || []).slice(0, 2);
 
+    const { data: immunizationRows } = await sb
+      .from("immunizations")
+      .select("*")
+      .eq("patient_id", v.patient_id)
+      .eq("clinic_id", v.clinic_id)
+      .order("date_given", { ascending: false })
+      .limit(6);
+
     const { summary, raw, modelUsed, usage } = await generatePreVisitSummary({
       patient: patient as Patient,
       visit: v,
       pastVisits,
+      immunizations: (immunizationRows || []) as Immunization[],
     });
 
     try {

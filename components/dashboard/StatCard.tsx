@@ -3,19 +3,45 @@ import { cn } from "@/lib/utils";
 
 type Tone = "brand" | "amber" | "sky" | "violet" | "rose" | "slate" | "accent";
 
-const toneStyles: Record<Tone, string> = {
-  brand:
-    "bg-gradient-to-br from-brand-100 to-brand-50 text-brand-700 ring-brand-200/60 dark:from-brand-900/50 dark:to-brand-900/20 dark:text-brand-300 dark:ring-brand-800/60",
-  accent:
-    "bg-gradient-to-br from-accent-100 to-accent-50 text-accent-700 ring-accent-200/60 dark:from-accent-900/40 dark:to-accent-900/15 dark:text-accent-300 dark:ring-accent-800/60",
-  amber:
-    "bg-gradient-to-br from-amber-100 to-amber-50 text-amber-700 ring-amber-200/60 dark:from-amber-900/40 dark:to-amber-900/15 dark:text-amber-300 dark:ring-amber-800/60",
-  sky: "bg-gradient-to-br from-sky-100 to-sky-50 text-sky-700 ring-sky-200/60 dark:from-sky-900/40 dark:to-sky-900/15 dark:text-sky-300 dark:ring-sky-800/60",
-  violet:
-    "bg-gradient-to-br from-violet-100 to-violet-50 text-violet-700 ring-violet-200/60 dark:from-violet-900/40 dark:to-violet-900/15 dark:text-violet-300 dark:ring-violet-800/60",
-  rose: "bg-gradient-to-br from-rose-100 to-rose-50 text-rose-700 ring-rose-200/60 dark:from-rose-900/40 dark:to-rose-900/15 dark:text-rose-300 dark:ring-rose-800/60",
-  slate:
-    "bg-gradient-to-br from-slate-100 to-slate-50 text-slate-700 ring-slate-200/60 dark:from-ink-800 dark:to-ink-900 dark:text-ink-300 dark:ring-ink-700",
+// Soft pastel tinted card surface (very subtle wash → white)
+const toneCard: Record<Tone, string> = {
+  brand:  "bg-gradient-to-br from-[#eef5ff] to-white dark:from-brand-900/20 dark:to-ink-900",
+  accent: "bg-gradient-to-br from-[#ecfdf7] to-white dark:from-accent-900/20 dark:to-ink-900",
+  amber:  "bg-gradient-to-br from-[#fff6ec] to-white dark:from-amber-900/20 dark:to-ink-900",
+  sky:    "bg-gradient-to-br from-[#ecfeff] to-white dark:from-sky-900/20 dark:to-ink-900",
+  violet: "bg-gradient-to-br from-[#f5f2ff] to-white dark:from-violet-900/20 dark:to-ink-900",
+  rose:   "bg-gradient-to-br from-[#fff1f3] to-white dark:from-rose-900/20 dark:to-ink-900",
+  slate:  "bg-gradient-to-br from-[#f7f9fc] to-white dark:from-ink-800/40 dark:to-ink-900",
+};
+
+const toneIcon: Record<Tone, string> = {
+  brand:  "bg-[#dbeafe] text-[#2563eb] dark:bg-brand-900/40 dark:text-brand-300",
+  accent: "bg-[#ccfbef] text-[#0ea5a4] dark:bg-accent-900/40 dark:text-accent-300",
+  amber:  "bg-[#ffedd5] text-[#ea580c] dark:bg-amber-900/40 dark:text-amber-300",
+  sky:    "bg-[#cffafe] text-[#0891b2] dark:bg-sky-900/40 dark:text-sky-300",
+  violet: "bg-[#ede9fe] text-[#7c3aed] dark:bg-violet-900/40 dark:text-violet-300",
+  rose:   "bg-[#ffe4e6] text-[#e11d48] dark:bg-rose-900/40 dark:text-rose-300",
+  slate:  "bg-[#eef2f7] text-[#475569] dark:bg-ink-800 dark:text-ink-300",
+};
+
+const toneValue: Record<Tone, string> = {
+  brand:  "text-[#2563eb] dark:text-brand-400",
+  accent: "text-[#0ea5a4] dark:text-accent-400",
+  amber:  "text-[#ea580c] dark:text-amber-400",
+  sky:    "text-[#0891b2] dark:text-sky-400",
+  violet: "text-[#7c3aed] dark:text-violet-400",
+  rose:   "text-[#e11d48] dark:text-rose-400",
+  slate:  "text-[#334155] dark:text-ink-200",
+};
+
+const toneGlow: Record<Tone, string> = {
+  brand:  "bg-[#93c5fd] dark:bg-brand-700",
+  accent: "bg-[#5eead4] dark:bg-accent-700",
+  amber:  "bg-[#fdba74] dark:bg-amber-700",
+  sky:    "bg-[#67e8f9] dark:bg-sky-700",
+  violet: "bg-[#c4b5fd] dark:bg-violet-700",
+  rose:   "bg-[#fda4af] dark:bg-rose-700",
+  slate:  "bg-[#cbd5e1] dark:bg-ink-700",
 };
 
 export function StatCard({
@@ -34,51 +60,45 @@ export function StatCard({
   href?: string;
 }) {
   const inner = (
-    <div className="card group relative flex items-start gap-4 overflow-hidden p-5 transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-elevated dark:hover:border-ink-700">
-      {/* Subtle corner accent */}
-      <div
-        className={cn(
-          "pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-40 blur-2xl transition-opacity group-hover:opacity-60",
-          tone === "brand" && "bg-brand-200 dark:bg-brand-700",
-          tone === "accent" && "bg-accent-200 dark:bg-accent-700",
-          tone === "amber" && "bg-amber-200 dark:bg-amber-700",
-          tone === "sky" && "bg-sky-200 dark:bg-sky-700",
-          tone === "violet" && "bg-violet-200 dark:bg-violet-700",
-          tone === "rose" && "bg-rose-200 dark:bg-rose-700",
-          tone === "slate" && "bg-slate-200 dark:bg-ink-700",
-        )}
-      />
-      {icon ? (
-        <div
-          className={cn(
-            "relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1",
-            toneStyles[tone],
-          )}
-        >
-          {icon}
-        </div>
-      ) : null}
-      <div className="relative min-w-0 flex-1">
-        <div className="text-2xl font-bold leading-tight text-slate-900 dark:text-ink-100">
-          {value}
-        </div>
-        <div className="mt-0.5 text-sm font-semibold text-slate-700 dark:text-ink-200">
-          {label}
-        </div>
-        {hint ? (
-          <div className="mt-1 text-[11px] text-slate-500 dark:text-ink-500">
-            {hint}
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-[18px] p-5 transition-all duration-200",
+        "border border-[rgba(15,23,42,0.06)] dark:border-ink-800/70",
+        "shadow-[0_1px_3px_rgba(15,23,42,0.05),0_8px_24px_-12px_rgba(15,23,42,0.10)]",
+        "hover:-translate-y-0.5 hover:shadow-[0_8px_28px_-8px_rgba(15,23,42,0.16)]",
+        toneCard[tone],
+      )}
+    >
+      {/* Corner glow */}
+      <div className={cn(
+        "pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-40 blur-2xl transition-opacity duration-300 group-hover:opacity-60",
+        toneGlow[tone],
+      )} />
+
+      <div className="relative flex items-start gap-4">
+        {icon ? (
+          <div className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+            toneIcon[tone],
+          )}>
+            {icon}
           </div>
         ) : null}
+
+        <div className="min-w-0 flex-1">
+          <div className={cn("text-[2rem] font-bold leading-none tracking-tight", toneValue[tone])}>
+            {value}
+          </div>
+          <div className="mt-2 text-sm font-semibold text-[#0f172a] dark:text-ink-200">
+            {label}
+          </div>
+          {hint ? (
+            <div className="mt-0.5 text-[11px] text-[#64748b] dark:text-ink-500">{hint}</div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
-  if (href) {
-    return (
-      <Link href={href} className="block">
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
+
+  return href ? <Link href={href} className="block">{inner}</Link> : inner;
 }

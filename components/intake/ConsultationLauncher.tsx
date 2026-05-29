@@ -81,11 +81,11 @@ export function ConsultationLauncher({ currentUserId }: { currentUserId: string 
   }
 
   return (
-    <div className="card p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-ink-500">
+    <div className="card rounded-[18px] p-6">
+      <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748b] dark:text-ink-500">
         Quick consultation
       </h2>
-      <p className="mt-1 text-xs text-slate-500 dark:text-ink-500">
+      <p className="mt-1.5 text-[13px] leading-relaxed text-[#64748b] dark:text-ink-500">
         Pick a patient and start recording — the EMR draft is ready by the time you finish.
       </p>
       <div className="mt-4 space-y-3">
@@ -129,6 +129,7 @@ export function ConsultationLauncher({ currentUserId }: { currentUserId: string 
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search patient by name, phone, or EMR number"
               className="input-base"
+              style={{ boxShadow: "inset 0 1px 2px rgba(15,23,42,.06)" }}
             />
             {results.length > 0 ? (
               <ul className="absolute left-0 right-0 z-10 mt-1 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white shadow-soft dark:border-ink-700 dark:bg-ink-900">
@@ -168,7 +169,7 @@ export function ConsultationLauncher({ currentUserId }: { currentUserId: string 
           <button
             onClick={start}
             disabled={!picked || busy}
-            className="btn-primary"
+            className="btn-teal"
           >
             {busy ? <Spinner /> : null}
             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">

@@ -5,234 +5,401 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import {
   UsersIcon,
   CheckCircleIcon,
-  SparkleIcon,
+  ClipboardIcon,
   ClockIcon,
-  MicIcon,
-  CalendarIcon,
+  PlusIcon,
 } from "@/components/dashboard/icons";
-import { ConsultationLauncher } from "@/components/intake/ConsultationLauncher";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
-import {
-  formatTime,
-  initials,
-  avgMinutes,
-} from "@/lib/dashboard-utils";
-import type { Appointment, Clinic, Doctor, Patient, Visit } from "@/types/db";
+import { ClinicalModules } from "@/components/dashboard/ClinicalModules";
+import { initials } from "@/lib/dashboard-utils";
+import type { Clinic, Doctor, Patient, Referral, Visit } from "@/types/db";
 
 export function DoctorDashboard({
   member,
   clinic,
   myToday,
   myAwaiting,
+  clinicToday,
+  clinicAwaiting,
   patientById,
-  myAppointments,
+  summaryPatients,
+  patientSummaries,
+  receivedReferrals,
+  doctorRoster,
 }: {
   member: Doctor;
   clinic: Clinic;
   myToday: Visit[];
   myAwaiting: Visit[];
+  clinicToday: Visit[];
+  clinicAwaiting: Visit[];
   patientById: Record<string, Patient>;
-  myAppointments: Appointment[];
+  summaryPatients: Patient[];
+  patientSummaries: Array<{
+    id: string;
+    patient_id: string;
+    visit_date: string;
+    status: string;
+    pre_visit_summary: string | null;
+    pre_visit_summary_generated_at: string | null;
+  }>;
+  receivedReferrals: Referral[];
+  doctorRoster: Array<Pick<Doctor, "id" | "full_name">>;
 }) {
-  const inQueue = myToday.filter((v) =>
-    ["queued", "in_progress"].includes(v.status),
+  const queuedCount = myToday.filter((v) => v.status === "queued").length;
+  const withDoctorCount = myToday.filter((v) => v.status === "in_progress").length;
+  const reviewedCount = myToday.filter((v) => v.status === "completed").length;
+  const pendingIntakeCount = myToday.filter((v) => v.status === "intake").length;
+
+  const queueRows = [...myAwaiting, ...myToday]
+    .filter(
+      (v, i, arr) =>
+        arr.findIndex((x) => x.id === v.id) === i &&
+        ["intake", "queued", "in_progress", "awaiting_review"].includes(v.status),
+    )
+    .slice(0, 12);
+  const clinicQueueRows = [...clinicAwaiting, ...clinicToday].filter(
+    (v, i, arr) =>
+      arr.findIndex((x) => x.id === v.id) === i &&
+      ["intake", "queued", "in_progress", "awaiting_review"].includes(v.status),
   );
-  const completed = myToday.filter((v) => v.status === "completed");
-  const reviewedCount = completed.length;
-  const totalToday = myToday.length;
-  const percentDone =
-    totalToday === 0 ? 0 : Math.round((reviewedCount / totalToday) * 100);
-  const avgVisitMin = avgMinutes(
-    completed
-      .filter((v) => v.completed_at)
-      .map((v) => [v.completed_at as string, v.visit_date]),
-  );
+  const voiceChartingVisit = pickVoiceChartingVisit(queueRows) ?? pickVoiceChartingVisit(clinicQueueRows);
+  const voiceChartingPatient = voiceChartingVisit
+    ? patientById[voiceChartingVisit.patient_id]
+    : null;
+  const voiceToTextHref =
+    voiceChartingVisit && voiceChartingPatient
+      ? `/emr/${voiceChartingPatient.id}/visits/new?vid=${voiceChartingVisit.id}&mode=record`
+      : "/emr";
+
+  const doctorShort = `Dr. ${member.full_name.split(" ")[0]}`;
+  const doctorById = new Map(doctorRoster.map((doctor) => [doctor.id, doctor.full_name]));
 
   return (
-    <div className="space-y-8">
+    <div className="premium-shell">
       <DashboardHero
         name={member.full_name}
         clinicName={clinic.name}
         honorific
-        actions={
-          <>
-            <Link href="/appointments" className="btn-secondary">
-              <CalendarIcon />
-              My schedule
-            </Link>
-            <Link href="/emr/new" className="btn-primary">
-              <MicIcon />
-              New consultation
-            </Link>
-          </>
-        }
+        waveEmoji
       />
 
+      {/* ── Stat cards ── */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Patients in queue"
-          value={inQueue.length}
-          hint="waiting for you"
+          label="Today's Queue"
+          value={queuedCount}
+          hint="patients checked in"
           icon={<UsersIcon />}
           tone="brand"
         />
         <StatCard
-          label="Reviewed today"
-          value={`${reviewedCount}${totalToday ? ` / ${totalToday}` : ""}`}
-          hint={totalToday ? `${percentDone}% complete` : "no visits yet"}
-          icon={<CheckCircleIcon />}
-          tone="violet"
-        />
-        <StatCard
-          label="AI drafts to review"
-          value={myAwaiting.length}
-          hint="needs your sign-off"
-          icon={<SparkleIcon />}
-          tone="amber"
-        />
-        <StatCard
-          label="Avg visit time"
-          value={avgVisitMin > 0 ? `${avgVisitMin} min` : "—"}
-          hint="from start to save"
+          label="With Doctor"
+          value={withDoctorCount}
+          hint="currently being seen"
           icon={<ClockIcon />}
           tone="sky"
         />
+        <StatCard
+          label="Reviewed"
+          value={reviewedCount}
+          hint="completed visits"
+          icon={<CheckCircleIcon />}
+          tone="accent"
+        />
+        <StatCard
+          label="Pending Intake"
+          value={pendingIntakeCount}
+          hint="vitals not captured"
+          icon={<ClipboardIcon />}
+          tone="amber"
+        />
       </section>
 
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-ink-500">
-                My queue
-              </h2>
-              <Link href="/emr" className="text-xs font-medium text-brand-700 hover:underline">
-                All my patients →
-              </Link>
-            </div>
-            {inQueue.length === 0 && myAwaiting.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white dark:border-ink-800 dark:bg-ink-900/40 p-8 text-center text-sm text-slate-500 dark:text-ink-500">
-                No patients waiting. The reception will route them here.
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {[...myAwaiting, ...inQueue].slice(0, 8).map((v) => {
+      {/* ── Today's Intake Queue ── */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
+            <span className="text-[#0ea5a4]">📋</span>
+            Today&apos;s Intake Queue
+          </h2>
+          <Link href="/emr/new" className="btn-teal">
+            <PlusIcon />
+            New EMR
+          </Link>
+        </div>
+
+        <div className="premium-panel overflow-hidden">
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>EMR ID</th>
+                <th>Vitals</th>
+                <th>Doctor</th>
+                <th>Status</th>
+                <th className="text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {queueRows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-16 text-center text-sm font-medium text-[#64748b] dark:text-ink-500">
+                    No records yet.
+                  </td>
+                </tr>
+              ) : (
+                queueRows.map((v) => {
                   const p = patientById[v.patient_id];
                   if (!p) return null;
                   const target =
                     v.status === "awaiting_review"
                       ? `/emr/${p.id}/visits/${v.id}/review`
-                      : `/emr/${p.id}/visits/new?vid=${v.id}&mode=record`;
+                      : v.status === "intake"
+                        ? `/emr/${p.id}/visits/${v.id}/intake`
+                        : `/emr/${p.id}/visits/new?vid=${v.id}&mode=record`;
+                  const actionLabel =
+                    v.status === "awaiting_review"
+                      ? "Review"
+                      : v.status === "intake"
+                        ? "Intake"
+                        : "Open";
+                  const vitalsCaptured = v.status !== "intake";
                   return (
-                    <li key={v.id}>
-                      <Link
-                        href={target}
-                        className="card flex items-center justify-between gap-3 p-4 transition hover:border-brand-300 hover:shadow-md"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-200 to-brand-100 text-xs font-bold text-brand-800 dark:from-brand-700 dark:to-brand-900 dark:text-brand-200">
+                    <tr
+                      key={v.id}
+                      className="last:border-0"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold text-white"
+                            style={{ background: "linear-gradient(135deg, #38bdf8 0%, #2563eb 100%)" }}
+                          >
                             {initials(p.full_name)}
                           </span>
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-slate-900 dark:text-ink-100">
+                            <div className="truncate font-semibold text-[#0f172a] dark:text-ink-100">
                               {p.full_name}
                             </div>
-                            <div className="truncate text-[11px] text-slate-500 dark:text-ink-500">
-                              {p.emr_number}
-                              {p.age != null ? ` · ${p.age}${p.sex || ""}` : ""}
-                              {v.chief_complaints
-                                ? ` · ${v.chief_complaints.slice(0, 60)}`
-                                : ""}
+                            <div className="truncate text-[11px] text-[#64748b] dark:text-ink-500">
+                              {p.age != null ? `${p.age}${p.sex || ""}` : "—"}
                             </div>
                           </div>
                         </div>
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-[12px] text-[#64748b] dark:text-ink-400">
+                        {p.emr_number}
+                      </td>
+                      <td className="px-5 py-3.5">
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            v.status === "awaiting_review"
-                              ? "bg-amber-100 text-amber-800"
-                              : v.status === "in_progress"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-sky-100 text-sky-700"
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            vitalsCaptured
+                              ? "bg-[#ecfdf5] text-[#059669] dark:bg-emerald-900/30 dark:text-emerald-300"
+                              : "bg-[#fff7ed] text-[#ea580c] dark:bg-amber-900/30 dark:text-amber-300"
                           }`}
                         >
-                          {v.status === "awaiting_review"
-                            ? "Draft ready"
-                            : v.status === "in_progress"
-                              ? "In progress"
-                              : "Waiting"}
+                          {vitalsCaptured ? "Captured" : "Pending"}
                         </span>
-                      </Link>
-                    </li>
+                      </td>
+                      <td className="px-5 py-3.5 text-[#334155] dark:text-ink-300">
+                        {doctorShort}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusPill status={v.status} />
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Link
+                          href={target}
+                          className="premium-action"
+                        >
+                          {actionLabel}
+                        </Link>
+                      </td>
+                    </tr>
                   );
-                })}
-              </ul>
-            )}
-          </div>
-
-          <ConsultationLauncher currentUserId={member.id} />
-        </div>
-
-        <div className="space-y-6">
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-ink-500">
-                My schedule
-              </h2>
-              <Link href="/appointments" className="text-xs font-medium text-brand-700 hover:underline">
-                Manage →
-              </Link>
-            </div>
-            {myAppointments.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white dark:border-ink-800 dark:bg-ink-900/40 p-6 text-center text-xs text-slate-500 dark:text-ink-500">
-                No appointments today.
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {myAppointments.slice(0, 6).map((a) => {
-                  const p = a.patient_id ? patientById[a.patient_id] : null;
-                  return (
-                    <li
-                      key={a.id}
-                      className="card flex items-center gap-3 p-3"
-                    >
-                      <span className="flex flex-col items-center rounded-lg bg-brand-50 px-2 py-1 text-[10px] font-semibold text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
-                        <span className="text-sm leading-tight">
-                          {formatTime(a.scheduled_at)}
-                        </span>
-                        <span className="leading-tight">
-                          {a.duration_minutes}m
-                        </span>
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-slate-900 dark:text-ink-100">
-                          {p?.full_name || "(unknown patient)"}
-                        </div>
-                        <div className="truncate text-[11px] text-slate-500 dark:text-ink-500">
-                          {labelType(a.type)}
-                          {a.priority !== "normal"
-                            ? ` · ${a.priority}`
-                            : ""}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </section>
+
+      {/* ── Clinical Modules ── */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
+            <span className="text-[#0ea5a4]">Referral</span>
+            Referrals received
+          </h2>
+        </div>
+
+        <div className="premium-panel overflow-hidden">
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>From</th>
+                <th>Specialty</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th className="text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receivedReferrals.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm font-medium text-[#64748b] dark:text-ink-500">
+                    No referrals received yet.
+                  </td>
+                </tr>
+              ) : (
+                receivedReferrals.map((referral) => {
+                  const patient = patientById[referral.patient_id];
+                  const referringDoctor = doctorById.get(referral.referring_doctor_id) || "Clinic doctor";
+
+                  return (
+                    <tr key={referral.id}>
+                      <td className="px-5 py-3.5">
+                        {patient ? (
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold text-white"
+                              style={{ background: "linear-gradient(135deg, #38bdf8 0%, #2563eb 100%)" }}
+                            >
+                              {initials(patient.full_name)}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-[#0f172a] dark:text-ink-100">
+                                {patient.full_name}
+                              </div>
+                              <div className="truncate text-[11px] text-[#64748b] dark:text-ink-500">
+                                {patient.emr_number}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[#64748b]">Patient unavailable</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-[#334155] dark:text-ink-300">
+                        {referringDoctor}
+                      </td>
+                      <td className="px-5 py-3.5 text-[#334155] dark:text-ink-300">
+                        {referral.referred_to_specialty}
+                        <div className="mt-0.5 text-[11px] text-[#64748b]">
+                          {formatDate(referral.created_at)}
+                        </div>
+                      </td>
+                      <td className="max-w-[360px] px-5 py-3.5 text-[#334155] dark:text-ink-300">
+                        <span className="line-clamp-2">{referral.reason}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <ReferralStatusPill status={referral.status} />
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        {patient ? (
+                          <Link href={`/emr/${patient.id}`} className="premium-action">
+                            Open EMR
+                          </Link>
+                        ) : (
+                          <span className="text-[12px] font-semibold text-slate-400">Unavailable</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <ClinicalModules
+        voiceToTextHref={voiceToTextHref}
+        clinicId={clinic.id}
+        currentUserId={member.id}
+        referralDoctors={doctorRoster.length > 0 ? doctorRoster : [{ id: member.id, full_name: member.full_name }]}
+        summaryPatients={summaryPatients.map((patient) => ({
+          id: patient.id,
+          full_name: patient.full_name,
+          emr_number: patient.emr_number,
+          age: patient.age,
+          sex: patient.sex,
+          phone: patient.phone,
+          blood_group: patient.blood_group,
+          known_allergies: patient.known_allergies,
+          chronic_conditions: patient.chronic_conditions,
+        }))}
+        patientSummaries={patientSummaries
+          .map((summary) => {
+            const text = summary.pre_visit_summary?.trim();
+            if (!text) return null;
+
+            return {
+              visit_id: summary.id,
+              patient_id: summary.patient_id,
+              visit_date: summary.visit_date,
+              status: summary.status,
+              summary: text,
+              generated_at: summary.pre_visit_summary_generated_at,
+            };
+          })
+          .filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))}
+      />
     </div>
   );
 }
 
-function labelType(t: Appointment["type"]) {
+function pickVoiceChartingVisit(visits: Visit[]) {
   return (
-    {
-      regular: "Regular",
-      follow_up: "Follow-up",
-      emergency: "Emergency",
-      procedure: "Procedure",
-    } as const
-  )[t];
+    visits.find((v) => v.status === "queued" || v.status === "in_progress") ??
+    visits.find((v) => v.status === "intake")
+  );
+}
+
+function StatusPill({ status }: { status: Visit["status"] }) {
+  const map: Record<Visit["status"], { cls: string; label: string }> = {
+    intake:          { cls: "bg-slate-100 text-slate-600 dark:bg-ink-800 dark:text-ink-400",              label: "Intake" },
+    queued:          { cls: "bg-[#ecfeff] text-[#0891b2] dark:bg-sky-900/40 dark:text-sky-300",            label: "In Queue" },
+    in_progress:     { cls: "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",         label: "With Doctor" },
+    awaiting_review: { cls: "bg-violet-50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",     label: "Draft" },
+    completed:       { cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", label: "Done" },
+    cancelled:       { cls: "bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",             label: "Cancelled" },
+  };
+  const { cls, label } = map[status];
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function ReferralStatusPill({ status }: { status: Referral["status"] }) {
+  const map: Record<Referral["status"], { cls: string; label: string }> = {
+    draft: { cls: "bg-slate-100 text-slate-600 dark:bg-ink-800 dark:text-ink-400", label: "Draft" },
+    sent: { cls: "bg-[#ecfeff] text-[#0891b2] dark:bg-sky-900/40 dark:text-sky-300", label: "Sent" },
+    accepted: { cls: "bg-violet-50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", label: "Accepted" },
+    completed: { cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", label: "Completed" },
+    cancelled: { cls: "bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300", label: "Cancelled" },
+  };
+  const { cls, label } = map[status];
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }

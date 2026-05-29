@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/Spinner";
+import type { Immunization } from "@/types/db";
 
 export function PreVisitSummary({
   visitId,
   initialSummary,
   initialGeneratedAt,
+  immunizations,
 }: {
   visitId: string;
   initialSummary: string | null;
   initialGeneratedAt: string | null;
+  immunizations?: Immunization[];
 }) {
   const [summary, setSummary] = useState<string | null>(initialSummary);
   const [generatedAt, setGeneratedAt] = useState<string | null>(initialGeneratedAt);
@@ -65,7 +68,7 @@ export function PreVisitSummary({
           </span>
           <div>
             <div className="text-sm font-semibold text-slate-900 dark:text-ink-100">
-              Pre-visit AI brief
+              Pre-visit brief
             </div>
             <div className="text-[11px] text-slate-500 dark:text-ink-500">
               Vitals + last 2 visits across the clinic
@@ -92,9 +95,15 @@ export function PreVisitSummary({
           <Spinner /> Reading vitals & history…
         </div>
       ) : summary ? (
-        <SummaryView text={summary} />
+        <>
+          <SummaryView text={summary} />
+          <ImmunizationBrief records={immunizations || []} />
+        </>
       ) : !err ? (
-        <p className="text-sm text-slate-500 dark:text-ink-500">No summary yet.</p>
+        <>
+          <p className="text-sm text-slate-500 dark:text-ink-500">No summary yet.</p>
+          <ImmunizationBrief records={immunizations || []} />
+        </>
       ) : null}
 
       {generatedAt ? (
@@ -104,6 +113,40 @@ export function PreVisitSummary({
       ) : null}
     </section>
   );
+}
+
+function ImmunizationBrief({ records }: { records: Immunization[] }) {
+  if (records.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-brand-100 pt-3 dark:border-brand-900/40">
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-800">
+        Immunizations
+      </div>
+      <ul className="space-y-1 text-sm leading-relaxed text-slate-800 dark:text-ink-200">
+        {records.slice(0, 4).map((record) => (
+          <li key={record.id}>
+            - {record.vaccine_name}
+            {record.cvx_code ? ` (CVX ${record.cvx_code})` : ""}
+            {record.dose ? `, ${record.dose}` : ""} given {formatBriefDate(record.date_given)}
+            {record.next_due_date ? `; next due ${formatBriefDate(record.next_due_date)}` : ""}
+            {record.status !== "completed" ? `; status ${record.status}` : ""}
+            {record.notes ? `; ${record.notes}` : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function formatBriefDate(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 // Tiny markdown renderer for the four-section brief: handles **bold**, headings (lines starting with **),

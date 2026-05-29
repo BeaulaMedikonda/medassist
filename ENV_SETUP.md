@@ -1,6 +1,6 @@
-# Hello Doctor Env Setup
+# MedAssist Env Setup
 
-Fill [`.env`](</d:/Project Hello Doctor/.env>) before I start building the app.
+Fill [`.env`](</d:/Project MedAssist/.env>) before I start building the app.
 
 ## Required first
 
@@ -19,7 +19,7 @@ These values should be filled before development starts:
 
 You can leave these as they are unless you have a specific reason to change them:
 
-- `NEXT_PUBLIC_APP_NAME=Hello Doctor`
+- `NEXT_PUBLIC_APP_NAME=MedAssist`
 - `NEXT_PUBLIC_APP_URL=http://localhost:3000`
 - `NEXT_PUBLIC_DEFAULT_LOCALE=en-IN`
 - `EMR_NUMBER_PREFIX=HD`

@@ -106,7 +106,7 @@ export function TeamManager({
 
   return (
     <div className="space-y-6">
-      <section className="card p-5">
+      <section className="premium-panel p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900 dark:text-ink-100">
@@ -120,7 +120,7 @@ export function TeamManager({
           </div>
           <button
             onClick={() => copy(inviteCode, "invite code")}
-            className="rounded-lg bg-brand-50 px-3 py-1.5 font-mono text-sm font-semibold tracking-widest text-brand-800 hover:bg-brand-100"
+            className="rounded-full bg-brand-50 px-4 py-2 font-mono text-sm font-extrabold tracking-widest text-brand-800 hover:bg-brand-100"
           >
             {inviteCode}
           </button>
@@ -146,7 +146,7 @@ export function TeamManager({
         </div>
 
         {showAdd ? (
-          <form onSubmit={submit} className="card mb-4 p-5">
+          <form onSubmit={submit} className="premium-panel mb-4 p-5">
             <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
               You're creating a sign-in account directly. The member will be
               able to log in immediately with the credentials shown after save.
@@ -338,7 +338,7 @@ function MemberRow({
   }
 
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-soft">
+    <li className="premium-panel flex flex-col gap-3 p-4">
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-100 text-xs font-semibold text-brand-800">
           {initials(member.full_name)}

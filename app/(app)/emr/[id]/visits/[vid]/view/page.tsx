@@ -1,5 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
+import { requireMember } from "@/lib/auth";
+import { getDoctorAssignedScope } from "@/lib/doctor-access";
 import type { Patient, Visit } from "@/types/db";
 import { ViewScreen } from "./ViewScreen";
 
@@ -12,15 +14,13 @@ export default async function VisitViewPage({
 }) {
   const supabase = await supabaseServer();
   const { id, vid } = await params;
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const { member, clinic } = await requireMember();
 
   const { data: patient } = await supabase
     .from("patients")
     .select("*")
     .eq("id", id)
+    .eq("clinic_id", clinic.id)
     .maybeSingle();
   if (!patient) notFound();
 
@@ -28,8 +28,17 @@ export default async function VisitViewPage({
     .from("visits")
     .select("*")
     .eq("id", vid)
+    .eq("patient_id", id)
+    .eq("clinic_id", clinic.id)
     .maybeSingle();
   if (!visit) notFound();
+
+  if (member.role === "doctor") {
+    const doctorScope = await getDoctorAssignedScope(supabase, member.id, clinic.id);
+    if (!doctorScope.visitIds.has(vid)) {
+      notFound();
+    }
+  }
 
   // Visits that aren't completed yet have nothing meaningful to view in
   // read-only mode — bounce them back to the editable review screen.

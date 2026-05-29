@@ -92,7 +92,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth";
-import type { Patient, PatientAllergy, Visit, VisitDoctorAssignment } from "@/types/db";
+import type { Patient, Visit, VisitDoctorAssignment } from "@/types/db";
 import { ReceptionIntakeEdit } from "./ReceptionIntakeEdit";
 
 export const dynamic = "force-dynamic";
@@ -114,7 +114,6 @@ export default async function IntakePage({
     { data: visit },
     { data: doctors },
     { data: assignments },
-    { data: allergies },
   ] = await Promise.all([
     supabase.from("patients").select("*").eq("id", id).maybeSingle(),
     supabase.from("visits").select("*").eq("id", vid).maybeSingle(),
@@ -128,11 +127,6 @@ export default async function IntakePage({
       .from("visit_doctors")
       .select("visit_id, doctor_id, role, assigned_at")
       .eq("visit_id", vid),
-    supabase
-      .from("patient_allergies")
-      .select("*")
-      .eq("patient_id", id)
-      .order("recorded_at", { ascending: true }),
   ]);
 
   if (!patient || !visit) notFound();
@@ -176,7 +170,6 @@ export default async function IntakePage({
           visit={visit as Visit}
           doctors={roster}
           assignments={(assignments as VisitDoctorAssignment[]) || []}
-          initialAllergies={(allergies as PatientAllergy[]) || []}
         />
       </div>
     </div>

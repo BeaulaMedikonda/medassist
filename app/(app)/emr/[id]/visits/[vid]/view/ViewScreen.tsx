@@ -554,7 +554,7 @@ function ActionBar({
   onExport: () => void;
 }) {
   return (
-    <div className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-ink-800 dark:bg-ink-950/90 md:left-[260px]">
+    <div className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-ink-800 dark:bg-ink-950/90 md:left-[310px]">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2 sm:px-2">
         <div className="hidden items-center gap-2 text-[11px] text-slate-500 dark:text-ink-500 sm:flex">
           <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />

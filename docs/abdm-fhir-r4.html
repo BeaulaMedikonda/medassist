@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hello Doctor — ABDM, FHIR R4, ICD-10 &amp; Consent Manager</title>
+    <title>MedAssist — ABDM, FHIR R4, ICD-10 &amp; Consent Manager</title>
     <style>
       :root {
         --bg: #f7f8fa;
@@ -121,7 +121,7 @@
       <header>
         <h1>ABDM, FHIR R4, ICD-10 &amp; Consent Manager</h1>
         <p class="lede">
-          A guided tour of the regulatory and technical stack that Hello Doctor's
+          A guided tour of the regulatory and technical stack that MedAssist's
           EMR plugs into — what it is, where it came from, exactly how the pieces
           fit together for an Indian OPD clinic, and a precise checklist of what
           is built, partially built, and not yet started.
@@ -134,7 +134,7 @@
             <li><a href="#fhir">FHIR R4 — the wire format ABDM mandates</a></li>
             <li><a href="#mapping">How ABDM uses FHIR (profiles &amp; coding systems)</a></li>
             <li><a href="#icd10">What ICD-10 is and why we use it</a></li>
-            <li><a href="#endpoint">How Hello Doctor bundles FHIR as an endpoint API</a></li>
+            <li><a href="#endpoint">How MedAssist bundles FHIR as an endpoint API</a></li>
             <li><a href="#cm">Consent Manager (HIE-CM) — what it actually does</a></li>
             <li><a href="#cm-cost">Consent Manager — is it free? compliance requirements</a></li>
             <li><a href="#done">What's done</a></li>
@@ -171,7 +171,7 @@
 
       <h2 id="players">2 · The four roles in the ABDM ecosystem</h2>
       <table>
-        <thead><tr><th style="width:18%">Role</th><th>What it does</th><th>Hello Doctor's relationship</th></tr></thead>
+        <thead><tr><th style="width:18%">Role</th><th>What it does</th><th>MedAssist's relationship</th></tr></thead>
         <tbody>
           <tr>
             <td><strong>HIP</strong><br/><span class="small">Health Information Provider</span></td>
@@ -191,7 +191,7 @@
           <tr>
             <td><strong>ABHA holder</strong></td>
             <td>The patient. Uses a PHR app to view records and grant/revoke consent.</td>
-            <td>Our patients (ABHA optional to use Hello Doctor).</td>
+            <td>Our patients (ABHA optional to use MedAssist).</td>
           </tr>
         </tbody>
       </table>
@@ -247,7 +247,7 @@
       <table>
         <thead><tr><th>Profile</th><th>Purpose</th></tr></thead>
         <tbody>
-          <tr><td><code>OPConsultRecord</code></td><td>OPD consultation note. <strong>This is what Hello Doctor emits.</strong></td></tr>
+          <tr><td><code>OPConsultRecord</code></td><td>OPD consultation note. <strong>This is what MedAssist emits.</strong></td></tr>
           <tr><td><code>DischargeSummary</code></td><td>Inpatient discharge record</td></tr>
           <tr><td><code>DiagnosticReport</code> bundle</td><td>Lab / imaging report</td></tr>
           <tr><td><code>PrescriptionRecord</code></td><td>Standalone Rx without full consult</td></tr>
@@ -307,7 +307,7 @@
         <code>icd_codes text[]</code>.
       </p>
 
-      <h2 id="endpoint">6 · How Hello Doctor bundles FHIR as an endpoint API</h2>
+      <h2 id="endpoint">6 · How MedAssist bundles FHIR as an endpoint API</h2>
       <p>
         On-demand. No nightly export, no separate worker — when an authenticated
         request hits the endpoint, the Bundle is assembled in-memory from
@@ -340,7 +340,7 @@ Content-Type: application/fhir+json; charset=utf-8</code></pre>
       </p>
 
       <div class="flow">
-[1] Patient links HIP                Patient opens their PHR app, searches "Hello Doctor",
+[1] Patient links HIP                Patient opens their PHR app, searches "MedAssist",
                                      links their record. We receive a discovery callback.
 
 [2] HIU requests records             Specialist hospital calls CM with the patient's ABHA,

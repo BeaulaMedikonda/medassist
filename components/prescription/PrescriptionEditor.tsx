@@ -1,6 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  medicineComposition,
+  searchMedicines,
+  type MedicineSearchRow,
+} from "@/lib/pharmacy/medicine-search";
 import type { Medicine, Prescription } from "@/types/db";
 import { cn } from "@/lib/utils";
 
@@ -197,24 +202,22 @@ function MedicineCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-2 p-3">
-        <input
-          className={cn(
-            "input-base col-span-12 sm:col-span-6 font-semibold",
-            medicine.status === "stopped" && "line-through",
-          )}
+      <div className="grid grid-cols-2 gap-2 p-3 xl:grid-cols-12">
+        <MedicineNameInput
           value={medicine.name}
           onChange={(e) => onChange({ name: e.target.value })}
+          onSelect={(name) => onChange({ name })}
+          stopped={medicine.status === "stopped"}
           placeholder="Tab. Crocin 500mg"
         />
         <input
-          className="input-base col-span-6 sm:col-span-2"
+          className="input-base min-w-0 xl:col-span-2"
           value={medicine.dose || ""}
           onChange={(e) => markModified(onChange, medicine, { dose: e.target.value || null })}
           placeholder="Dose"
         />
         <select
-          className="input-base col-span-6 sm:col-span-2"
+          className="input-base min-w-0 xl:col-span-2"
           value={medicine.frequency || ""}
           onChange={(e) => markModified(onChange, medicine, { frequency: e.target.value || null })}
         >
@@ -226,13 +229,13 @@ function MedicineCard({
           ))}
         </select>
         <input
-          className="input-base col-span-6 sm:col-span-2"
+          className="input-base min-w-0 xl:col-span-3"
           value={medicine.duration || ""}
           onChange={(e) => markModified(onChange, medicine, { duration: e.target.value || null })}
           placeholder="Duration"
         />
         <select
-          className="input-base col-span-6 sm:col-span-2"
+          className="input-base min-w-0 xl:col-span-2"
           value={medicine.route || "PO"}
           onChange={(e) => markModified(onChange, medicine, { route: e.target.value || null })}
         >
@@ -243,13 +246,128 @@ function MedicineCard({
           ))}
         </select>
         <input
-          className="input-base col-span-12 sm:col-span-10"
+          className="input-base col-span-2 min-w-0 xl:col-span-10"
           value={medicine.instructions || ""}
           onChange={(e) => onChange({ instructions: e.target.value || null })}
           placeholder="Instructions (e.g. after food)"
         />
       </div>
     </li>
+  );
+}
+
+function MedicineNameInput({
+  value,
+  onChange,
+  onSelect,
+  stopped,
+  placeholder,
+}: {
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onSelect: (name: string) => void;
+  stopped: boolean;
+  placeholder: string;
+}) {
+  const [rows, setRows] = useState<MedicineSearchRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [open, setOpen] = useState(false);
+  const ignoreNextBlur = useRef(false);
+  const query = value.trim();
+
+  useEffect(() => {
+    if (!open || query.length < 2) {
+      setRows([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      setError("");
+      const result = await searchMedicines(query, 8);
+      if (!cancelled) {
+        setRows(result.data);
+        setError(result.error);
+        setLoading(false);
+      }
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, query]);
+
+  const showDropdown = open && query.length >= 2;
+
+  function selectMedicine(medicine: MedicineSearchRow) {
+    onSelect(medicine.name);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative col-span-2 xl:col-span-5">
+      <input
+        className={cn("input-base w-full font-semibold", stopped && "line-through")}
+        value={value}
+        onChange={(event) => {
+          onChange(event);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          if (ignoreNextBlur.current) {
+            ignoreNextBlur.current = false;
+            return;
+          }
+          window.setTimeout(() => setOpen(false), 120);
+        }}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+
+      {showDropdown ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg dark:border-ink-700 dark:bg-ink-900">
+          {loading ? (
+            <div className="px-3 py-2 text-sm font-medium text-slate-500 dark:text-ink-400">
+              Searching medicines...
+            </div>
+          ) : error ? (
+            <div className="px-3 py-2 text-sm font-medium text-rose-600 dark:text-rose-300">
+              Medicine lookup failed
+            </div>
+          ) : rows.length > 0 ? (
+            <ul className="max-h-64 overflow-y-auto py-1">
+              {rows.map((row) => (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left hover:bg-slate-50 focus:bg-slate-50 focus:outline-none dark:hover:bg-ink-800 dark:focus:bg-ink-800"
+                    onMouseDown={() => {
+                      ignoreNextBlur.current = true;
+                    }}
+                    onClick={() => selectMedicine(row)}
+                  >
+                    <div className="text-sm font-bold text-slate-950 dark:text-ink-50">{row.name}</div>
+                    <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-ink-400">
+                      {medicineComposition(row)}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="px-3 py-2 text-sm font-medium text-slate-500 dark:text-ink-400">
+              No medicine matches
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

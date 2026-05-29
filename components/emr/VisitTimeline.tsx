@@ -80,7 +80,7 @@ function VisitItem({ visit, patientId }: { visit: Visit; patientId: string }) {
               <span>{formatDateTime(visit.visit_date)}</span>
               {visit.transcript_text ? (
                 <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-700 ring-1 ring-brand-200/60 dark:bg-brand-900/40 dark:text-brand-300 dark:ring-brand-800/60">
-                  AI scribe
+                  Voice note
                 </span>
               ) : null}
             </div>

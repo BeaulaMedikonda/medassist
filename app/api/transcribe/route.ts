@@ -35,7 +35,16 @@ export async function POST(req: Request) {
     }
     const v = visit as Pick<Visit, "id" | "doctor_id" | "audio_url" | "clinic_id">;
     if (v.doctor_id !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const { data: assignment } = await sb
+        .from("visit_doctors")
+        .select("visit_id")
+        .eq("visit_id", v.id)
+        .eq("doctor_id", user.id)
+        .maybeSingle();
+
+      if (!assignment) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
     if (!visit.audio_url) {
       return NextResponse.json({ error: "No audio attached to this visit" }, { status: 400 });

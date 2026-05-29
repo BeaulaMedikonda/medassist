@@ -8,7 +8,7 @@ function required(name: string, value: string | undefined): string {
 }
 
 export const publicEnv = {
-  appName:       process.env.NEXT_PUBLIC_APP_NAME    || "Hello Doctor",
+  appName:       process.env.NEXT_PUBLIC_APP_NAME    || "MedAssist",
   appUrl:        process.env.NEXT_PUBLIC_APP_URL     || "http://localhost:3000",
   defaultLocale: process.env.NEXT_PUBLIC_DEFAULT_LOCALE || "en-IN",
   supabaseUrl:      process.env.NEXT_PUBLIC_SUPABASE_URL      || "",

@@ -19,6 +19,12 @@ export type AppointmentStatus =
   | "completed"
   | "cancelled"
   | "no_show";
+export type ReferralStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "completed"
+  | "cancelled";
 
 export type Clinic = {
   id: string;
@@ -60,6 +66,8 @@ export type Patient = {
   clinic_id: string | null;
   emr_number: string;
   full_name: string;
+  first_name: string | null;
+  last_name: string | null;
   given_name: string | null;
   family_name: string | null;
   age: number | null;
@@ -74,6 +82,7 @@ export type Patient = {
   state: string | null;
   postal_code: string | null;
   country: string | null;
+  height_cm: number | null;
   blood_group: string | null;
   known_allergies: string | null;
   chronic_conditions: string | null;
@@ -91,6 +100,45 @@ export type PatientAllergy = {
   reaction: string | null;
   severity: "mild" | "moderate" | "severe" | null;
   recorded_at: string;
+};
+
+export type Immunization = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  visit_id: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_role: StaffRole | null;
+  vaccine_name: string;
+  date_given: string;
+  dose: string | null;
+  cvx_code: string | null;
+  status: "completed" | "scheduled" | "declined" | "contraindicated";
+  next_due_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Referral = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  visit_id: string | null;
+  referring_doctor_id: string;
+  referred_to_doctor_id: string | null;
+  referred_to_name: string;
+  referred_to_specialty: string;
+  referred_to_hospital: string | null;
+  referred_to_phone: string | null;
+  referred_to_email: string | null;
+  reason: string;
+  notes: string | null;
+  status: ReferralStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type DisclosureConsumerType =

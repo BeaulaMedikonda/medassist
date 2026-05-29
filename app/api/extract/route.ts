@@ -27,8 +27,21 @@ export async function POST(req: Request) {
       .select("*")
       .eq("id", visitId)
       .single();
-    if (!visit || (visit as Visit).doctor_id !== user.id) {
+    if (!visit) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
+    }
+
+    if ((visit as Visit).doctor_id !== user.id) {
+      const { data: assignment } = await sb
+        .from("visit_doctors")
+        .select("visit_id")
+        .eq("visit_id", visitId)
+        .eq("doctor_id", user.id)
+        .maybeSingle();
+
+      if (!assignment) {
+        return NextResponse.json({ error: "Visit not found" }, { status: 404 });
+      }
     }
 
     const { data: patient } = await sb

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { serverEnv } from "@/lib/env";
-import type { Patient, Visit } from "@/types/db";
+import type { Immunization, Patient, Visit } from "@/types/db";
 
 let cachedClient: Anthropic | null = null;
 function client() {
@@ -18,6 +18,7 @@ export const SUMMARY_SYSTEM_PROMPT = `You are a pre-visit briefer for an Indian 
 You are given:
 - Patient's profile (age, sex, allergies, chronic conditions)
 - Today's intake from the front desk (vitals, chief complaint)
+- Recent immunizations, if any
 - The two most recent past visits (date, diagnosis, prescription, follow-up notes)
 
 Output a TERSE markdown brief with these exact four headings, each followed by 1-2 sentences max.
@@ -39,6 +40,7 @@ export type SummaryInput = {
   patient: Patient;
   visit: Visit;
   pastVisits: Visit[];
+  immunizations?: Immunization[];
 };
 
 export type SummaryUsage = {
@@ -54,9 +56,9 @@ export async function generatePreVisitSummary(input: SummaryInput): Promise<{
   modelUsed: string;
   usage: SummaryUsage;
 }> {
-  const { patient, visit, pastVisits } = input;
+  const { patient, visit, pastVisits, immunizations = [] } = input;
 
-  const userMessage = formatSummaryUserMessage(patient, visit, pastVisits);
+  const userMessage = formatSummaryUserMessage(patient, visit, pastVisits, immunizations);
 
   const response = await client().messages.create({
     model: serverEnv.anthropicDefaultModel,
@@ -101,12 +103,20 @@ function formatSummaryUserMessage(
   patient: Patient,
   visit: Visit,
   pastVisits: Visit[],
+  immunizations: Immunization[],
 ): string {
   const lines: string[] = [];
 
   lines.push(`Patient: ${patient.full_name}, ${patient.age ?? "?"}${patient.sex ?? ""}`);
   lines.push(`Allergies: ${patient.known_allergies || "none recorded"}`);
   lines.push(`Chronic conditions: ${patient.chronic_conditions || "none recorded"}`);
+  lines.push(
+    `Immunizations: ${
+      immunizations.length > 0
+        ? immunizations.slice(0, 6).map(formatImmunizationLine).join("; ")
+        : "none recorded"
+    }`,
+  );
   lines.push("");
 
   lines.push("Today's intake:");
@@ -158,4 +168,17 @@ function formatSummaryUserMessage(
   );
 
   return lines.join("\n");
+}
+
+function formatImmunizationLine(record: Immunization) {
+  return [
+    record.vaccine_name,
+    record.cvx_code ? `CVX ${record.cvx_code}` : null,
+    record.dose,
+    `given ${record.date_given.slice(0, 10)}`,
+    record.next_due_date ? `next due ${record.next_due_date.slice(0, 10)}` : null,
+    record.status !== "completed" ? `status ${record.status}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }

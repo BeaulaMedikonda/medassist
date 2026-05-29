@@ -4,10 +4,10 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeScript } from "@/components/theme/ThemeScript";
 
 export const metadata: Metadata = {
-  title: "Hello Doctor — AI Medical Scribe",
+  title: "MedAssist — Medical Scribe",
   description:
     "Voice-driven EMR for Indian OPD doctors. Record the consult, review the draft, print the prescription.",
-  applicationName: "Hello Doctor",
+  applicationName: "MedAssist",
   manifest: "/manifest.webmanifest",
 };
 

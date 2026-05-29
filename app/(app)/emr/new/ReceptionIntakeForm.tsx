@@ -693,6 +693,7 @@ export function ReceptionIntakeForm({
     city: "",
     state: "",
     postal_code: "",
+    country: "IN",
   });
 
   // Vitals — maps 1:1 to visits DB columns
@@ -796,6 +797,7 @@ export function ReceptionIntakeForm({
         .from("patients")
         .insert({
           doctor_id: primaryDoctorId,
+          clinic_id: clinicId,
           emr_number,
           // Personal
           full_name: fullName,
@@ -821,6 +823,7 @@ export function ReceptionIntakeForm({
           city: form.city.trim() || null,
           state: form.state.trim() || null,
           postal_code: form.postal_code.trim() || null,
+          country: form.country.trim() || null,
         })
         .select("id")
         .single();
@@ -1077,6 +1080,12 @@ export function ReceptionIntakeForm({
                 value={form.postal_code}
                 onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
                 placeholder="6-digit PIN"
+              />
+              <TextInput
+                label="Country"
+                value={form.country}
+                onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+                placeholder="IN"
               />
             </div>
 

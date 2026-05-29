@@ -45,17 +45,17 @@ export function ThemeToggle({
     return (
       <button
         onClick={toggle}
-        className="inline-flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200 dark:hover:border-ink-600 dark:hover:bg-ink-800"
+        className="inline-flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-[#cdd9e3] transition hover:border-white/20 hover:bg-white/[0.08]"
         aria-label="Toggle theme"
       >
         <span className="flex items-center gap-2">
           {mounted && theme === "dark" ? <MoonIcon /> : <SunIcon />}
           {mounted ? (theme === "dark" ? "Dark mode" : "Light mode") : "Theme"}
         </span>
-        <span className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full bg-slate-200 dark:bg-ink-700">
+        <span className="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full bg-white/15">
           <span
             className={cn(
-              "inline-block h-4 w-4 transform rounded-full bg-white shadow transition dark:bg-ink-100",
+              "inline-block h-4 w-4 transform rounded-full bg-white shadow transition",
               theme === "dark" ? "translate-x-4" : "translate-x-0.5",
             )}
           />

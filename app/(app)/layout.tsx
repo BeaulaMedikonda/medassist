@@ -1,7 +1,14 @@
+// 
+
+
 import { requireMember } from "@/lib/auth";
 import { AppShell } from "@/components/layout/AppShell";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { member, clinic, email } = await requireMember();
 
   return (

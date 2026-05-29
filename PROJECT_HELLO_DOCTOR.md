@@ -1,4 +1,4 @@
-# Project Hello Doctor — Build Spec
+# Project MedAssist — Build Spec
 
 **An AI medical scribe for Indian doctors.** Multilingual voice-driven EMR creation with Claude-powered structured field extraction and intelligent prescription diff-editing.
 
@@ -11,7 +11,7 @@ Indian doctors see 40–80+ patients/day in OPD. They write minimal notes, rely 
 - **Code-mixed Indian speech** — Hindi/Tamil/Telugu medical terms mixed with English ("patient ko fever hai 3 din se, paracetamol 500 BD likh do")
 - **Indian prescription conventions** — BD/TDS/HS/SOS shorthand, brand-name prevalence over generic, OPD slip format
 
-**Hello Doctor wins by:** Indian-language-first STT (Sarvam AI / Bhashini), Indian prescription format, simple flow that matches OPD reality (record → review → print/share), and a smart prescription editor that diffs old vs. new instead of regenerating from scratch.
+**MedAssist wins by:** Indian-language-first STT (Sarvam AI / Bhashini), Indian prescription format, simple flow that matches OPD reality (record → review → print/share), and a smart prescription editor that diffs old vs. new instead of regenerating from scratch.
 
 ---
 
@@ -192,7 +192,7 @@ create index on visits (patient_id, visit_date desc);
 -- }
 ```
 
-**Row-level security:** every table filters by `doctor_id = auth.uid()`. Hello Doctor is single-tenant per doctor in V1; clinic-with-multiple-doctors comes in V2.
+**Row-level security:** every table filters by `doctor_id = auth.uid()`. MedAssist is single-tenant per doctor in V1; clinic-with-multiple-doctors comes in V2.
 
 ---
 
@@ -200,7 +200,7 @@ create index on visits (patient_id, visit_date desc);
 
 ### 5.1 STT — Sarvam Saaras v3 (Speech-to-Text + Translate + Diarization)
 
-This is the heart of Hello Doctor. One Sarvam Batch API call gives us all three jobs:
+This is the heart of MedAssist. One Sarvam Batch API call gives us all three jobs:
 
 1. **Transcription** of code-mixed Indian speech
 2. **Translation** to English (`mode="translate"`), so Claude gets clean English input
