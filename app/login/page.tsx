@@ -7,6 +7,26 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 
 type Role = "ma" | "doctor" | "admin";
+type StaffRole = "medical_assistant" | "doctor" | "admin";
+
+type ClinicChoice = {
+  memberId: string;
+  clinicId: string;
+  clinicName: string;
+  role: string;
+};
+
+const roleToStaffRole: Record<Role, StaffRole> = {
+  ma: "medical_assistant",
+  doctor: "doctor",
+  admin: "admin",
+};
+
+const roleLabel: Record<string, string> = {
+  medical_assistant: "Medical Assistant",
+  doctor: "Doctor",
+  admin: "Admin",
+};
 
 function LoginInner() {
   const router = useRouter();
@@ -19,6 +39,29 @@ function LoginInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [clinicChoices, setClinicChoices] = useState<ClinicChoice[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+
+  async function chooseWorkspace(memberId: string) {
+    const res = await fetch("/api/auth/clinics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+    if (!res.ok || !j.ok) throw new Error(j.error || "Could not select workspace");
+  }
+
+  async function loadWorkspaces(selectedRole: Role) {
+    const res = await fetch("/api/auth/clinics", { cache: "no-store" });
+    const j = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+      clinics?: ClinicChoice[];
+    };
+    if (!res.ok || !j.ok) throw new Error(j.error || "Could not load workspaces");
+    return (j.clinics || []).filter((clinic) => clinic.role === roleToStaffRole[selectedRole]);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,6 +77,26 @@ function LoginInner() {
         });
 
         if (error) throw error;
+
+        const workspaces = await loadWorkspaces(role);
+        if (workspaces.length === 0) {
+          push({
+            title: "No matching role found",
+            description: `This account is not linked as ${roleLabel[roleToStaffRole[role]]}.`,
+            variant: "error",
+          });
+          await supabase.auth.signOut();
+          return;
+        }
+
+        if (workspaces.length === 1) {
+          await chooseWorkspace(workspaces[0].memberId);
+        } else {
+          setClinicChoices(workspaces);
+          setSelectedMemberId(workspaces[0].memberId);
+          push({ title: "Choose workspace", variant: "info" });
+          return;
+        }
 
         push({ title: "Welcome back", variant: "success" });
         router.replace(next);
@@ -73,6 +136,27 @@ function LoginInner() {
         description: message,
         variant: "error",
       });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function continueWithClinic(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedMemberId) {
+      push({ title: "Choose a workspace", variant: "error" });
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await chooseWorkspace(selectedMemberId);
+      push({ title: "Welcome back", variant: "success" });
+      router.replace(next);
+      router.refresh();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Could not select workspace";
+      push({ title: "Workspace selection failed", description: message, variant: "error" });
     } finally {
       setBusy(false);
     }
@@ -145,6 +229,49 @@ function LoginInner() {
               </button>
             </div>
 
+            {clinicChoices.length > 1 ? (
+              <form onSubmit={continueWithClinic} className="space-y-5">
+                <div>
+                  <label className="mb-2 block text-[12px] font-extrabold uppercase tracking-wide text-slate-500">
+                    Select workspace
+                  </label>
+                  <div className="space-y-2">
+                    {clinicChoices.map((clinic) => {
+                      const active = selectedMemberId === clinic.memberId;
+                      return (
+                        <button
+                          key={clinic.memberId}
+                          type="button"
+                          onClick={() => setSelectedMemberId(clinic.memberId)}
+                          className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                            active
+                              ? "border-[#0ea5a4] bg-[#ecfdfc] text-[#064e4b]"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-teal-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="text-sm font-extrabold">
+                            {clinic.clinicName}
+                          </div>
+                          <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            {roleLabel[clinic.role] || clinic.role}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#0f8f83] to-[#0ea5a4] px-4 py-2 text-[14px] font-extrabold text-white shadow-[0_16px_30px_-18px_rgba(14,165,164,0.85)] transition hover:-translate-y-0.5 hover:from-[#0c7f76] hover:to-[#0d9895] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {busy ? <Spinner /> : null}
+                  Continue
+                  <span aria-hidden="true">-&gt;</span>
+                </button>
+              </form>
+            ) : (
             <form onSubmit={submit} className="space-y-5">
               <div>
                 <label className="mb-2 block text-[12px] font-extrabold uppercase tracking-wide text-slate-500">
@@ -210,6 +337,7 @@ function LoginInner() {
                 <span aria-hidden="true">-&gt;</span>
               </button>
             </form>
+            )}
 
             <p className="mt-5 text-center text-[12px] font-medium text-slate-500">
               Protected workspace for clinic staff only.

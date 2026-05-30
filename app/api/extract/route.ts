@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getOptionalMember } from "@/lib/auth";
 import { extractEmrFromVisit } from "@/lib/claude/extract";
 import { recordUsage, modelToService } from "@/lib/usage";
 import type { Patient, Visit } from "@/types/db";
@@ -15,6 +16,8 @@ export async function POST(req: Request) {
       data: { user },
     } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const memberContext = await getOptionalMember();
+    const memberId = memberContext?.member?.id ?? user.id;
 
     const body = (await req.json()) as { visitId?: string };
     const visitId = body?.visitId;
@@ -31,12 +34,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
 
-    if ((visit as Visit).doctor_id !== user.id) {
+    if ((visit as Visit).doctor_id !== memberId) {
       const { data: assignment } = await sb
         .from("visit_doctors")
         .select("visit_id")
         .eq("visit_id", visitId)
-        .eq("doctor_id", user.id)
+        .eq("doctor_id", memberId)
         .maybeSingle();
 
       if (!assignment) {
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
       if (service && service !== "sarvam_stt") {
         await recordUsage({
           clinicId: (visit as Visit).clinic_id || (patient as Patient).clinic_id || "",
-          userId: user.id,
+          userId: memberId,
           visitId,
           service,
           operation: "extract",

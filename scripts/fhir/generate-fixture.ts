@@ -56,6 +56,8 @@ const patient: Patient = {
 
 const doctor: Doctor = {
   id: "f7c3e9b0-2222-4ddd-8888-bbbbbbbbbbbb",
+  auth_user_id: null,
+  email: "vikram@example.com",
   full_name: "Dr. Vikram Iyer",
   qualification: "MBBS, MD (General Medicine)",
   registration_number: "KMC-12345",

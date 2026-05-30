@@ -21,6 +21,8 @@ type CreateBody = {
 
   role?: (typeof ALLOWED_ROLES)[number];
 
+  clinic_id?: string;
+
   qualification?: string;
 
   registration_number?: string;
@@ -89,11 +91,7 @@ export async function POST(req: Request) {
 
     }
  
-    // Old logic was doctors.id = auth user id.
-
-    // New logic is doctors.auth_user_id = auth user id.
-
-    const { data: me, error: meErr } = await sb
+    const { data: adminMemberships, error: meErr } = await sb
 
       .from("doctors")
 
@@ -103,7 +101,7 @@ export async function POST(req: Request) {
 
       .eq("role", "admin")
 
-      .maybeSingle();
+      .not("clinic_id", "is", null);
  
     if (meErr) {
 
@@ -111,9 +109,9 @@ export async function POST(req: Request) {
 
     }
  
-    const meRow = me as Doctor | null;
+    const adminRows = (adminMemberships as Doctor[] | null) || [];
  
-    if (!meRow || meRow.role !== "admin") {
+    if (adminRows.length === 0) {
 
       return NextResponse.json(
 
@@ -122,12 +120,6 @@ export async function POST(req: Request) {
         { status: 403 },
 
       );
-
-    }
- 
-    if (!meRow.clinic_id) {
-
-      return NextResponse.json({ error: "Admin has no clinic" }, { status: 400 });
 
     }
  
@@ -140,6 +132,8 @@ export async function POST(req: Request) {
     const full_name = (body.full_name || "").trim();
 
     const role = body.role;
+
+    const requestedClinicId = (body.clinic_id || "").trim();
 
     const qualification = (body.qualification || "").trim();
 
@@ -160,6 +154,28 @@ export async function POST(req: Request) {
     if (!role || !ALLOWED_ROLES.includes(role)) {
 
       return NextResponse.json({ error: "Valid role required" }, { status: 400 });
+
+    }
+
+    const targetClinicId = requestedClinicId || adminRows[0]?.clinic_id;
+
+    if (!targetClinicId) {
+
+      return NextResponse.json({ error: "Admin has no clinic" }, { status: 400 });
+
+    }
+
+    const meRow = adminRows.find((row) => row.clinic_id === targetClinicId);
+
+    if (!meRow) {
+
+      return NextResponse.json(
+
+        { error: "You can only add members to clinics where you are an admin" },
+
+        { status: 403 },
+
+      );
 
     }
  
@@ -227,7 +243,29 @@ export async function POST(req: Request) {
 
     }
  
-    const clinicName = meRow.clinic_name || null;
+    let clinicName = meRow.clinic_name || null;
+
+    if (!clinicName) {
+
+      const { data: clinic, error: clinicErr } = await admin
+
+        .from("clinics")
+
+        .select("name")
+
+        .eq("id", targetClinicId)
+
+        .maybeSingle();
+
+      if (clinicErr) {
+
+        return NextResponse.json({ error: clinicErr.message }, { status: 500 });
+
+      }
+
+      clinicName = (clinic as { name?: string } | null)?.name || null;
+
+    }
  
     // 2. Check duplicate by 5 fields:
 
@@ -239,7 +277,7 @@ export async function POST(req: Request) {
 
       .select("id")
 
-      .eq("clinic_id", meRow.clinic_id)
+      .eq("clinic_id", targetClinicId)
 
       .eq("role", role)
 
@@ -301,7 +339,7 @@ export async function POST(req: Request) {
 
       role,
 
-      clinic_id: meRow.clinic_id,
+      clinic_id: targetClinicId,
 
       clinic_name: clinicName,
 

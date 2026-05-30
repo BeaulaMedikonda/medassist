@@ -1,11 +1,11 @@
 "use client";
-
+ 
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Immunization, Patient, StaffRole } from "@/types/db";
 import { formatDate } from "@/lib/utils";
-
+ 
 type FormState = {
   patient_id: string;
   vaccine_name: string;
@@ -16,7 +16,7 @@ type FormState = {
   status: Immunization["status"];
   notes: string;
 };
-
+ 
 const emptyForm: FormState = {
   patient_id: "",
   vaccine_name: "",
@@ -27,14 +27,14 @@ const emptyForm: FormState = {
   status: "completed",
   notes: "",
 };
-
+ 
 const statusTone: Record<Immunization["status"], string> = {
   completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
   scheduled: "border-sky-200 bg-sky-50 text-sky-700",
   declined: "border-slate-200 bg-slate-50 text-slate-600",
   contraindicated: "border-rose-200 bg-rose-50 text-rose-700",
 };
-
+ 
 export function ImmunizationsClient({
   clinicId,
   currentUserId,
@@ -59,15 +59,15 @@ export function ImmunizationsClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(initialError || "");
   const currentForm = { ...emptyForm, ...form };
-
+ 
   const patientById = useMemo(() => {
     return Object.fromEntries(patients.map((patient) => [patient.id, patient]));
   }, [patients]);
-
+ 
   const filteredRecords = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return records;
-
+ 
     return records.filter((record) => {
       const patient = patientById[record.patient_id];
       return [
@@ -81,19 +81,19 @@ export function ImmunizationsClient({
         .some((value) => String(value).toLowerCase().includes(q));
     });
   }, [patientById, query, records]);
-
+ 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
-
+ 
   async function saveRecord() {
     setError("");
-
+ 
     if (!currentForm.patient_id || !currentForm.vaccine_name.trim() || !currentForm.date_given) {
       setError("Choose a patient, vaccine name, and date given.");
       return;
     }
-
+ 
     setSaving(true);
     const payload = {
       patient_id: currentForm.patient_id,
@@ -109,24 +109,24 @@ export function ImmunizationsClient({
       updated_by: currentUserId,
       created_role: currentUserRole,
     };
-
+ 
     const { data, error: insertError } = await supabaseBrowser()
       .from("immunizations")
       .insert(payload)
       .select("*")
       .single();
-
+ 
     setSaving(false);
-
+ 
     if (insertError) {
       setError(insertError.message);
       return;
     }
-
+ 
     setRecords((current) => [data as Immunization, ...current]);
     setForm({ ...emptyForm, patient_id: currentForm.patient_id });
   }
-
+ 
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -145,13 +145,13 @@ export function ImmunizationsClient({
           {records.length} records
         </div>
       </div>
-
+ 
       {error ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
           {error}
         </div>
       ) : null}
-
+ 
       <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
         <div className="card p-4">
           <h2 className="text-sm font-extrabold text-slate-950 dark:text-ink-50">Add vaccine record</h2>
@@ -171,7 +171,7 @@ export function ImmunizationsClient({
                 ))}
               </select>
             </label>
-
+ 
             <div className="grid gap-3 sm:grid-cols-2">
               <TextInput label="Vaccine" value={currentForm.vaccine_name} onChange={(value) => update("vaccine_name", value)} placeholder="e.g. Tdap" />
               <TextInput label="CVX" value={currentForm.cvx_code} onChange={(value) => update("cvx_code", value)} placeholder="e.g. 115" />
@@ -179,7 +179,7 @@ export function ImmunizationsClient({
               <TextInput label="Next due" type="date" value={currentForm.next_due_date} onChange={(value) => update("next_due_date", value)} />
               <TextInput label="Dose" value={currentForm.dose} onChange={(value) => update("dose", value)} placeholder="0.5 mL" />
             </div>
-
+ 
             <label className="space-y-1">
               <span className="text-xs font-bold uppercase text-slate-500">Status</span>
               <select
@@ -193,7 +193,7 @@ export function ImmunizationsClient({
                 <option value="contraindicated">Contraindicated</option>
               </select>
             </label>
-
+ 
             <label className="space-y-1">
               <span className="text-xs font-bold uppercase text-slate-500">Notes</span>
               <textarea
@@ -203,7 +203,7 @@ export function ImmunizationsClient({
                 placeholder="Reaction, counseling, source document..."
               />
             </label>
-
+ 
             <button
               type="button"
               onClick={() => void saveRecord()}
@@ -214,7 +214,7 @@ export function ImmunizationsClient({
             </button>
           </div>
         </div>
-
+ 
         <div className="card overflow-hidden">
           <div className="border-b border-slate-200 bg-slate-50 p-4 dark:border-ink-800 dark:bg-ink-900/70">
             <input
@@ -224,7 +224,7 @@ export function ImmunizationsClient({
               placeholder="Search patient, vaccine, CVX, status"
             />
           </div>
-
+ 
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-ink-800">
               <thead className="bg-slate-100 text-left text-xs font-extrabold uppercase text-slate-600 dark:bg-ink-800 dark:text-ink-300">
@@ -285,7 +285,7 @@ export function ImmunizationsClient({
     </section>
   );
 }
-
+ 
 function TextInput({
   label,
   value,
@@ -312,3 +312,5 @@ function TextInput({
     </label>
   );
 }
+ 
+ 

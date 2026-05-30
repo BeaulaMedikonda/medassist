@@ -1,4 +1,4 @@
-// "use client";
+"use client";
 
 // import { useEffect, useState } from "react";
 // import { useRouter } from "next/navigation";
@@ -648,11 +648,8 @@
 // }
 
 
-"use client"
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase/browser";
 import { TextInput, TextArea, SelectInput } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
@@ -792,17 +789,6 @@ export function NewPatientModal({
 
     setBusy(true);
     try {
-      const supabase = supabaseBrowser();
-
-      // 1. EMR number
-      const emrRes = await fetch("/api/emr-number", { method: "POST" });
-      if (!emrRes.ok) {
-        const e = await emrRes.json().catch(() => ({}));
-        throw new Error(e?.error || "Could not generate EMR number");
-      }
-      const { emr_number } = (await emrRes.json()) as { emr_number: string };
-
-      // 2. Patient
       const primaryDoctorId = assignments[0]?.doctor_id || currentUserId;
       const ageNum = form.age ? parseInt(form.age, 10) : null;
       const dob = form.birthdate || null;
@@ -819,115 +805,56 @@ export function NewPatientModal({
               )
             : null;
 
-      const { data: created, error: pErr } = await supabase
-        .from("patients")
-        .insert({
-          doctor_id: primaryDoctorId,
-          clinic_id: clinicId,
-          emr_number,
-          // Personal
-          full_name: fullName,
-          first_name: firstName || null,
-          last_name: lastName || null,
-          birthdate: dob,
-          age: ageDerived,
-          sex: form.sex && ["M", "F", "O"].includes(form.sex) ? form.sex : null,
-          // Contact
-          phone: form.phone.trim() || null,
-          email: form.email.trim() || null,
-          emergency_contact: form.emergency_contact.trim() || null,
-          // Medical
-          height_cm: form.height_cm ? parseFloat(form.height_cm) : null,
-          blood_group: form.blood_group.trim() || null,
-          known_allergies: form.known_allergies.trim() || null,
-          chronic_conditions: form.chronic_conditions.trim() || null,
-          // ABHA
-          abha_id: form.abha_id.trim() || null,
-          abha_address: form.abha_address.trim() || null,
-          // Address
-          address: form.address.trim() || null,
-          city: form.city.trim() || null,
-          state: form.state.trim() || null,
-          postal_code: form.postal_code.trim() || null,
-          country: form.country.trim() || null,
-        })
-        .select("id")
-        .single();
+      const res = await fetch("/api/intake/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          route: opts.route,
+          assignments,
+          apptDate,
+          chiefComplaint: chiefComplaint.trim() || null,
+          vitals: {
+            bp_systolic: numOrNull(vitals.bp_systolic),
+            bp_diastolic: numOrNull(vitals.bp_diastolic),
+            pulse: numOrNull(vitals.pulse),
+            temperature_f: numOrNull(vitals.temperature_f),
+            spo2: numOrNull(vitals.spo2),
+            weight_kg: numOrNull(vitals.weight_kg),
+          },
+          patient: {
+            doctor_id: primaryDoctorId,
+            clinic_id: clinicId,
+            full_name: fullName,
+            first_name: firstName || null,
+            last_name: lastName || null,
+            birthdate: dob,
+            age: ageDerived,
+            sex: form.sex && ["M", "F", "O"].includes(form.sex) ? form.sex : null,
+            phone: form.phone.trim() || null,
+            email: form.email.trim() || null,
+            emergency_contact: form.emergency_contact.trim() || null,
+            height_cm: form.height_cm ? parseFloat(form.height_cm) : null,
+            blood_group: form.blood_group.trim() || null,
+            known_allergies: form.known_allergies.trim() || null,
+            chronic_conditions: form.chronic_conditions.trim() || null,
+            abha_id: form.abha_id.trim() || null,
+            abha_address: form.abha_address.trim() || null,
+            address: form.address.trim() || null,
+            city: form.city.trim() || null,
+            state: form.state.trim() || null,
+            postal_code: form.postal_code.trim() || null,
+            country: form.country.trim() || null,
+          },
+        }),
+      });
+      const result = (await res.json().catch(() => ({}))) as { error?: string; visitId?: string };
+      if (!res.ok) throw new Error(result.error || "Could not create EMR");
 
-      if (pErr || !created) {
-        throw new Error(pErr?.message || "Could not create patient");
-      }
-
-      const patientId = (created as { id: string }).id;
-
-      // 3. Visit
-      const { data: visit, error: vErr } = await supabase
-        .from("visits")
-        .insert({
-          patient_id: patientId,
-          doctor_id: primaryDoctorId,
-          created_by: currentUserId,
-          visit_date: new Date().toISOString(),
-          status: opts.route ? "queued" : "intake",
-          bp_systolic: numOrNull(vitals.bp_systolic),
-          bp_diastolic: numOrNull(vitals.bp_diastolic),
-          pulse: numOrNull(vitals.pulse),
-          temperature_f: numOrNull(vitals.temperature_f),
-          spo2: numOrNull(vitals.spo2),
-          weight_kg: numOrNull(vitals.weight_kg),
-          chief_complaints: chiefComplaint.trim() || null,
-        })
-        .select("id")
-        .single();
-
-      if (vErr || !visit) {
-        throw new Error(vErr?.message || "Could not create visit");
-      }
-
-      const visitId = (visit as { id: string }).id;
-
-      // 4. visit_doctors + appointments (only when routing)
-      if (opts.route && assignments.length > 0) {
-        const { error: vdErr } = await supabase.from("visit_doctors").insert(
-          assignments.map((a) => ({
-            visit_id: visitId,
-            doctor_id: a.doctor_id,
-            role: a.role,
-          })),
-        );
-
-        if (vdErr) throw new Error(vdErr.message);
-
-        const apptRows = assignments
-          .filter((a) => a.appt_time)
-          .map((a) => {
-            const scheduled = new Date(`${apptDate}T${a.appt_time}:00`);
-            return {
-              clinic_id: clinicId,
-              patient_id: patientId,
-              doctor_id: a.doctor_id,
-              scheduled_at: scheduled.toISOString(),
-              duration_minutes: 15,
-              type: "regular" as const,
-              priority: "normal" as const,
-              status: "scheduled" as const,
-              notes: chiefComplaint.trim() || null,
-              created_by: currentUserId,
-            };
-          });
-
-        if (apptRows.length > 0) {
-          const { error: apptErr } = await supabase
-            .from("appointments")
-            .insert(apptRows);
-          if (apptErr) throw new Error(apptErr.message);
-        }
-
-        // Background pre-visit summary
+      if (opts.route && result.visitId) {
         void fetch("/api/pre-visit-summary", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ visitId }),
+          body: JSON.stringify({ visitId: result.visitId }),
         });
       }
 

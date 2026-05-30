@@ -1,5 +1,5 @@
 "use client";
-
+ 
 import Link from "next/link";
 import { StatCard } from "@/components/dashboard/StatCard";
 import {
@@ -13,7 +13,7 @@ import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { ClinicalModules } from "@/components/dashboard/ClinicalModules";
 import { initials } from "@/lib/dashboard-utils";
 import type { Clinic, Doctor, Patient, Referral, Visit } from "@/types/db";
-
+ 
 export function DoctorDashboard({
   member,
   clinic,
@@ -50,7 +50,7 @@ export function DoctorDashboard({
   const withDoctorCount = myToday.filter((v) => v.status === "in_progress").length;
   const reviewedCount = myToday.filter((v) => v.status === "completed").length;
   const pendingIntakeCount = myToday.filter((v) => v.status === "intake").length;
-
+ 
   const queueRows = [...myAwaiting, ...myToday]
     .filter(
       (v, i, arr) =>
@@ -58,6 +58,13 @@ export function DoctorDashboard({
         ["intake", "queued", "in_progress", "awaiting_review"].includes(v.status),
     )
     .slice(0, 12);
+  const completedRows = [...myAwaiting, ...myToday]
+    .filter(
+      (v, i, arr) =>
+        arr.findIndex((x) => x.id === v.id) === i &&
+        v.status === "completed",
+    )
+    .slice(0, 8);
   const clinicQueueRows = [...clinicAwaiting, ...clinicToday].filter(
     (v, i, arr) =>
       arr.findIndex((x) => x.id === v.id) === i &&
@@ -71,10 +78,10 @@ export function DoctorDashboard({
     voiceChartingVisit && voiceChartingPatient
       ? `/emr/${voiceChartingPatient.id}/visits/new?vid=${voiceChartingVisit.id}&mode=record`
       : "/emr";
-
+ 
   const doctorShort = `Dr. ${member.full_name.split(" ")[0]}`;
   const doctorById = new Map(doctorRoster.map((doctor) => [doctor.id, doctor.full_name]));
-
+ 
   return (
     <div className="premium-shell">
       <DashboardHero
@@ -83,7 +90,7 @@ export function DoctorDashboard({
         honorific
         waveEmoji
       />
-
+ 
       {/* ── Stat cards ── */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -115,7 +122,7 @@ export function DoctorDashboard({
           tone="amber"
         />
       </section>
-
+ 
       {/* ── Today's Intake Queue ── */}
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -128,7 +135,7 @@ export function DoctorDashboard({
             New EMR
           </Link>
         </div>
-
+ 
         <div className="premium-panel overflow-hidden">
           <table className="premium-table">
             <thead>
@@ -224,7 +231,72 @@ export function DoctorDashboard({
           </table>
         </div>
       </section>
-
+ 
+      {/* ── Completed Today ── */}
+      {completedRows.length > 0 ? (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
+              <span className="text-emerald-600">✓</span>
+              Completed Today
+            </h2>
+          </div>
+ 
+          <div className="premium-panel overflow-hidden">
+            <table className="premium-table">
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>EMR ID</th>
+                  <th>Time</th>
+                  <th className="text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedRows.map((v) => {
+                  const p = patientById[v.patient_id];
+                  if (!p) return null;
+                  const completedTime = v.completed_at ? new Date(v.completed_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—";
+                  return (
+                    <tr key={v.id} className="last:border-0">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold text-white"
+                            style={{ background: "linear-gradient(135deg, #38bdf8 0%, #2563eb 100%)" }}
+                          >
+                            {initials(p.full_name)}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold text-[#0f172a] dark:text-ink-100">
+                              {p.full_name}
+                            </div>
+                            <div className="truncate text-[11px] text-[#64748b] dark:text-ink-500">
+                              {p.age != null ? `${p.age}${p.sex || ""}` : "—"}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-[12px] text-[#64748b] dark:text-ink-400">
+                        {p.emr_number}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-[#64748b] dark:text-ink-400">
+                        {completedTime}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Link href={`/emr/${p.id}`} className="premium-action">
+                          View EMR
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+ 
       {/* ── Clinical Modules ── */}
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -233,7 +305,7 @@ export function DoctorDashboard({
             Referrals received
           </h2>
         </div>
-
+ 
         <div className="premium-panel overflow-hidden">
           <table className="premium-table">
             <thead>
@@ -257,7 +329,7 @@ export function DoctorDashboard({
                 receivedReferrals.map((referral) => {
                   const patient = patientById[referral.patient_id];
                   const referringDoctor = doctorById.get(referral.referring_doctor_id) || "Clinic doctor";
-
+ 
                   return (
                     <tr key={referral.id}>
                       <td className="px-5 py-3.5">
@@ -314,7 +386,7 @@ export function DoctorDashboard({
           </table>
         </div>
       </section>
-
+ 
       <ClinicalModules
         voiceToTextHref={voiceToTextHref}
         clinicId={clinic.id}
@@ -335,7 +407,7 @@ export function DoctorDashboard({
           .map((summary) => {
             const text = summary.pre_visit_summary?.trim();
             if (!text) return null;
-
+ 
             return {
               visit_id: summary.id,
               patient_id: summary.patient_id,
@@ -350,14 +422,14 @@ export function DoctorDashboard({
     </div>
   );
 }
-
+ 
 function pickVoiceChartingVisit(visits: Visit[]) {
   return (
     visits.find((v) => v.status === "queued" || v.status === "in_progress") ??
     visits.find((v) => v.status === "intake")
   );
 }
-
+ 
 function StatusPill({ status }: { status: Visit["status"] }) {
   const map: Record<Visit["status"], { cls: string; label: string }> = {
     intake:          { cls: "bg-slate-100 text-slate-600 dark:bg-ink-800 dark:text-ink-400",              label: "Intake" },
@@ -374,7 +446,7 @@ function StatusPill({ status }: { status: Visit["status"] }) {
     </span>
   );
 }
-
+ 
 function ReferralStatusPill({ status }: { status: Referral["status"] }) {
   const map: Record<Referral["status"], { cls: string; label: string }> = {
     draft: { cls: "bg-slate-100 text-slate-600 dark:bg-ink-800 dark:text-ink-400", label: "Draft" },
@@ -384,22 +456,24 @@ function ReferralStatusPill({ status }: { status: Referral["status"] }) {
     cancelled: { cls: "bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300", label: "Cancelled" },
   };
   const { cls, label } = map[status];
-
+ 
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cls}`}>
       {label}
     </span>
   );
 }
-
+ 
 function formatDate(value: string | null | undefined) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-
+ 
   return date.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
 }
+ 
+ 

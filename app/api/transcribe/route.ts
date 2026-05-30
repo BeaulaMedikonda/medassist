@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getOptionalMember } from "@/lib/auth";
 import { transcribeWithSarvam } from "@/lib/stt/sarvam";
 import { recordUsage } from "@/lib/usage";
 import { serverEnv } from "@/lib/env";
@@ -17,6 +18,8 @@ export async function POST(req: Request) {
       data: { user },
     } = await sb.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const memberContext = await getOptionalMember();
+    const memberId = memberContext?.member?.id ?? user.id;
 
     const body = (await req.json()) as { visitId?: string };
     const visitId = body?.visitId;
@@ -34,12 +37,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
     const v = visit as Pick<Visit, "id" | "doctor_id" | "audio_url" | "clinic_id">;
-    if (v.doctor_id !== user.id) {
+    if (v.doctor_id !== memberId) {
       const { data: assignment } = await sb
         .from("visit_doctors")
         .select("visit_id")
         .eq("visit_id", v.id)
-        .eq("doctor_id", user.id)
+        .eq("doctor_id", memberId)
         .maybeSingle();
 
       if (!assignment) {
@@ -93,7 +96,7 @@ export async function POST(req: Request) {
       if (v.clinic_id) {
         await recordUsage({
           clinicId: v.clinic_id,
-          userId: user.id,
+          userId: memberId,
           visitId,
           service: "sarvam_stt",
           operation: "transcribe",
