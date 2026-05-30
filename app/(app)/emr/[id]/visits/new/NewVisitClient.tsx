@@ -36,11 +36,15 @@ export function NewVisitClient({
   previousVisit,
   existingVisit,
   initialMode,
+  currentUserId,
+  clinicId,
 }: {
   patient: Patient;
   previousVisit: Visit | null;
   existingVisit: Visit | null;
   initialMode: "manual" | "record";
+  currentUserId: string;
+  clinicId: string;
 }) {
   const router = useRouter();
   const { push } = useToast();
@@ -59,8 +63,9 @@ export function NewVisitClient({
       .from("visits")
       .insert({
         patient_id: patient.id,
-        doctor_id: user.id,
-        created_by: user.id,
+        doctor_id: currentUserId,
+        created_by: currentUserId,
+        clinic_id: clinicId,
         visit_date: new Date().toISOString(),
       })
       .select("id")
@@ -71,7 +76,7 @@ export function NewVisitClient({
     // Auto-assign self as attending so it shows on the doctor's queue.
     await supabase.from("visit_doctors").insert({
       visit_id: visitId,
-      doctor_id: user.id,
+      doctor_id: currentUserId,
       role: "attending",
     });
     return visitId;
@@ -281,6 +286,8 @@ export function NewVisitClient({
           patient={patient}
           previousVisit={previousVisit}
           existingVisit={existingVisit}
+          currentUserId={currentUserId}
+          clinicId={clinicId}
         />
       )}
     </div>
@@ -380,10 +387,14 @@ function ManualEntry({
   patient,
   previousVisit,
   existingVisit,
+  currentUserId,
+  clinicId,
 }: {
   patient: Patient;
   previousVisit: Visit | null;
   existingVisit: Visit | null;
+  currentUserId: string;
+  clinicId: string;
 }) {
   const router = useRouter();
   const { push } = useToast();
@@ -410,8 +421,9 @@ function ManualEntry({
           .from("visits")
           .insert({
             patient_id: patient.id,
-            doctor_id: user.id,
-            created_by: user.id,
+            doctor_id: currentUserId,
+            created_by: currentUserId,
+            clinic_id: clinicId,
             visit_date: new Date().toISOString(),
             prescription: previousMeds.length
               ? {
@@ -427,7 +439,7 @@ function ManualEntry({
 
         await supabase.from("visit_doctors").insert({
           visit_id: visitId,
-          doctor_id: user.id,
+          doctor_id: currentUserId,
           role: "attending",
         });
       } else if (previousVisit?.prescription?.medicines && !existingVisit?.prescription) {

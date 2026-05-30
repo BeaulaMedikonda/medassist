@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getOptionalMember } from "@/lib/auth";
 import { extractEmrFromVisit } from "@/lib/claude/extract";
 import { recordUsage, modelToService } from "@/lib/usage";
+import { doctorCanAccessVisit } from "@/lib/doctor-access";
 import type { Patient, Visit } from "@/types/db";
 
 export const runtime = "nodejs";
@@ -34,23 +35,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
 
-    if ((visit as Visit).doctor_id !== memberId) {
-      const { data: assignment } = await sb
-        .from("visit_doctors")
-        .select("visit_id")
-        .eq("visit_id", visitId)
-        .eq("doctor_id", memberId)
-        .maybeSingle();
-
-      if (!assignment) {
-        return NextResponse.json({ error: "Visit not found" }, { status: 404 });
-      }
+    const v = visit as Visit;
+    const clinicId = v.clinic_id || memberContext?.clinic?.id || "";
+    if (!clinicId || !(await doctorCanAccessVisit(sb, memberId, clinicId, visitId))) {
+      return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
 
     const { data: patient } = await sb
       .from("patients")
       .select("*")
-      .eq("id", (visit as Visit).patient_id)
+      .eq("id", v.patient_id)
       .single();
     if (!patient) {
       return NextResponse.json({ error: "Patient not found" }, { status: 404 });

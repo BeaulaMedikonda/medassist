@@ -6,6 +6,7 @@ import { getOptionalMember } from "@/lib/auth";
 import { transcribeWithSarvam } from "@/lib/stt/sarvam";
 import { recordUsage } from "@/lib/usage";
 import { serverEnv } from "@/lib/env";
+import { doctorCanAccessVisit } from "@/lib/doctor-access";
 import type { Visit } from "@/types/db";
 
 export const runtime = "nodejs";
@@ -37,17 +38,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
     const v = visit as Pick<Visit, "id" | "doctor_id" | "audio_url" | "clinic_id">;
-    if (v.doctor_id !== memberId) {
-      const { data: assignment } = await sb
-        .from("visit_doctors")
-        .select("visit_id")
-        .eq("visit_id", v.id)
-        .eq("doctor_id", memberId)
-        .maybeSingle();
-
-      if (!assignment) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
+    const clinicId = v.clinic_id || memberContext?.clinic?.id || "";
+    if (!clinicId || !(await doctorCanAccessVisit(sb, memberId, clinicId, v.id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!visit.audio_url) {
       return NextResponse.json({ error: "No audio attached to this visit" }, { status: 400 });

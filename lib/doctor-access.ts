@@ -8,7 +8,7 @@ export async function getDoctorAssignedScope(
   doctorId: string,
   clinicId: string,
 ) {
-  const [{ data: directRows }, { data: assignmentRows }] = await Promise.all([
+  const [{ data: directRows }, { data: assignmentRows }, { data: referralRows }] = await Promise.all([
     supabase
       .from("visits")
       .select("id, patient_id, doctor_id")
@@ -18,6 +18,11 @@ export async function getDoctorAssignedScope(
       .from("visit_doctors")
       .select("visit_id")
       .eq("doctor_id", doctorId),
+    supabase
+      .from("referrals")
+      .select("patient_id")
+      .eq("clinic_id", clinicId)
+      .eq("referred_to_doctor_id", doctorId),
   ]);
 
   const visitMap = new Map<string, AssignedVisit>();
@@ -45,8 +50,31 @@ export async function getDoctorAssignedScope(
     }
   }
 
+  const referredPatientIds = Array.from(
+    new Set(
+      ((referralRows || []) as Array<{ patient_id: string | null }>)
+        .map((row) => row.patient_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  if (referredPatientIds.length > 0) {
+    const { data: referredRows } = await supabase
+      .from("visits")
+      .select("id, patient_id, doctor_id")
+      .eq("clinic_id", clinicId)
+      .in("patient_id", referredPatientIds);
+
+    for (const visit of (referredRows || []) as AssignedVisit[]) {
+      visitMap.set(visit.id, visit);
+    }
+  }
+
   const visitIds = new Set(visitMap.keys());
-  const patientIds = new Set(Array.from(visitMap.values()).map((visit) => visit.patient_id));
+  const patientIds = new Set([
+    ...Array.from(visitMap.values()).map((visit) => visit.patient_id),
+    ...referredPatientIds,
+  ]);
 
   return { visitIds, patientIds };
 }
@@ -70,4 +98,3 @@ export async function doctorCanAccessVisit(
   const { visitIds } = await getDoctorAssignedScope(supabase, doctorId, clinicId);
   return visitIds.has(visitId);
 }
-

@@ -99,6 +99,8 @@ export default async function NewVisitPage({
           previousVisit={previousVisit}
           existingVisit={existingVisit}
           initialMode={resolvedSearchParams.mode === "manual" ? "manual" : "record"}
+          currentUserId={member.id}
+          clinicId={clinic.id}
         />
       </div>
     </div>
