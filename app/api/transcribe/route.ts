@@ -9,7 +9,7 @@ import { serverEnv } from "@/lib/env";
 import type { Visit } from "@/types/db";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {
