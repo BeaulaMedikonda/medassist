@@ -1751,6 +1751,15 @@ function GraphicPainMapModal({
       })
       .eq("id", selectedVisit.visit.id);
 
+    void fetch("/api/pre-visit-summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        visitId: selectedVisit.visit.id,
+        force: true,
+      }),
+    });
+
     setMessage("Pain map saved to Supabase.");
     setMarkers([]);
   }

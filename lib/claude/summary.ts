@@ -41,6 +41,16 @@ export type SummaryInput = {
   visit: Visit;
   pastVisits: Visit[];
   immunizations?: Immunization[];
+  painMaps?: PainMapBrief[];
+};
+
+export type PainMapBrief = {
+  pain_type: string | null;
+  intensity: number | null;
+  pain_locations: string[] | null;
+  marked_points: string[] | null;
+  pain_summary: string | null;
+  created_at: string | null;
 };
 
 export type SummaryUsage = {
@@ -56,9 +66,15 @@ export async function generatePreVisitSummary(input: SummaryInput): Promise<{
   modelUsed: string;
   usage: SummaryUsage;
 }> {
-  const { patient, visit, pastVisits, immunizations = [] } = input;
+  const { patient, visit, pastVisits, immunizations = [], painMaps = [] } = input;
 
-  const userMessage = formatSummaryUserMessage(patient, visit, pastVisits, immunizations);
+  const userMessage = formatSummaryUserMessage(
+    patient,
+    visit,
+    pastVisits,
+    immunizations,
+    painMaps,
+  );
 
   const response = await client().messages.create({
     model: serverEnv.anthropicDefaultModel,
@@ -104,6 +120,7 @@ function formatSummaryUserMessage(
   visit: Visit,
   pastVisits: Visit[],
   immunizations: Immunization[],
+  painMaps: PainMapBrief[],
 ): string {
   const lines: string[] = [];
 
@@ -132,6 +149,14 @@ function formatSummaryUserMessage(
   lines.push(`  Vitals: ${vitals.length > 0 ? vitals.join(", ") : "not yet captured"}`);
   if (visit.chief_complaints) {
     lines.push(`  Front-desk note: ${visit.chief_complaints}`);
+  }
+  if (painMaps.length > 0) {
+    lines.push(
+      `  Graphic pain map: ${painMaps
+        .slice(0, 3)
+        .map(formatPainMapLine)
+        .join(" | ")}`,
+    );
   }
   lines.push("");
 
@@ -168,6 +193,19 @@ function formatSummaryUserMessage(
   );
 
   return lines.join("\n");
+}
+
+function formatPainMapLine(record: PainMapBrief) {
+  const summary =
+    record.pain_summary ||
+    record.marked_points?.filter(Boolean).join("; ") ||
+    record.pain_locations?.filter(Boolean).join(", ") ||
+    "pain marked";
+  const painType = record.pain_type ? `${record.pain_type} pain` : null;
+  const intensity =
+    typeof record.intensity === "number" ? `intensity ${record.intensity}/10` : null;
+
+  return [summary, painType, intensity].filter(Boolean).join(" - ");
 }
 
 function formatImmunizationLine(record: Immunization) {

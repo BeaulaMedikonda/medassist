@@ -568,6 +568,12 @@ type NavItem = {
   match?: (path: string) => boolean;
   placeholder?: boolean;
 };
+
+type LanguageChoice = {
+  code: string;
+  locale: string;
+  label: string;
+};
  
 // ─── Icons ────────────────────────────────────────────────────────────────────
  
@@ -789,6 +795,18 @@ function FaxIcon() {
     match: (p) => p.startsWith("/patient-portal"),
   },
 ];
+
+const LANGUAGE_CHOICES: LanguageChoice[] = [
+  { code: "GB", locale: "en", label: "English" },
+  { code: "IN", locale: "hi", label: "हिंदी" },
+  { code: "IN", locale: "te", label: "తెలుగు" },
+  { code: "IN", locale: "ta", label: "தமிழ்" },
+  { code: "IN", locale: "kn", label: "ಕನ್ನಡ" },
+  { code: "IN", locale: "ml", label: "മലയാളം" },
+  { code: "ES", locale: "es", label: "Español" },
+  { code: "SA", locale: "ar", label: "العربية" },
+  { code: "CN", locale: "zh", label: "中文" },
+];
  
 // ─── Component ────────────────────────────────────────────────────────────────
  
@@ -812,10 +830,21 @@ export function AppShell({
   const { push } = useToast();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const [languageModalOpen, setLanguageModalOpen] = useState(false);
+  const [language, setLanguage] = useState("en");
+  const [draftLanguage, setDraftLanguage] = useState("en");
  
   useEffect(() => {
     setDrawerOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const savedLanguage = window.localStorage.getItem("hd-interface-language");
+    if (savedLanguage) {
+      setLanguage(savedLanguage);
+      setDraftLanguage(savedLanguage);
+    }
+  }, []);
  
   async function signOut() {
     await supabaseBrowser().auth.signOut();
@@ -843,12 +872,6 @@ export function AppShell({
     role === "doctor" ? `Dr. ${userName.split(" ")[0]}` : userName;
   const bottomLinks = [
     {
-      href: "/language",
-      label: "Language",
-      icon: <TranslateIcon />,
-      match: (p: string) => p.startsWith("/language"),
-    },
-    {
       href: "/fax",
       label: "Fax",
       icon: <FaxIcon />,
@@ -856,6 +879,19 @@ export function AppShell({
     },
   ];
   const showCommunicationTools = role === "doctor" || role === "medical_assistant";
+
+  function openLanguageModal() {
+    setDraftLanguage(language);
+    setDrawerOpen(false);
+    setLanguageModalOpen(true);
+  }
+
+  function saveLanguage() {
+    setLanguage(draftLanguage);
+    window.localStorage.setItem("hd-interface-language", draftLanguage);
+    setLanguageModalOpen(false);
+    push({ title: "Language saved", variant: "success" });
+  }
  
   const sidebarBody = (
     <>
@@ -920,6 +956,16 @@ export function AppShell({
       <div className="px-3 pb-2">
         {showCommunicationTools ? (
           <div className="flex flex-col gap-0.5 border-t border-white/10 pt-4">
+            <button
+              type="button"
+              onClick={openLanguageModal}
+              className={cn("nav-link w-full text-left", languageModalOpen && "nav-link-active")}
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <TranslateIcon />
+                <span className="truncate">Language</span>
+              </span>
+            </button>
             {bottomLinks.map((item) => {
               const active = item.match(pathname);
 
@@ -1084,6 +1130,115 @@ export function AppShell({
           {children}
         </div>
       </main>
+
+      {languageModalOpen ? (
+        <LanguageSettingsModal
+          selectedLanguage={draftLanguage}
+          onSelect={setDraftLanguage}
+          onCancel={() => {
+            setDraftLanguage(language);
+            setLanguageModalOpen(false);
+          }}
+          onSave={saveLanguage}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LanguageSettingsModal({
+  selectedLanguage,
+  onSelect,
+  onCancel,
+  onSave,
+}: {
+  selectedLanguage: string;
+  onSelect: (language: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="no-print fixed inset-0 z-50 flex items-start justify-center bg-slate-900/45 px-4 pt-10 backdrop-blur-sm sm:items-center sm:pt-0">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="language-settings-title"
+        className="w-full max-w-[600px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+          <h2
+            id="language-settings-title"
+            className="flex items-center gap-2 text-[17px] font-extrabold text-slate-900"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-100 text-[12px] font-black text-sky-600">
+              A
+            </span>
+            Language Settings
+          </h2>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex h-8 w-8 items-center justify-center rounded text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            aria-label="Close language settings"
+          >
+            <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M5 5l10 10M15 5L5 15" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-9">
+          <p className="mb-4 text-sm text-slate-500">
+            Select interface language. Patient-facing forms will also reflect this language.
+          </p>
+
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            {LANGUAGE_CHOICES.map((item) => {
+              const active = selectedLanguage === item.locale;
+
+              return (
+                <button
+                  key={item.locale}
+                  type="button"
+                  onClick={() => onSelect(item.locale)}
+                  className={cn(
+                    "flex h-12 items-center justify-center gap-2 rounded-md border px-3 text-[15px] font-semibold text-slate-800 transition hover:border-cyan-400 hover:bg-cyan-50",
+                    active
+                      ? "border-cyan-500 bg-cyan-50 text-teal-700 shadow-[0_0_0_1px_rgba(6,182,212,0.35)]"
+                      : "border-slate-200 bg-white",
+                  )}
+                >
+                  <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-600">
+                    {item.code}
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="mt-4 text-sm text-slate-500">
+            30+ languages supported including French, German, Portuguese, Russian, and more.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-600 transition hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            className="rounded-md bg-teal-600 px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-teal-700"
+          >
+            Save Language
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

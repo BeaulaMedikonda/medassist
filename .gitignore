@@ -26,3 +26,5 @@ local-whisper-cpu/uploads/
 local-whisper-cpu/__pycache__/
 
 scripts/fhir/fixture-bundle.json
+.vercel
+.env*

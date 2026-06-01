@@ -16,17 +16,25 @@ function formatPrice(price: number | string | null | undefined) {
 }
  
 export function PharmacyClient() {
-  const [query, setQuery] = useState("para");
+  const [query, setQuery] = useState("");
   const [rows, setRows] = useState<MedicineSearchRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
  
   useEffect(() => {
+    const searchQuery = query.trim();
+    if (!searchQuery) {
+      setRows([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       setLoading(true);
       setError("");
-      const result = await searchMedicines(query);
+      const result = await searchMedicines(searchQuery);
       if (!cancelled) {
         setRows(result.data);
         setError(result.error);

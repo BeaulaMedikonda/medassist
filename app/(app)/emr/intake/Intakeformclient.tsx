@@ -332,6 +332,13 @@ export function IntakeFormClient({
       setSaving(false);
     }
   }
+
+  function scrollToSection(id: string) {
+    document.getElementById(id)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
  
   return (
     <div className="mx-auto w-full max-w-[1280px] pb-24">
@@ -349,9 +356,15 @@ export function IntakeFormClient({
       </section>
  
       <div className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Step active>1 - Patient</Step>
-        <Step>2 - Vitals optional</Step>
-        <Step>3 - Assign Doctors</Step>
+        <Step active onClick={() => scrollToSection("patient-section")}>
+          1 - Patient
+        </Step>
+        <Step onClick={() => scrollToSection("vitals-section")}>
+          2 - Vitals optional
+        </Step>
+        <Step onClick={() => scrollToSection("doctors-section")}>
+          3 - Assign Doctors
+        </Step>
       </div>
  
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -361,7 +374,7 @@ export function IntakeFormClient({
           </div>
         ) : null}
  
-        <div className="card p-5 xl:col-span-2">
+        <div id="patient-section" className="card scroll-mt-6 p-5 xl:col-span-2">
           <h2 className="mb-4 text-[13px] font-extrabold text-slate-900">
             1 - Patient
           </h2>
@@ -548,7 +561,7 @@ export function IntakeFormClient({
           </div>
         </div>
  
-        <div className="card h-fit p-5">
+        <div id="vitals-section" className="card h-fit scroll-mt-6 p-5">
           <h2 className="mb-3 text-[13px] font-extrabold text-slate-900">
             2 - Vitals <span className="font-bold text-slate-500">(optional)</span>
           </h2>
@@ -581,7 +594,7 @@ export function IntakeFormClient({
           </div>
         </div>
  
-        <div className="card h-fit p-5">
+        <div id="doctors-section" className="card h-fit scroll-mt-6 p-5">
           <h2 className="mb-1 text-[13px] font-extrabold text-slate-900">
             3 - Assign Doctors
           </h2>
@@ -640,17 +653,27 @@ export function IntakeFormClient({
   );
 }
  
-function Step({ active, children }: { active?: boolean; children: React.ReactNode }) {
+function Step({
+  active,
+  children,
+  onClick,
+}: {
+  active?: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
   return (
-    <div
-      className={`rounded-xl border py-2.5 text-center text-[12px] font-extrabold ${
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl border py-2.5 text-center text-[12px] font-extrabold transition hover:border-[#0ea5a4] hover:bg-[#ecfdfc] focus:outline-none focus:ring-2 focus:ring-[#0ea5a4]/30 ${
         active
           ? "border-[#0ea5a4] bg-[#ecfdfc] text-[#0f172a]"
           : "border-[rgba(15,23,42,0.08)] bg-white text-[#334155]"
       }`}
     >
       {children}
-    </div>
+    </button>
   );
 }
  

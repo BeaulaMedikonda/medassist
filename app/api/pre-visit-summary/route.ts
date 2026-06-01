@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { generatePreVisitSummary } from "@/lib/claude/summary";
+import { generatePreVisitSummary, type PainMapBrief } from "@/lib/claude/summary";
 import { recordUsage, modelToService } from "@/lib/usage";
 import { serverEnv } from "@/lib/env";
 import type { Immunization, Patient, Visit } from "@/types/db";
@@ -69,11 +69,20 @@ export async function POST(req: Request) {
       .order("date_given", { ascending: false })
       .limit(6);
 
+    const { data: painMapRows } = await sb
+      .from("graphic_pain_maps")
+      .select("pain_type, intensity, pain_locations, marked_points, pain_summary, created_at")
+      .eq("visit_id", v.id)
+      .eq("clinic_id", v.clinic_id)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
     const { summary, raw, modelUsed, usage } = await generatePreVisitSummary({
       patient: patient as Patient,
       visit: v,
       pastVisits,
       immunizations: (immunizationRows || []) as Immunization[],
+      painMaps: (painMapRows || []) as PainMapBrief[],
     });
 
     try {
