@@ -32,6 +32,38 @@ export const COMPOSITION_TYPE = {
   display: "Consult note",
 };
 
+const ICD10_DISPLAY: Record<string, string> = {
+  A09: "Infectious gastroenteritis and colitis, unspecified",
+  "B34.9": "Viral infection, unspecified",
+  "E11.9": "Type 2 diabetes mellitus without complications",
+  I10: "Essential (primary) hypertension",
+  J00: "Acute nasopharyngitis",
+  "J02.9": "Acute pharyngitis, unspecified",
+  "J03.9": "Acute tonsillitis, unspecified",
+  "J06.9": "Acute upper respiratory infection, unspecified",
+  "J20.9": "Acute bronchitis, unspecified",
+  "J45.9": "Asthma, unspecified",
+  "K21.9": "Gastro-esophageal reflux disease without esophagitis",
+  "K29.7": "Gastritis, unspecified",
+  "M54.5": "Low back pain",
+  "M79.1": "Myalgia",
+  R05: "Cough",
+  "R07.9": "Chest pain, unspecified",
+  "R10.9": "Abdominal pain, unspecified",
+  R11: "Nausea and vomiting",
+  R42: "Dizziness and giddiness",
+  "R50.9": "Fever, unspecified",
+  R51: "Headache",
+};
+
+export function icd10Display(
+  code: string,
+  diagnosisText: string | null | undefined,
+): string {
+  const normalized = code.trim().toUpperCase();
+  return ICD10_DISPLAY[normalized] || diagnosisText || normalized;
+}
+
 // Sex (M/F/O) → FHIR administrative-gender code
 export function fhirGender(sex: "M" | "F" | "O" | null | undefined): string {
   if (sex === "M") return "male";
@@ -83,7 +115,7 @@ export const VITAL_CODES = {
     loinc: "8310-5",
     display: "Body temperature",
     unit: "[degF]",
-    unitDisplay: "°F",
+    unitDisplay: "degF",
   },
   spo2: {
     loinc: "59408-5",
@@ -96,6 +128,12 @@ export const VITAL_CODES = {
     display: "Body weight",
     unit: "kg",
     unitDisplay: "kg",
+  },
+  height_cm: {
+    loinc: "8302-2",
+    display: "Body height",
+    unit: "cm",
+    unitDisplay: "cm",
   },
 } as const;
 

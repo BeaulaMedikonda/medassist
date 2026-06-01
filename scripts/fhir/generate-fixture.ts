@@ -13,9 +13,13 @@ import { writeFileSync, mkdirSync } from "fs";
 import { dirname, resolve } from "path";
 import { buildOpConsultBundle } from "../../lib/fhir/bundle";
 import type {
+  Appointment,
+  Clinic,
   Doctor,
+  Immunization,
   Patient,
   PatientAllergy,
+  Referral,
   Visit,
 } from "../../types/db";
 
@@ -47,7 +51,7 @@ const patient: Patient = {
   blood_group: "O+",
   known_allergies: "Penicillin",
   chronic_conditions: "T2DM, HTN",
-  emergency_contact: null,
+  emergency_contact: "+919800001234",
   abha_id: "91-7412-3456-7890",
   abha_address: "anjali@abdm",
   created_at: visitDate,
@@ -73,6 +77,21 @@ const doctor: Doctor = {
   created_at: visitDate,
 };
 
+const clinic: Clinic = {
+  id: "f7c3e9b0-3333-4ddd-8888-cccccccccccc",
+  name: "Hello Doctor Clinic",
+  address: "12, MG Road, Bengaluru",
+  phone: "+918012345678",
+  invite_code: "DEMO",
+  city: "Bengaluru",
+  state: "Karnataka",
+  email: "clinic@example.com",
+  established_year: 2026,
+  letterhead_header: null,
+  letterhead_footer: null,
+  created_at: visitDate,
+};
+
 const visit: Visit = {
   id: "f7c3e9b0-4444-4ddd-8888-dddddddddddd",
   patient_id: patient.id,
@@ -88,16 +107,16 @@ const visit: Visit = {
   temperature_f: 99.1,
   spo2: 97,
   weight_kg: 68.4,
-  height_cm: null,
-  chief_complaints: "Sore throat × 3 days, low-grade fever, body ache",
+  height_cm: 162,
+  chief_complaints: "Sore throat x 3 days, low-grade fever, body ache",
   history_present_illness:
-    "Throat pain on swallowing since 3 days, intermittent fever (~99°F), no cough.",
+    "Throat pain on swallowing since 3 days, intermittent fever (~99 F), no cough.",
   past_history: "T2DM on Metformin, HTN on Telmisartan.",
   examination_findings:
     "Throat erythematous, no exudate. No cervical lymphadenopathy. Chest clear.",
-  provisional_diagnosis: "Acute pharyngitis",
+  provisional_diagnosis: "Viral fever with pharyngitis and myalgia",
   confirmed_diagnosis: null,
-  icd_codes: ["J02.9"],
+  icd_codes: ["J06.9", "R50.9", "M79.1"],
   investigations_ordered: "CBC, CRP",
   prescription: {
     medicines: [
@@ -134,14 +153,27 @@ const visit: Visit = {
   advice: "Warm saline gargles BD. Hydration. Rest.",
   follow_up_date: "2026-05-13",
   follow_up_notes: "Recheck if fever > 5 days or throat worsening.",
-  audio_url: null,
-  transcript_text: null,
-  transcript_original: null,
-  transcript_language: null,
-  transcript_speakers: null,
+  audio_url: "visit-audio/demo.webm",
+  transcript_text: "Doctor: Please take medicines after food. Patient: Okay.",
+  transcript_original: "Doctor: Please take medicines after food. Patient: Okay.",
+  transcript_language: "en",
+  transcript_speakers: [
+    {
+      speaker: "SPEAKER_1",
+      text: "Please take medicines after food.",
+      start: 0,
+      end: 3,
+    },
+    {
+      speaker: "SPEAKER_2",
+      text: "Okay.",
+      start: 3,
+      end: 4,
+    },
+  ],
   doctor_speaker_id: null,
   doctor_id_confidence: null,
-  llm_extraction_raw: null,
+  llm_extraction_raw: { fixture: true },
   doctor_notes: null,
   speaker_roles: null,
   pre_visit_summary: null,
@@ -175,7 +207,89 @@ const allergies: PatientAllergy[] = [
   },
 ];
 
-const bundle = buildOpConsultBundle({ patient, visit, doctor, allergies });
+const immunizations: Immunization[] = [
+  {
+    id: "f7c3e9b0-6666-4ddd-8888-ffffffffffff",
+    clinic_id: clinic.id,
+    patient_id: patient.id,
+    visit_id: visit.id,
+    created_by: doctor.id,
+    updated_by: doctor.id,
+    created_role: "doctor",
+    vaccine_name: "Tdap",
+    date_given: "2026-05-08",
+    dose: "0.5 mL",
+    cvx_code: "115",
+    status: "completed",
+    next_due_date: "2036-05-08",
+    notes: "Given during visit.",
+    created_at: visitDate,
+    updated_at: visitDate,
+  },
+];
+
+const referrals: Referral[] = [
+  {
+    id: "f7c3e9b0-7777-4ddd-8888-111111111111",
+    clinic_id: clinic.id,
+    patient_id: patient.id,
+    visit_id: visit.id,
+    referring_doctor_id: doctor.id,
+    referred_to_name: "Dr. ENT Specialist",
+    referred_to_specialty: "ENT",
+    referred_to_hospital: "City ENT Center",
+    referred_to_phone: "+918055555555",
+    referred_to_email: "ent@example.com",
+    reason: "Persistent throat symptoms if not improving.",
+    notes: "Review if fever persists.",
+    status: "draft",
+    created_by: doctor.id,
+    created_at: visitDate,
+    updated_at: visitDate,
+  },
+];
+
+const appointments: Appointment[] = [
+  {
+    id: "f7c3e9b0-8888-4ddd-8888-222222222222",
+    clinic_id: clinic.id,
+    patient_id: patient.id,
+    doctor_id: doctor.id,
+    scheduled_at: "2026-05-13T10:30:00.000Z",
+    duration_minutes: 15,
+    type: "follow_up",
+    priority: "routine",
+    status: "scheduled",
+    notes: "Follow-up review.",
+    created_by: doctor.id,
+    created_at: visitDate,
+    updated_at: visitDate,
+  },
+];
+
+const painMaps = [
+  {
+    id: "f7c3e9b0-9999-4ddd-8888-333333333333",
+    pain_type: "throbbing",
+    intensity: 7,
+    pain_locations: ["head", "lower back"],
+    marked_points: ["head - throbbing - 7/10", "lower back - sharp - 5/10"],
+    pain_summary: "Headache and lower back pain recorded on pain map.",
+    created_at: visitDate,
+  },
+];
+
+const bundle = buildOpConsultBundle({
+  patient,
+  visit,
+  doctor,
+  allergies,
+  clinic,
+  immunizations,
+  referrals,
+  appointments,
+  painMaps,
+});
 
 const out = resolve(__dirname, "fixture-bundle.json");
 mkdirSync(dirname(out), { recursive: true });

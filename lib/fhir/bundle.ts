@@ -12,7 +12,17 @@
 //     https://hl7.org/fhir/R4
 // =============================================================================
 
-import type { Doctor, Patient, PatientAllergy, Visit, Medicine } from "@/types/db";
+import type {
+  Appointment,
+  Clinic,
+  Doctor,
+  Immunization,
+  Medicine,
+  Patient,
+  PatientAllergy,
+  Referral,
+  Visit,
+} from "@/types/db";
 import {
   COMPOSITION_TYPE,
   SYSTEM,
@@ -22,6 +32,7 @@ import {
   encounterStatus,
   fhirGender,
   frequencyToTiming,
+  icd10Display,
   routeToFhir,
 } from "./mappings";
 
@@ -30,6 +41,15 @@ type FhirCoding = { system: string; code: string; display?: string };
 type FhirCodeable = { coding?: FhirCoding[]; text?: string };
 
 type FhirEntry = { fullUrl: string; resource: Record<string, unknown> };
+type GraphicPainMap = {
+  id: string;
+  pain_type: string;
+  intensity: number;
+  pain_locations?: string[] | null;
+  marked_points?: string[] | null;
+  pain_summary?: string | null;
+  created_at: string;
+};
 
 function urn(): string {
   // RFC 4122 v4 — Bundle.entry.fullUrl needs to be globally unique within the doc.
@@ -61,8 +81,23 @@ export function buildOpConsultBundle(args: {
   visit: Visit;
   doctor: Doctor;
   allergies?: PatientAllergy[];
+  clinic?: Clinic | null;
+  immunizations?: Immunization[];
+  referrals?: Referral[];
+  appointments?: Appointment[];
+  painMaps?: GraphicPainMap[];
 }): Record<string, unknown> {
-  const { patient, visit, doctor, allergies = [] } = args;
+  const {
+    patient,
+    visit,
+    doctor,
+    allergies = [],
+    clinic = null,
+    immunizations = [],
+    referrals = [],
+    appointments = [],
+    painMaps = [],
+  } = args;
 
   const visitDate = new Date(visit.visit_date);
   const completedAt = visit.completed_at ? new Date(visit.completed_at) : null;
@@ -126,6 +161,22 @@ export function buildOpConsultBundle(args: {
           ],
         }
       : {}),
+    ...(patient.emergency_contact
+      ? {
+          contact: [
+            {
+              relationship: [{ text: "Emergency contact" }],
+              telecom: [
+                {
+                  system: "phone",
+                  value: patient.emergency_contact,
+                  use: "mobile",
+                },
+              ],
+            },
+          ],
+        }
+      : {}),
     ...(patient.address_line1 || patient.city || patient.address
       ? {
           address: [
@@ -150,7 +201,38 @@ export function buildOpConsultBundle(args: {
       : {}),
   };
 
-  // -------- 2. Practitioner -------------------------------------------------
+  // -------- 2. Organization + Practitioner ---------------------------------
+  const organizationRef = urn();
+  const organizationResource: Record<string, unknown> | null =
+    clinic || doctor.clinic_name || doctor.clinic_address || doctor.clinic_phone
+      ? {
+          resourceType: "Organization",
+          id: clinic?.id || doctor.clinic_id || undefined,
+          name: clinic?.name || doctor.clinic_name || "Clinic",
+          ...(clinic?.phone || doctor.clinic_phone
+            ? {
+                telecom: [
+                  {
+                    system: "phone",
+                    value: clinic?.phone || doctor.clinic_phone,
+                  },
+                ],
+              }
+            : {}),
+          ...(clinic?.address || doctor.clinic_address
+            ? {
+                address: [
+                  {
+                    text: clinic?.address || doctor.clinic_address,
+                    ...(clinic?.city ? { city: clinic.city } : {}),
+                    ...(clinic?.state ? { state: clinic.state } : {}),
+                  },
+                ],
+              }
+            : {}),
+        }
+      : null;
+
   const practitionerRef = urn();
   const practitionerResource: Record<string, unknown> = {
     resourceType: "Practitioner",
@@ -184,6 +266,16 @@ export function buildOpConsultBundle(args: {
       : {}),
   };
 
+  const practitionerRoleRef = urn();
+  const practitionerRoleResource: Record<string, unknown> | null = organizationResource
+    ? {
+        resourceType: "PractitionerRole",
+        practitioner: { reference: practitionerRef } as FhirRef,
+        organization: { reference: organizationRef } as FhirRef,
+        code: [{ text: doctor.role === "doctor" ? "Doctor" : doctor.role }],
+      }
+    : null;
+
   // -------- 3. Encounter ----------------------------------------------------
   const encounterRef = urn();
   const encounterResource: Record<string, unknown> = {
@@ -210,17 +302,17 @@ export function buildOpConsultBundle(args: {
   };
 
   // -------- 4. Conditions (diagnoses) --------------------------------------
-  const conditionEntries: FhirEntry[] = [];
+  const diagnosisConditionEntries: FhirEntry[] = [];
   const diagnosisText =
     visit.confirmed_diagnosis || visit.provisional_diagnosis || null;
   const verification = visit.confirmed_diagnosis ? "confirmed" : "provisional";
   if (diagnosisText) {
     const codings: FhirCoding[] = (visit.icd_codes || []).map((code) => ({
       system: SYSTEM.icd10,
-      code,
-      display: diagnosisText,
+      code: code.trim().toUpperCase(),
+      display: icd10Display(code, diagnosisText),
     }));
-    conditionEntries.push({
+    diagnosisConditionEntries.push({
       fullUrl: urn(),
       resource: {
         resourceType: "Condition",
@@ -257,16 +349,66 @@ export function buildOpConsultBundle(args: {
       },
     });
   }
+  const chronicConditionEntries: FhirEntry[] = parseTextList(
+    patient.chronic_conditions,
+  ).map((condition) => ({
+    fullUrl: urn(),
+    resource: {
+      resourceType: "Condition",
+      meta: {
+        profile: [
+          "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Condition",
+        ],
+      },
+      clinicalStatus: {
+        coding: [
+          {
+            system: SYSTEM.conditionClinical,
+            code: "active",
+            display: "Active",
+          },
+        ],
+      },
+      verificationStatus: {
+        coding: [
+          {
+            system: SYSTEM.conditionVerStatus,
+            code: "confirmed",
+            display: "confirmed",
+          },
+        ],
+      },
+      code: { text: condition } as FhirCodeable,
+      subject: { reference: patientRef } as FhirRef,
+      encounter: { reference: encounterRef } as FhirRef,
+      recordedDate: periodStart,
+    },
+  }));
+  const conditionEntries = [
+    ...diagnosisConditionEntries,
+    ...chronicConditionEntries,
+  ];
 
-  // -------- 5. MedicationRequests -----------------------------------------
+  // -------- 5. Medication + MedicationRequests ----------------------------
+  const medicationEntries: FhirEntry[] = (
+    (visit.prescription?.medicines || []) as Medicine[]
+  ).map((m) => ({
+    fullUrl: urn(),
+    resource: {
+      resourceType: "Medication",
+      code: { text: m.name },
+      status: m.status === "stopped" ? "inactive" : "active",
+    },
+  }));
+
   const medRequestEntries: FhirEntry[] = (
     (visit.prescription?.medicines || []) as Medicine[]
   )
-    .filter((m) => m.status !== "stopped")
-    .map((m) => {
+    .map((m, index) => {
       const timing = frequencyToTiming(m.frequency);
       const duration = durationToFhir(m.duration);
       const route = routeToFhir(m.route);
+      const isStopped = m.status === "stopped";
       const dosage: Record<string, unknown> = {
         ...(m.instructions ? { text: m.instructions } : {}),
         ...(timing ? { timing } : {}),
@@ -300,14 +442,15 @@ export function buildOpConsultBundle(args: {
               "https://nrces.in/ndhm/fhir/r4/StructureDefinition/MedicationRequest",
             ],
           },
-          status: "active",
+          status: isStopped ? "stopped" : "active",
           intent: "order",
-          medicationCodeableConcept: { text: m.name },
+          medicationReference: { reference: medicationEntries[index].fullUrl },
           subject: { reference: patientRef } as FhirRef,
           encounter: { reference: encounterRef } as FhirRef,
           authoredOn: periodStart,
           requester: { reference: practitionerRef } as FhirRef,
-          dosageInstruction: [dosage],
+          dosageInstruction: isStopped ? [] : [dosage],
+          note: [{ text: `Hello Doctor medicine status: ${m.status}` }],
           ...(duration
             ? {
                 dispenseRequest: {
@@ -362,6 +505,65 @@ export function buildOpConsultBundle(args: {
       },
     });
   }
+
+  const bloodGroupEntry: FhirEntry | null = patient.blood_group
+    ? {
+        fullUrl: urn(),
+        resource: {
+          resourceType: "Observation",
+          meta: {
+            profile: [
+              "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Observation",
+            ],
+          },
+          status: "final",
+          code: { text: "Blood group" },
+          subject: { reference: patientRef } as FhirRef,
+          encounter: { reference: encounterRef } as FhirRef,
+          effectiveDateTime: periodStart,
+          valueString: patient.blood_group,
+        },
+      }
+    : null;
+
+  const painMapEntries: FhirEntry[] = painMaps.map((painMap) => ({
+    fullUrl: urn(),
+    resource: {
+      resourceType: "Observation",
+      meta: {
+        profile: [
+          "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Observation",
+        ],
+      },
+      status: "final",
+      code: { text: "Pain score and location" },
+      subject: { reference: patientRef } as FhirRef,
+      encounter: { reference: encounterRef } as FhirRef,
+      effectiveDateTime: painMap.created_at || periodStart,
+      valueQuantity: {
+        value: painMap.intensity,
+        unit: "score",
+        system: SYSTEM.ucum,
+        code: "{score}",
+      },
+      bodySite: {
+        text:
+          painMap.pain_locations?.join(", ") ||
+          painMap.marked_points?.join(", ") ||
+          undefined,
+      },
+      note: [
+        {
+          text: [
+            painMap.pain_summary,
+            painMap.pain_type ? `Type: ${painMap.pain_type}` : null,
+          ]
+            .filter(Boolean)
+            .join(" - "),
+        },
+      ],
+    },
+  }));
 
   // -------- 7. AllergyIntolerance -----------------------------------------
   const allergyEntries: FhirEntry[] = (
@@ -439,6 +641,211 @@ export function buildOpConsultBundle(args: {
         }))
     : [];
 
+  const referralEntries: FhirEntry[] = referrals.map((referral) => ({
+    fullUrl: urn(),
+    resource: {
+      resourceType: "ServiceRequest",
+      status: referral.status === "cancelled" ? "revoked" : "active",
+      intent: "order",
+      code: { text: `Referral to ${referral.referred_to_specialty}` },
+      subject: { reference: patientRef } as FhirRef,
+      encounter: { reference: encounterRef } as FhirRef,
+      authoredOn: referral.created_at || periodStart,
+      requester: { reference: practitionerRef } as FhirRef,
+      performer: [
+        {
+          display: [
+            referral.referred_to_name,
+            referral.referred_to_hospital,
+            referral.referred_to_phone,
+            referral.referred_to_email,
+          ]
+            .filter(Boolean)
+            .join(", "),
+        },
+      ],
+      reasonCode: [{ text: referral.reason }],
+      ...(referral.notes ? { note: [{ text: referral.notes }] } : {}),
+    },
+  }));
+
+  const immunizationEntries: FhirEntry[] = immunizations.map((record) => ({
+    fullUrl: urn(),
+    resource: {
+      resourceType: "Immunization",
+      status:
+        record.status === "completed"
+          ? "completed"
+          : record.status === "declined"
+            ? "not-done"
+            : "entered-in-error",
+      vaccineCode: {
+        ...(record.cvx_code
+          ? {
+              coding: [
+                {
+                  system: "http://hl7.org/fhir/sid/cvx",
+                  code: record.cvx_code,
+                },
+              ],
+            }
+          : {}),
+        text: record.vaccine_name,
+      },
+      patient: { reference: patientRef } as FhirRef,
+      encounter: { reference: encounterRef } as FhirRef,
+      occurrenceDateTime: record.date_given,
+      primarySource: true,
+      ...(record.dose
+        ? { doseQuantity: { value: parseDoseValue(record.dose), unit: record.dose } }
+        : {}),
+      ...(record.notes ? { note: [{ text: record.notes }] } : {}),
+    },
+  }));
+
+  const appointmentEntries: FhirEntry[] = appointments.map((appointment) => ({
+    fullUrl: urn(),
+    resource: {
+      resourceType: "Appointment",
+      status: appointmentStatusToFhir(appointment.status),
+      appointmentType: { text: appointment.type },
+      priority: appointment.priority === "urgent" ? 1 : 5,
+      description: appointment.notes || undefined,
+      start: appointment.scheduled_at,
+      end: addMinutesIso(appointment.scheduled_at, appointment.duration_minutes),
+      participant: [
+        { actor: { reference: patientRef } as FhirRef, status: "accepted" },
+        { actor: { reference: practitionerRef } as FhirRef, status: "accepted" },
+      ],
+    },
+  }));
+
+  const carePlanEntry: FhirEntry | null =
+    visit.advice || visit.follow_up_date || visit.follow_up_notes
+      ? {
+          fullUrl: urn(),
+          resource: {
+            resourceType: "CarePlan",
+            status: visit.status === "completed" ? "active" : "draft",
+            intent: "plan",
+            subject: { reference: patientRef } as FhirRef,
+            encounter: { reference: encounterRef } as FhirRef,
+            created: periodStart,
+            activity: [
+              ...(visit.advice
+                ? [{ detail: { description: visit.advice, status: "scheduled" } }]
+                : []),
+              ...(visit.follow_up_date || visit.follow_up_notes
+                ? [
+                    {
+                      detail: {
+                        description: [
+                          visit.follow_up_date
+                            ? `Follow-up: ${visit.follow_up_date}`
+                            : null,
+                          visit.follow_up_notes,
+                        ]
+                          .filter(Boolean)
+                          .join(" - "),
+                        status: "scheduled",
+                      },
+                    },
+                  ]
+                : []),
+            ],
+          },
+        }
+      : null;
+
+  const documentEntries: FhirEntry[] = [
+    ...(visit.pre_visit_summary
+      ? [
+          documentReference({
+            patientRef,
+            encounterRef,
+            periodStart,
+            title: "Pre-visit summary",
+            text: visit.pre_visit_summary,
+          }),
+        ]
+      : []),
+    ...(visit.transcript_text
+      ? [
+          documentReference({
+            patientRef,
+            encounterRef,
+            periodStart,
+            title: "Voice-to-text transcript",
+            text: visit.transcript_text,
+          }),
+        ]
+      : []),
+    ...(visit.transcript_original
+      ? [
+          documentReference({
+            patientRef,
+            encounterRef,
+            periodStart,
+            title: "Original transcript",
+            text: visit.transcript_original,
+          }),
+        ]
+      : []),
+    ...(visit.transcript_speakers
+      ? [
+          documentReference({
+            patientRef,
+            encounterRef,
+            periodStart,
+            title: "Speaker-labeled transcript JSON",
+            text: JSON.stringify(visit.transcript_speakers, null, 2),
+          }),
+        ]
+      : []),
+    ...(visit.audio_url
+      ? [
+          documentReference({
+            patientRef,
+            encounterRef,
+            periodStart,
+            title: "Visit audio",
+            url: visit.audio_url,
+          }),
+        ]
+      : []),
+    ...(visit.field_assumptions || visit.llm_extraction_raw || visit.speaker_roles
+      ? [
+          documentReference({
+            patientRef,
+            encounterRef,
+            periodStart,
+            title: "AI extraction metadata",
+            text: JSON.stringify(
+              {
+                field_assumptions: visit.field_assumptions,
+                doctor_id_confidence: visit.doctor_id_confidence,
+                speaker_roles: visit.speaker_roles,
+                llm_extraction_raw: visit.llm_extraction_raw,
+              },
+              null,
+              2,
+            ),
+          }),
+        ]
+      : []),
+    ...(visit.doctor_notes
+      ? [
+          documentReference({
+            patientRef,
+            encounterRef,
+            periodStart,
+            title: "Doctor internal notes",
+            text: visit.doctor_notes,
+          }),
+        ]
+      : []),
+  ];
+
   // -------- 9. Composition (anchors all of the above) ---------------------
   const sections: Array<Record<string, unknown>> = [];
 
@@ -473,9 +880,23 @@ export function buildOpConsultBundle(args: {
       entry: vitalsEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
     });
   }
+  const additionalObservationEntries = [
+    ...(bloodGroupEntry ? [bloodGroupEntry] : []),
+    ...painMapEntries,
+  ];
+  if (additionalObservationEntries.length > 0) {
+    sections.push({
+      title: "Additional observations",
+      code: { text: "Additional observations" },
+      entry: additionalObservationEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
+    });
+  }
   if (conditionEntries.length > 0) {
     sections.push({
-      title: "Diagnosis",
+      title:
+        chronicConditionEntries.length > 0
+          ? "Diagnosis and chronic conditions"
+          : "Diagnosis",
       code: { coding: [{ system: SYSTEM.loinc, code: "51848-0", display: "Assessment" }] },
       entry: conditionEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
     });
@@ -494,11 +915,25 @@ export function buildOpConsultBundle(args: {
       entry: medRequestEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
     });
   }
+  if (immunizationEntries.length > 0) {
+    sections.push({
+      title: "Immunizations",
+      code: { text: "Immunizations" },
+      entry: immunizationEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
+    });
+  }
   if (investigationEntries.length > 0) {
     sections.push({
       title: "Investigation advice",
       code: { coding: [{ system: SYSTEM.loinc, code: "18776-5", display: "Plan of care note" }] },
       entry: investigationEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
+    });
+  }
+  if (referralEntries.length > 0) {
+    sections.push({
+      title: "Referrals",
+      code: { text: "Referrals" },
+      entry: referralEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
     });
   }
   if (visit.advice) {
@@ -508,17 +943,38 @@ export function buildOpConsultBundle(args: {
       text: { status: "generated", div: htmlDiv(visit.advice) },
     });
   }
+  if (carePlanEntry) {
+    sections.push({
+      title: "Care plan",
+      code: { text: "Care plan" },
+      entry: [{ reference: carePlanEntry.fullUrl } as FhirRef],
+    });
+  }
   if (visit.follow_up_date || visit.follow_up_notes) {
     const text = [
       visit.follow_up_date ? `Follow-up: ${visit.follow_up_date}` : null,
       visit.follow_up_notes,
     ]
       .filter(Boolean)
-      .join(" — ");
+      .join(" - ");
     sections.push({
       title: "Follow up",
       code: { coding: [{ system: SYSTEM.loinc, code: "390906007", display: "Follow-up encounter" }] },
       text: { status: "generated", div: htmlDiv(text) },
+    });
+  }
+  if (appointmentEntries.length > 0) {
+    sections.push({
+      title: "Appointments",
+      code: { text: "Appointments" },
+      entry: appointmentEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
+    });
+  }
+  if (documentEntries.length > 0) {
+    sections.push({
+      title: "Supporting documents",
+      code: { text: "Supporting documents" },
+      entry: documentEntries.map((e) => ({ reference: e.fullUrl } as FhirRef)),
     });
   }
 
@@ -540,17 +996,86 @@ export function buildOpConsultBundle(args: {
     section: sections,
   };
 
+  const provenanceEntry: FhirEntry = {
+    fullUrl: urn(),
+    resource: {
+      resourceType: "Provenance",
+      target: [{ reference: compositionRef } as FhirRef],
+      recorded: new Date().toISOString(),
+      agent: [
+        {
+          type: { text: "Author" },
+          who: { reference: practitionerRef } as FhirRef,
+        },
+        {
+          type: { text: "Assembler" },
+          who: { display: "Hello Doctor FHIR exporter" },
+        },
+      ],
+    },
+  };
+
+  const auditEventEntry: FhirEntry = {
+    fullUrl: urn(),
+    resource: {
+      resourceType: "AuditEvent",
+      type: {
+        system: "http://terminology.hl7.org/CodeSystem/audit-event-type",
+        code: "rest",
+        display: "Restful Operation",
+      },
+      action: "R",
+      recorded: new Date().toISOString(),
+      outcome: "0",
+      agent: [
+        {
+          requestor: true,
+          who: { reference: practitionerRef } as FhirRef,
+        },
+      ],
+      source: {
+        observer: { display: "Hello Doctor" },
+      },
+      entity: [
+        {
+          what: { reference: compositionRef } as FhirRef,
+          role: {
+            system: "http://terminology.hl7.org/CodeSystem/object-role",
+            code: "1",
+            display: "Patient",
+          },
+        },
+      ],
+    },
+  };
+
   // -------- Bundle assembly -----------------------------------------------
   const entries: FhirEntry[] = [
     { fullUrl: compositionRef, resource: compositionResource },
     { fullUrl: patientRef, resource: patientResource },
+    ...(organizationResource
+      ? [{ fullUrl: organizationRef, resource: organizationResource }]
+      : []),
     { fullUrl: practitionerRef, resource: practitionerResource },
+    ...(practitionerRoleResource
+      ? [{ fullUrl: practitionerRoleRef, resource: practitionerRoleResource }]
+      : []),
     { fullUrl: encounterRef, resource: encounterResource },
     ...conditionEntries,
+    ...medicationEntries,
     ...medRequestEntries,
     ...vitalsEntries,
+    ...(bloodGroupEntry ? [bloodGroupEntry] : []),
+    ...painMapEntries,
     ...allergyEntries,
     ...investigationEntries,
+    ...referralEntries,
+    ...immunizationEntries,
+    ...appointmentEntries,
+    ...(carePlanEntry ? [carePlanEntry] : []),
+    ...documentEntries,
+    provenanceEntry,
+    auditEventEntry,
   ];
 
   return {
@@ -582,6 +1107,68 @@ function htmlDiv(text: string): string {
 function parseDoseValue(dose: string): number {
   const m = dose.trim().match(/^(\d+(?:\.\d+)?)/);
   return m ? Number(m[1]) : 1;
+}
+
+function parseTextList(text: string | null | undefined): string[] {
+  if (!text || text.trim().length === 0) return [];
+  return text
+    .split(/[,;\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function appointmentStatusToFhir(
+  status: Appointment["status"],
+): "booked" | "arrived" | "fulfilled" | "cancelled" | "noshow" {
+  if (status === "checked_in") return "arrived";
+  if (status === "completed") return "fulfilled";
+  if (status === "cancelled") return "cancelled";
+  if (status === "no_show") return "noshow";
+  return "booked";
+}
+
+function addMinutesIso(date: string, minutes: number): string {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return date;
+  d.setMinutes(d.getMinutes() + minutes);
+  return d.toISOString();
+}
+
+function documentReference(input: {
+  patientRef: string;
+  encounterRef: string;
+  periodStart: string;
+  title: string;
+  text?: string | null;
+  url?: string | null;
+}): FhirEntry {
+  return {
+    fullUrl: urn(),
+    resource: {
+      resourceType: "DocumentReference",
+      status: "current",
+      type: { text: input.title },
+      subject: { reference: input.patientRef } as FhirRef,
+      context: {
+        encounter: [{ reference: input.encounterRef } as FhirRef],
+      },
+      date: input.periodStart,
+      content: [
+        {
+          attachment: {
+            title: input.title,
+            ...(input.url ? { url: input.url } : {}),
+            ...(input.text
+              ? {
+                  contentType: "text/plain",
+                  data: Buffer.from(input.text, "utf8").toString("base64"),
+                }
+              : {}),
+          },
+        },
+      ],
+    },
+  };
 }
 
 function severityToCriticality(

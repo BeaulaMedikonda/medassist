@@ -2,7 +2,26 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { buildOpConsultBundle } from "@/lib/fhir/bundle";
 import { recordDisclosure } from "@/lib/fhir/disclosures";
-import type { Doctor, Patient, PatientAllergy, Visit } from "@/types/db";
+import type {
+  Appointment,
+  Clinic,
+  Doctor,
+  Immunization,
+  Patient,
+  PatientAllergy,
+  Referral,
+  Visit,
+} from "@/types/db";
+
+type GraphicPainMap = {
+  id: string;
+  pain_type: string;
+  intensity: number;
+  pain_locations: string[] | null;
+  marked_points: string[] | null;
+  pain_summary: string | null;
+  created_at: string;
+};
 
 export const runtime = "nodejs";
 
@@ -37,12 +56,40 @@ export async function GET(
     }
     const v = visit as Visit;
 
-    const [{ data: patient }, { data: doctor }, { data: allergyRows }] =
-      await Promise.all([
-        sb.from("patients").select("*").eq("id", v.patient_id).maybeSingle(),
-        sb.from("doctors").select("*").eq("id", v.doctor_id).maybeSingle(),
-        sb.from("patient_allergies").select("*").eq("patient_id", v.patient_id),
-      ]);
+    const [
+      { data: patient },
+      { data: doctor },
+      { data: clinic },
+      { data: allergyRows },
+      { data: immunizationRows },
+      { data: referralRows },
+      { data: appointmentRows },
+      { data: painMapRows },
+    ] = await Promise.all([
+      sb.from("patients").select("*").eq("id", v.patient_id).maybeSingle(),
+      sb.from("doctors").select("*").eq("id", v.doctor_id).maybeSingle(),
+      v.clinic_id
+        ? sb.from("clinics").select("*").eq("id", v.clinic_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      sb.from("patient_allergies").select("*").eq("patient_id", v.patient_id),
+      sb
+        .from("immunizations")
+        .select("*")
+        .eq("patient_id", v.patient_id)
+        .or(`visit_id.eq.${v.id},date_given.eq.${v.visit_date.slice(0, 10)}`),
+      sb.from("referrals").select("*").eq("visit_id", v.id),
+      sb
+        .from("appointments")
+        .select("*")
+        .eq("patient_id", v.patient_id)
+        .gte("scheduled_at", v.visit_date)
+        .order("scheduled_at", { ascending: true })
+        .limit(3),
+      sb
+        .from("graphic_pain_maps")
+        .select("id,pain_type,intensity,pain_locations,marked_points,pain_summary,created_at")
+        .eq("visit_id", v.id),
+    ]);
 
     if (!patient) {
       return NextResponse.json({ error: "Patient not found" }, { status: 404 });
@@ -56,6 +103,11 @@ export async function GET(
       visit: v,
       doctor: doctor as Doctor,
       allergies: ((allergyRows as PatientAllergy[]) || []),
+      clinic: (clinic as Clinic | null) || null,
+      immunizations: ((immunizationRows as Immunization[]) || []),
+      referrals: ((referralRows as Referral[]) || []),
+      appointments: ((appointmentRows as Appointment[]) || []),
+      painMaps: ((painMapRows as GraphicPainMap[]) || []),
     });
     const body = JSON.stringify(bundle, null, 2);
 
