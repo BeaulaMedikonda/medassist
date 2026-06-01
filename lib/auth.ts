@@ -2,10 +2,24 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Doctor, Clinic } from "@/types/db";
-
+ 
 const ACTIVE_CLINIC_COOKIE = "active_clinic_id";
 const ACTIVE_MEMBER_COOKIE = "active_member_id";
-
+ 
+function resolveActiveMember(memberRows: Doctor[], activeMemberId: string | null) {
+  if (memberRows.length === 0) return null;
+ 
+  if (activeMemberId) {
+    return memberRows.find((member) => member.id === activeMemberId) || null;
+  }
+ 
+  if (memberRows.length === 1) {
+    return memberRows[0];
+  }
+ 
+  return null;
+}
+ 
 // Convenience: fetch the signed-in user, their staff row, and their clinic in one go.
 // Redirects to /login or /onboarding when missing.
 export async function requireMember(): Promise<{
@@ -19,25 +33,25 @@ export async function requireMember(): Promise<{
     data: { user },
   } = await sb.auth.getUser();
   if (!user) redirect("/login");
-
+ 
   const cookieStore = await cookies();
   const activeClinicId = cookieStore.get(ACTIVE_CLINIC_COOKIE)?.value || null;
   const activeMemberId = cookieStore.get(ACTIVE_MEMBER_COOKIE)?.value || null;
-
+ 
   let memberQuery = sb
     .from("doctors")
     .select("*")
     .eq("auth_user_id", user.id)
     .not("clinic_id", "is", null);
-
+ 
   if (activeMemberId) {
     memberQuery = memberQuery.eq("id", activeMemberId);
   }
-
+ 
   if (activeClinicId) {
     memberQuery = memberQuery.eq("clinic_id", activeClinicId);
   }
-
+ 
   const { data: members } = await memberQuery;
   let memberRows = (members as Doctor[] | null) || [];
   if (memberRows.length === 0) {
@@ -48,17 +62,17 @@ export async function requireMember(): Promise<{
       .maybeSingle();
     memberRows = legacyMember ? [legacyMember as Doctor] : [];
   }
-  const member = memberRows[0] || null;
-
+  const member = resolveActiveMember(memberRows, activeMemberId);
+ 
   if (!member || !(member as Doctor).clinic_id) redirect("/onboarding");
-
+ 
   const { data: clinic } = await sb
     .from("clinics")
     .select("*")
     .eq("id", (member as Doctor).clinic_id as string)
     .maybeSingle();
   if (!clinic) redirect("/onboarding");
-
+ 
   return {
     userId: user.id,
     email: user.email || "",
@@ -66,7 +80,7 @@ export async function requireMember(): Promise<{
     clinic: clinic as Clinic,
   };
 }
-
+ 
 export async function getOptionalMember(): Promise<{
   userId: string;
   email: string;
@@ -78,25 +92,25 @@ export async function getOptionalMember(): Promise<{
     data: { user },
   } = await sb.auth.getUser();
   if (!user) return null;
-
+ 
   const cookieStore = await cookies();
   const activeClinicId = cookieStore.get(ACTIVE_CLINIC_COOKIE)?.value || null;
   const activeMemberId = cookieStore.get(ACTIVE_MEMBER_COOKIE)?.value || null;
-
+ 
   let memberQuery = sb
     .from("doctors")
     .select("*")
     .eq("auth_user_id", user.id)
     .not("clinic_id", "is", null);
-
+ 
   if (activeMemberId) {
     memberQuery = memberQuery.eq("id", activeMemberId);
   }
-
+ 
   if (activeClinicId) {
     memberQuery = memberQuery.eq("clinic_id", activeClinicId);
   }
-
+ 
   const { data: members } = await memberQuery;
   let memberRows = (members as Doctor[] | null) || [];
   if (memberRows.length === 0) {
@@ -107,8 +121,8 @@ export async function getOptionalMember(): Promise<{
       .maybeSingle();
     memberRows = legacyMember ? [legacyMember as Doctor] : [];
   }
-  const m = memberRows[0] || null;
-
+  const m = resolveActiveMember(memberRows, activeMemberId);
+ 
   let clinic: Clinic | null = null;
   if (m?.clinic_id) {
     const { data: c } = await sb
@@ -118,7 +132,7 @@ export async function getOptionalMember(): Promise<{
       .maybeSingle();
     clinic = c as Clinic | null;
   }
-
+ 
   return {
     userId: user.id,
     email: user.email || "",
@@ -126,3 +140,5 @@ export async function getOptionalMember(): Promise<{
     clinic,
   };
 }
+ 
+ 
