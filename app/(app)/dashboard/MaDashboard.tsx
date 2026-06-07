@@ -1347,7 +1347,7 @@ export function MaDashboard({
           <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
             Today's Intake Queue
           </h2>
-          <Link href="/emr/intake" className="btn-teal">
+          <Link href="/emr/new" className="btn-teal">
             <PlusIcon />
             New EMR
           </Link>
@@ -1521,7 +1521,7 @@ function QuickActions({
   return (
     <section>
       <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
-        Quick Actions
+        Clinical Tools
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((m) => (

@@ -1,9 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireMember } from "@/lib/auth";
 import { getDoctorAssignedScope } from "@/lib/doctor-access";
 import type { Patient, Visit } from "@/types/db";
-import { ViewScreen } from "./ViewScreen";
+import { ViewScreen, type FhirValidationSummary } from "./ViewScreen";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,12 @@ export default async function VisitViewPage({
   params: Promise<{ id: string; vid: string }>;
 }) {
   const supabase = await supabaseServer();
+  const admin = supabaseAdmin();
   const { id, vid } = await params;
   const { member, clinic } = await requireMember();
+  const db = member.role === "doctor" ? admin : supabase;
 
-  const { data: patient } = await supabase
+  const { data: patient } = await db
     .from("patients")
     .select("*")
     .eq("id", id)
@@ -24,7 +27,7 @@ export default async function VisitViewPage({
     .maybeSingle();
   if (!patient) notFound();
 
-  const { data: visit } = await supabase
+  const { data: visit } = await db
     .from("visits")
     .select("*")
     .eq("id", vid)
@@ -46,7 +49,20 @@ export default async function VisitViewPage({
     redirect(`/emr/${id}/visits/${vid}/review`);
   }
 
+  const { data: validation } = await db
+    .from("fhir_validation_results")
+    .select("id,status,errors,warnings,validated_at,validator,bundle_profile")
+    .eq("visit_id", vid)
+    .eq("clinic_id", clinic.id)
+    .order("validated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return (
-    <ViewScreen patient={patient as Patient} visit={visit as Visit} />
+    <ViewScreen
+      patient={patient as Patient}
+      visit={visit as Visit}
+      initialValidation={(validation as FhirValidationSummary | null) || null}
+    />
   );
 }

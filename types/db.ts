@@ -574,6 +574,8 @@ export type Referral = {
 
   referring_doctor_id: string;
 
+  referred_to_doctor_id: string | null;
+
   referred_to_name: string;
 
   referred_to_specialty: string;
@@ -669,6 +671,19 @@ export type FieldAssumptionsMap = Partial<{
   follow_up_notes: FieldAssumption;
 
 }>;
+
+export type IcdCodeDetail = {
+  code: string;
+  name: string | null;
+};
+
+export type LoincCodeDetail = {
+  test_name: string;
+  loinc_code: string | null;
+  loinc_name: string | null;
+  ucum_unit: string | null;
+  ucum_name?: string | null;
+};
  
 export type Medicine = {
 
@@ -769,8 +784,12 @@ export type Visit = {
   confirmed_diagnosis: string | null;
 
   icd_codes: string[] | null;
+
+  icd_code_details: IcdCodeDetail[] | null;
  
   investigations_ordered: string | null;
+
+  loinc_code_details: LoincCodeDetail[] | null;
 
   prescription: Prescription | null;
 
@@ -883,6 +902,10 @@ export type ExtractionResult = {
   investigations_ordered: string | null;
 
   icd_codes: string[];
+
+  icd_code_details: IcdCodeDetail[];
+
+  loinc_code_details: LoincCodeDetail[];
 
   prescription: Prescription;
 

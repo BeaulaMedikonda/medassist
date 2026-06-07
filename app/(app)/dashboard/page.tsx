@@ -1,6 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { requireMember } from "@/lib/auth";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getDoctorAssignedScope } from "@/lib/doctor-access";
 import { MaDashboard } from "./MaDashboard";
 import { DoctorDashboard } from "./DoctorDashboard";
@@ -184,20 +185,37 @@ export default async function DashboardPage() {
             .order("visit_date", { ascending: false })
         : { data: [] };
 
-    const { data: receivedReferralsRaw } = await sb
+    const admin = supabaseAdmin();
+    const { data: clinicReferralsRaw } = await admin
       .from("referrals")
       .select("*")
       .eq("clinic_id", clinic.id)
-      .eq("referred_to_doctor_id", member.id)
       .order("created_at", { ascending: false })
-      .limit(20);
-    const receivedReferrals = (receivedReferralsRaw || []) as Referral[];
+      .limit(100);
+    const clinicReferrals = (clinicReferralsRaw || []) as Referral[];
+    const currentDoctorName = normalizeDoctorName(member.full_name);
+    const sentReferrals = clinicReferrals
+      .filter((referral) => referral.referring_doctor_id === member.id)
+      .slice(0, 50);
+    const receivedReferrals = clinicReferrals
+      .filter((referral) => {
+        const referredName = normalizeDoctorName(referral.referred_to_name);
+        return (
+          referral.referred_to_doctor_id === member.id ||
+          referredName === currentDoctorName ||
+          referredName.includes(currentDoctorName) ||
+          currentDoctorName.includes(referredName)
+        );
+      })
+      .slice(0, 20);
     const referralPatientIds = Array.from(
-      new Set(receivedReferrals.map((referral) => referral.patient_id)),
+      new Set(
+        [...sentReferrals, ...receivedReferrals].map((referral) => referral.patient_id),
+      ),
     ).filter((patientId) => !patientById.has(patientId));
 
     if (referralPatientIds.length > 0) {
-      const { data: referralPatientsRaw } = await sb
+      const { data: referralPatientsRaw } = await admin
         .from("patients")
         .select("*")
         .in("id", referralPatientIds);
@@ -226,6 +244,7 @@ export default async function DashboardPage() {
           pre_visit_summary_generated_at: string | null;
         }>}
         receivedReferrals={receivedReferrals}
+        sentReferrals={sentReferrals}
         doctorRoster={doctorRoster.map((doctor) => ({
           id: doctor.id,
           full_name: doctor.full_name,
@@ -261,4 +280,12 @@ export default async function DashboardPage() {
       monthlyDrafts={(monthlyDraftsRaw || []).length}
     />
   );
+}
+
+function normalizeDoctorName(value: string | null | undefined) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/\bdr\.?\b/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
 }

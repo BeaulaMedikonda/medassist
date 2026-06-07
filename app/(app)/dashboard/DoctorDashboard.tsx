@@ -1,6 +1,9 @@
 "use client";
  
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import { StatCard } from "@/components/dashboard/StatCard";
 import {
   UsersIcon,
@@ -12,7 +15,10 @@ import {
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { ClinicalModules } from "@/components/dashboard/ClinicalModules";
 import { initials } from "@/lib/dashboard-utils";
+import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Clinic, Doctor, Patient, Referral, Visit } from "@/types/db";
+
+const REFERRALS_PAGE_SIZE = 6;
  
 export function DoctorDashboard({
   member,
@@ -25,6 +31,7 @@ export function DoctorDashboard({
   summaryPatients,
   patientSummaries,
   receivedReferrals,
+  sentReferrals,
   doctorRoster,
 }: {
   member: Doctor;
@@ -44,8 +51,12 @@ export function DoctorDashboard({
     pre_visit_summary_generated_at: string | null;
   }>;
   receivedReferrals: Referral[];
+  sentReferrals: Referral[];
   doctorRoster: Array<Pick<Doctor, "id" | "full_name">>;
 }) {
+  const router = useRouter();
+  const [referralsPage, setReferralsPage] = useState(1);
+  const [sentReferralsPage, setSentReferralsPage] = useState(1);
   const queuedCount = myToday.filter((v) => v.status === "queued").length;
   const withDoctorCount = myToday.filter((v) => v.status === "in_progress").length;
   const reviewedCount = myToday.filter((v) => v.status === "completed").length;
@@ -81,6 +92,28 @@ export function DoctorDashboard({
  
   const doctorShort = `Dr. ${member.full_name.split(" ")[0]}`;
   const doctorById = new Map(doctorRoster.map((doctor) => [doctor.id, doctor.full_name]));
+  const referralsPageData = getClientPageItems(receivedReferrals, referralsPage, REFERRALS_PAGE_SIZE);
+  const sentReferralsPageData = getClientPageItems(sentReferrals, sentReferralsPage, REFERRALS_PAGE_SIZE);
+
+  useEffect(() => {
+    const channel = supabaseBrowser()
+      .channel(`doctor-referrals-${member.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "referrals",
+          filter: `clinic_id=eq.${clinic.id}`,
+        },
+        () => router.refresh(),
+      )
+      .subscribe();
+
+    return () => {
+      void supabaseBrowser().removeChannel(channel);
+    };
+  }, [clinic.id, member.id, router]);
  
   return (
     <div className="premium-shell">
@@ -162,16 +195,20 @@ export function DoctorDashboard({
                   const target =
                     v.status === "awaiting_review"
                       ? `/emr/${p.id}/visits/${v.id}/review`
-                      : v.status === "intake"
-                        ? `/emr/${p.id}/visits/${v.id}/intake`
-                        : `/emr/${p.id}/visits/new?vid=${v.id}&mode=record`;
+                      : `/emr/${p.id}/visits/new?vid=${v.id}&mode=record`;
                   const actionLabel =
                     v.status === "awaiting_review"
                       ? "Review"
-                      : v.status === "intake"
-                        ? "Intake"
-                        : "Open";
-                  const vitalsCaptured = v.status !== "intake";
+                      : "Open";
+                  const vitalsCaptured = Boolean(
+                    v.bp_systolic ||
+                      v.bp_diastolic ||
+                      v.pulse ||
+                      v.temperature_f ||
+                      v.spo2 ||
+                      v.weight_kg ||
+                      v.height_cm,
+                  );
                   return (
                     <tr
                       key={v.id}
@@ -297,7 +334,101 @@ export function DoctorDashboard({
         </section>
       ) : null}
  
-      {/* ── Clinical Modules ── */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
+            <span className="text-[#0ea5a4]">Referral</span>
+            Referrals sent
+          </h2>
+        </div>
+
+        <div className="premium-panel overflow-hidden">
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>To</th>
+                <th>Specialty</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th className="text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sentReferrals.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm font-medium text-[#64748b] dark:text-ink-500">
+                    No referrals sent yet.
+                  </td>
+                </tr>
+              ) : (
+                sentReferralsPageData.pageItems.map((referral) => {
+                  const patient = patientById[referral.patient_id];
+
+                  return (
+                    <tr key={referral.id}>
+                      <td className="px-5 py-3.5">
+                        {patient ? (
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold text-white"
+                              style={{ background: "linear-gradient(135deg, #38bdf8 0%, #2563eb 100%)" }}
+                            >
+                              {initials(patient.full_name)}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-[#0f172a] dark:text-ink-100">
+                                {patient.full_name}
+                              </div>
+                              <div className="truncate text-[11px] text-[#64748b] dark:text-ink-500">
+                                {patient.emr_number}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[#64748b]">Patient unavailable</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-[#334155] dark:text-ink-300">
+                        {referral.referred_to_name}
+                      </td>
+                      <td className="px-5 py-3.5 text-[#334155] dark:text-ink-300">
+                        {referral.referred_to_specialty}
+                        <div className="mt-0.5 text-[11px] text-[#64748b]">
+                          {formatDate(referral.created_at)}
+                        </div>
+                      </td>
+                      <td className="max-w-[360px] px-5 py-3.5 text-[#334155] dark:text-ink-300">
+                        <span className="line-clamp-2">{referral.reason}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <ReferralStatusPill status={referral.status} />
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        {patient ? (
+                          <Link href={`/emr/${patient.id}`} className="premium-action">
+                            Open EMR
+                          </Link>
+                        ) : (
+                          <span className="text-[12px] font-semibold text-slate-400">Unavailable</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+          <ClientPagination
+            page={sentReferralsPageData.currentPage}
+            pageSize={REFERRALS_PAGE_SIZE}
+            totalItems={sentReferrals.length}
+            onPageChange={setSentReferralsPage}
+            label="sent referrals"
+          />
+        </div>
+      </section>
+
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
@@ -326,7 +457,7 @@ export function DoctorDashboard({
                   </td>
                 </tr>
               ) : (
-                receivedReferrals.map((referral) => {
+                referralsPageData.pageItems.map((referral) => {
                   const patient = patientById[referral.patient_id];
                   const referringDoctor = doctorById.get(referral.referring_doctor_id) || "Clinic doctor";
  
@@ -384,6 +515,13 @@ export function DoctorDashboard({
               )}
             </tbody>
           </table>
+          <ClientPagination
+            page={referralsPageData.currentPage}
+            pageSize={REFERRALS_PAGE_SIZE}
+            totalItems={receivedReferrals.length}
+            onPageChange={setReferralsPage}
+            label="referrals"
+          />
         </div>
       </section>
  

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import { TextInput, SelectInput } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
@@ -15,6 +16,8 @@ type Member = {
   qualification: string | null;
 };
 
+const TEAM_PAGE_SIZE = 8;
+
 export function TeamManager({
   inviteCode,
   currentUserId,
@@ -27,6 +30,7 @@ export function TeamManager({
   const router = useRouter();
   const { push } = useToast();
   const [members, setMembers] = useState(initialMembers);
+  const [page, setPage] = useState(1);
   const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -238,7 +242,7 @@ export function TeamManager({
         ) : null}
 
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {members.map((m) => (
+          {getClientPageItems(members, page, TEAM_PAGE_SIZE).pageItems.map((m) => (
             <MemberRow
               key={m.id}
               member={m}
@@ -259,6 +263,13 @@ export function TeamManager({
             />
           ))}
         </ul>
+        <ClientPagination
+          page={getClientPageItems(members, page, TEAM_PAGE_SIZE).currentPage}
+          pageSize={TEAM_PAGE_SIZE}
+          totalItems={members.length}
+          onPageChange={setPage}
+          label="members"
+        />
       </section>
     </div>
   );

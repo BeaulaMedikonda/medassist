@@ -5,6 +5,8 @@ import Link from "next/link";
 import type {
   FieldAssumption,
   FieldAssumptionsMap,
+  IcdCodeDetail,
+  LoincCodeDetail,
   Medicine,
   Patient,
   SpeakerTurn,
@@ -14,16 +16,31 @@ import { useToast } from "@/components/ui/Toast";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { formatDate, initials, cn } from "@/lib/utils";
 
+export type FhirValidationSummary = {
+  id: string;
+  status: "passed" | "warning" | "failed";
+  errors: unknown[];
+  warnings: unknown[];
+  validated_at: string;
+  validator?: string | null;
+  bundle_profile?: string | null;
+};
+
 export function ViewScreen({
   patient,
   visit,
+  initialValidation = null,
 }: {
   patient: Patient;
   visit: Visit;
+  initialValidation?: FhirValidationSummary | null;
 }) {
   const { push } = useToast();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validation, setValidation] = useState<FhirValidationSummary | null>(initialValidation);
+  const [validationDetailsOpen, setValidationDetailsOpen] = useState(false);
 
     function downloadTranscript(format: "txt" | "json") {
       const speakers = visit.transcript_speakers as SpeakerTurn[] | null;
@@ -91,10 +108,62 @@ export function ViewScreen({
     }
   }
 
+  async function validateBundle() {
+    setValidating(true);
+    try {
+      const res = await fetch(`/api/fhir/visit/${visit.id}/validate`, {
+        method: "POST",
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        validation?: FhirValidationSummary;
+        result?: {
+          status?: "passed" | "warning" | "failed";
+          errors?: unknown[];
+          warnings?: unknown[];
+        };
+      };
+      if (!res.ok) {
+        throw new Error(payload.error || `Validation failed (${res.status})`);
+      }
+
+      const status = payload.result?.status || "warning";
+      const errorCount = payload.result?.errors?.length || 0;
+      const warningCount = payload.result?.warnings?.length || 0;
+      if (payload.validation) {
+        setValidation(payload.validation);
+      } else {
+        setValidation({
+          id: `local-${visit.id}`,
+          status,
+          errors: payload.result?.errors || [],
+          warnings: payload.result?.warnings || [],
+          validated_at: new Date().toISOString(),
+        });
+      }
+      push({
+        title:
+          status === "passed"
+            ? "FHIR validation passed"
+            : status === "failed"
+              ? "FHIR validation failed"
+              : "FHIR validation completed with warnings",
+        description: `${errorCount} error${errorCount === 1 ? "" : "s"}, ${warningCount} warning${warningCount === 1 ? "" : "s"}.`,
+        variant: status === "failed" ? "error" : "success",
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not validate FHIR";
+      push({ title: "Validation failed", description: msg, variant: "error" });
+    } finally {
+      setValidating(false);
+    }
+  }
+
   const meds = (visit.prescription?.medicines || []) as Medicine[];
   const dx = visit.confirmed_diagnosis || visit.provisional_diagnosis;
   const dxKind = visit.confirmed_diagnosis ? "Confirmed" : "Provisional";
   const icd = visit.icd_codes || [];
+  const icdDetails = visit.icd_code_details || [];
 
   const vitalsChips: Array<{ k: string; v: string }> = [];
   if (visit.bp_systolic && visit.bp_diastolic) {
@@ -221,14 +290,18 @@ export function ViewScreen({
                     ICD-10 codes
                   </div>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {icd.map((c, i) => (
-                      <span
-                        key={`${c}-${i}`}
-                        className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[12px] font-medium text-slate-700 dark:bg-ink-800 dark:text-ink-300"
-                      >
-                        {c}
-                      </span>
-                    ))}
+                    {icd.map((c, i) => {
+                      const name = icdDetails.find((detail) => detail.code.trim().toUpperCase() === c.trim().toUpperCase())?.name;
+                      return (
+                        <span
+                          key={`${c}-${i}`}
+                          className="inline-flex max-w-full items-center rounded-md bg-slate-100 px-2 py-0.5 text-[12px] font-medium text-slate-700 dark:bg-ink-800 dark:text-ink-300"
+                        >
+                          <span className="font-mono">{c}</span>
+                          {name ? <span className="ml-1 truncate text-slate-500 dark:text-ink-400">- {name}</span> : null}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}
@@ -237,6 +310,7 @@ export function ViewScreen({
                 value={visit.investigations_ordered}
                 assumption={pick(a, "investigations_ordered")}
               />
+              <LoincDetails details={visit.loinc_code_details || []} />
             </Group>
           </section>
 
@@ -285,6 +359,12 @@ export function ViewScreen({
               )}
             </div>
 
+            <FhirValidationCard
+              validation={validation}
+              detailsOpen={validationDetailsOpen}
+              onToggleDetails={() => setValidationDetailsOpen((open) => !open)}
+            />
+
             <Group title="Plan">
               <ReadField
                 label="Advice"
@@ -328,13 +408,137 @@ export function ViewScreen({
         patientId={patient.id}
         visitId={visit.id}
         exporting={exporting}
+        validating={validating}
         onExport={exportBundle}
+        onValidate={validateBundle}
       />
     </div>
   );
 }
 
 // -------- subcomponents --------
+
+function FhirValidationCard({
+  validation,
+  detailsOpen,
+  onToggleDetails,
+}: {
+  validation: FhirValidationSummary | null;
+  detailsOpen: boolean;
+  onToggleDetails: () => void;
+}) {
+  if (!validation) return null;
+
+  const errorCount = validation.errors?.length || 0;
+  const warningCount = validation.warnings?.length || 0;
+  const badge =
+    validation.status === "passed"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+      : validation.status === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+        : "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300";
+  const label =
+    validation.status === "passed"
+      ? "FHIR Passed"
+      : validation.status === "warning"
+        ? "FHIR Warning"
+        : "FHIR Failed";
+
+  return (
+    <div className="card p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-eyebrow">FHIR Validation</div>
+          <div className="mt-0.5 text-[12px] text-slate-500 dark:text-ink-500">
+            Last checked {formatDate(validation.validated_at)}
+          </div>
+        </div>
+        <span className={cn("rounded-full border px-3 py-1 text-[11px] font-bold", badge)}>
+          {label}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg bg-rose-50 p-3 dark:bg-rose-950/25">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-300">
+            Errors
+          </div>
+          <div className="mt-2 text-xl font-bold text-rose-700 dark:text-rose-300">
+            {errorCount}
+          </div>
+        </div>
+        <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/25">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-300">
+            Warnings
+          </div>
+          <div className="mt-2 text-xl font-bold text-amber-700 dark:text-amber-300">
+            {warningCount}
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onToggleDetails}
+        className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-ink-800 dark:text-ink-300 dark:hover:bg-ink-900"
+      >
+        {detailsOpen ? "Hide validation report" : "View full validation report"}
+      </button>
+
+      {detailsOpen ? (
+        <div className="mt-3 max-h-72 space-y-3 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs dark:border-ink-800 dark:bg-ink-900/60">
+          <ValidationIssueList title="Errors" issues={validation.errors} tone="error" />
+          <ValidationIssueList title="Warnings" issues={validation.warnings} tone="warning" />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ValidationIssueList({
+  title,
+  issues,
+  tone,
+}: {
+  title: string;
+  issues: unknown[];
+  tone: "error" | "warning";
+}) {
+  const color =
+    tone === "error"
+      ? "text-rose-700 dark:text-rose-300"
+      : "text-amber-700 dark:text-amber-300";
+
+  return (
+    <div>
+      <div className={cn("mb-1 font-bold uppercase tracking-wide", color)}>{title}</div>
+      {issues.length === 0 ? (
+        <p className="text-slate-500 dark:text-ink-500">None</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {issues.slice(0, 20).map((issue, index) => (
+            <li key={index} className="rounded-md bg-white p-2 text-slate-700 dark:bg-ink-950 dark:text-ink-300">
+              {formatValidationIssue(issue)}
+            </li>
+          ))}
+          {issues.length > 20 ? (
+            <li className="text-slate-500 dark:text-ink-500">
+              +{issues.length - 20} more
+            </li>
+          ) : null}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function formatValidationIssue(issue: unknown) {
+  if (!issue || typeof issue !== "object") {
+    return String(issue);
+  }
+  const item = issue as { code?: string; message?: string; path?: string };
+  return [item.code, item.message, item.path].filter(Boolean).join(" - ");
+}
 
 function pick(
   map: FieldAssumptionsMap | null | undefined,
@@ -454,6 +658,40 @@ function MedStatusBadge({ status }: { status: Medicine["status"] }) {
   );
 }
 
+function LoincDetails({ details }: { details: LoincCodeDetail[] }) {
+  if (details.length === 0) return null;
+
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-ink-400">
+        LOINC / UCUM details
+      </div>
+      <div className="mt-1.5 space-y-1.5">
+        {details.map((detail, index) => {
+          const meta = [
+            detail.loinc_code ? `LOINC ${detail.loinc_code}` : null,
+            detail.loinc_name,
+            detail.ucum_unit ? `UCUM ${detail.ucum_unit}` : null,
+            detail.ucum_name,
+          ].filter(Boolean);
+
+          return (
+            <div
+              key={`${detail.test_name}-${detail.loinc_code || index}`}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-ink-800 dark:bg-ink-900/60 dark:text-ink-300"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold text-slate-900 dark:text-ink-100">{detail.test_name}</span>
+              </div>
+              {meta.length > 0 ? <div className="mt-1 text-[11px] text-slate-500 dark:text-ink-500">{meta.join(" / ")}</div> : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TranscriptPanel({
   visit,
   open,
@@ -546,12 +784,16 @@ function ActionBar({
   patientId,
   visitId,
   exporting,
+  validating,
   onExport,
+  onValidate,
 }: {
   patientId: string;
   visitId: string;
   exporting: boolean;
+  validating: boolean;
   onExport: () => void;
+  onValidate: () => void;
 }) {
   return (
     <div className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-ink-800 dark:bg-ink-950/90 md:left-[310px]">
@@ -575,6 +817,18 @@ function ActionBar({
               </svg>
             )}
             Export FHIR Bundle
+          </button>
+          <button onClick={onValidate} disabled={validating} className="btn-secondary">
+            {validating ? (
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 3a7 7 0 1 0 7 7" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 10.5l3 3 7-7" />
+              </svg>
+            )}
+            Validate FHIR
           </button>
           <Link
             href={`/emr/${patientId}/visits/${visitId}/print`}

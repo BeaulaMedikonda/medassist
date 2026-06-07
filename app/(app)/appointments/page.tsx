@@ -1,6 +1,7 @@
 import { unstable_noStore as noStore } from "next/cache";
-import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/auth";
+import { FeatureDisabled } from "@/components/FeatureDisabled";
+import { isClinicFeatureEnabled } from "@/lib/features";
 import { supabaseServer } from "@/lib/supabase/server";
 import { AppointmentsClient } from "./AppointmentsClient";
 
@@ -39,8 +40,10 @@ export default async function AppointmentsPage() {
   noStore();
 
   const { member, clinic } = await requireMember();
-  if (member.role === "doctor") {
-    notFound();
+  const isDoctor = member.role === "doctor";
+
+  if (!(await isClinicFeatureEnabled(clinic.id, "appointments"))) {
+    return <FeatureDisabled featureName="Appointments" />;
   }
 
   const supabase = await supabaseServer();
@@ -58,7 +61,8 @@ export default async function AppointmentsPage() {
     .eq("role", "doctor")
     .order("full_name", { ascending: true });
 
-  const { data: appointments, error: appointmentsError } = await supabase
+  // Doctors see only their own appointments; MA/admin see the full clinic schedule.
+  let apptQuery = supabase
     .from("appointments")
     .select(
       "id, clinic_id, patient_id, doctor_id, scheduled_at, duration_minutes, type, priority, status, notes, created_by, created_at, updated_at",
@@ -67,6 +71,12 @@ export default async function AppointmentsPage() {
     .gte("scheduled_at", today.toISOString())
     .lte("scheduled_at", futureLimit.toISOString())
     .order("scheduled_at", { ascending: true });
+
+  if (isDoctor) {
+    apptQuery = apptQuery.eq("doctor_id", member.id);
+  }
+
+  const { data: appointments, error: appointmentsError } = await apptQuery;
 
   const { data: patientRows } = await supabase
     .from("patients")
@@ -80,6 +90,7 @@ export default async function AppointmentsPage() {
       clinicId={clinic.id}
       clinicName={clinic.name}
       currentUserId={member.id}
+      currentUserRole={member.role}
       doctors={(doctors || []) as DoctorRow[]}
       patients={patients}
       appointments={(appointments || []) as AppointmentRow[]}

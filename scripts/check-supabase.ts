@@ -68,18 +68,14 @@ const EXPECTED_TABLES: Expected[] = [
     name: "patients",
     required: [
       "id", "doctor_id", "clinic_id", "emr_number", "full_name",
-      "given_name", "family_name",
+      "first_name", "last_name",
       "age", "birthdate", "sex",
       "phone", "email", "address",
-      "address_line1", "address_line2", "city", "state", "postal_code", "country",
+      "city", "state", "postal_code", "country", "height_cm",
       "blood_group", "known_allergies", "chronic_conditions", "emergency_contact",
       "abha_id", "abha_address",
       "created_at", "last_visit_at",
     ],
-  },
-  {
-    name: "patient_allergies",
-    required: ["id", "patient_id", "allergen", "reaction", "severity", "recorded_at"],
   },
   {
     name: "visits",
@@ -87,7 +83,7 @@ const EXPECTED_TABLES: Expected[] = [
       "id", "patient_id", "doctor_id", "clinic_id", "created_by",
       "visit_date", "status", "completed_at",
       "encounter_class",
-      "bp_systolic", "bp_diastolic", "pulse", "temperature_f", "spo2", "weight_kg", "height_cm",
+      "bp_systolic", "bp_diastolic", "pulse", "temperature_f", "spo2", "weight_kg",
       "chief_complaints", "history_present_illness", "past_history",
       "examination_findings", "provisional_diagnosis", "confirmed_diagnosis",
       "icd_codes", "investigations_ordered", "prescription",
@@ -136,6 +132,14 @@ const EXPECTED_TABLES: Expected[] = [
       "consumer_type", "consumer_label", "consent_artifact_id",
       "bundle_profile", "content_sha256", "content_bytes",
       "metadata", "disclosed_at",
+    ],
+  },
+  {
+    name: "fhir_validation_results",
+    required: [
+      "id", "clinic_id", "patient_id", "visit_id", "actor_id",
+      "bundle_profile", "validator", "status",
+      "errors", "warnings", "validated_at", "created_at",
     ],
   },
 ];

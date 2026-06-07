@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -14,7 +14,11 @@ import type {
 
   FieldAssumptionsMap,
 
+  IcdCodeDetail,
+
   Immunization,
+
+  LoincCodeDetail,
 
   Patient,
 
@@ -39,6 +43,16 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 
 import { supabaseBrowser } from "@/lib/supabase/browser";
+
+import {
+  searchIcdCodes,
+  loincToVisitDetail,
+  searchLoincCodes,
+  searchUcumUnits,
+  type IcdSearchRow,
+  type LoincSearchRow,
+  type UcumUnitRow,
+} from "@/lib/codes/standard-search";
 
 import { formatDate, initials, cn } from "@/lib/utils";
 
@@ -82,6 +96,19 @@ type EditableFields = {
 
   weight_kg: string;
 
+};
+
+type IcdDetailDraft = {
+  code: string;
+  name: string;
+};
+
+type LoincDetailDraft = {
+  test_name: string;
+  loinc_code: string;
+  loinc_name: string;
+  ucum_unit: string;
+  ucum_name: string;
 };
 
 
@@ -312,6 +339,54 @@ function pick(
 
 }
 
+function toIcdDetailDrafts(details: IcdCodeDetail[] | null | undefined): IcdDetailDraft[] {
+  return (details || []).map((detail) => ({
+    code: detail.code || "",
+    name: detail.name || "",
+  }));
+}
+
+function toLoincDetailDrafts(details: LoincCodeDetail[] | null | undefined): LoincDetailDraft[] {
+  return (details || []).map((detail) => ({
+    test_name: detail.test_name || "",
+    loinc_code: detail.loinc_code || "",
+    loinc_name: detail.loinc_name || "",
+    ucum_unit: detail.ucum_unit || "",
+    ucum_name: detail.ucum_name || "",
+  }));
+}
+
+function cleanIcdDetails(details: IcdDetailDraft[]): IcdCodeDetail[] {
+  return details
+    .map((detail) => ({
+      code: detail.code.trim(),
+      name: detail.name.trim() || null,
+    }))
+    .filter((detail) => detail.code.length > 0);
+}
+
+function cleanLoincDetails(details: LoincDetailDraft[]): LoincCodeDetail[] {
+  return details
+    .map((detail) => ({
+      test_name: detail.test_name.trim(),
+      loinc_code: detail.loinc_code.trim() || null,
+      loinc_name: detail.loinc_name.trim() || null,
+      ucum_unit: detail.ucum_unit.trim() || null,
+      ucum_name: detail.ucum_name.trim() || null,
+    }))
+    .filter((detail) => detail.test_name.length > 0);
+}
+
+function blankLoincDetail(): LoincDetailDraft {
+  return {
+    test_name: "",
+    loinc_code: "",
+    loinc_name: "",
+    ucum_unit: "",
+    ucum_name: "",
+  };
+}
+
 
 
 export function ReviewScreen({
@@ -373,6 +448,18 @@ export function ReviewScreen({
 
 
   const [fields, setFields] = useState<EditableFields>(toEditable(visit));
+
+  const [icdDetails, setIcdDetails] = useState<IcdDetailDraft[]>(
+
+    () => toIcdDetailDrafts(visit.icd_code_details),
+
+  );
+
+  const [loincDetails, setLoincDetails] = useState<LoincDetailDraft[]>(
+
+    () => toLoincDetailDrafts(visit.loinc_code_details),
+
+  );
 
   const [prescription, setPrescription] = useState<Prescription>(
 
@@ -660,6 +747,10 @@ export function ReviewScreen({
 
           icd_codes: codes.length > 0 ? codes : null,
 
+          icd_code_details: cleanIcdDetails(icdDetails),
+
+          loinc_code_details: cleanLoincDetails(loincDetails),
+
           advice: fields.advice || null,
 
           follow_up_date: fields.follow_up_date || null,
@@ -690,7 +781,8 @@ export function ReviewScreen({
 
         })
 
-        .eq("id", visit.id);
+        .eq("id", visit.id)
+        .eq("clinic_id", clinicId);
 
 
 
@@ -981,22 +1073,14 @@ export function ReviewScreen({
               </div>
 
               <div>
-
-                <EditableField
-
-                  label="ICD-10 codes"
-
-                  placeholder="e.g. J02.9, I10"
-
-                  {...bind("icd_codes")}
-
-                  aiValue={aiSnapshot.icd_codes}
-
-                  assumption={pick(a, "icd_codes")}
-
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-ink-400">
+                  ICD-10 codes
+                </div>
+                <IcdDetailsEditor
+                  details={icdDetails}
+                  onChange={setIcdDetails}
+                  onCodesChange={(codes) => setFields((current) => ({ ...current, icd_codes: codes.join(", ") }))}
                 />
-
-                <IcdChips value={fields.icd_codes} />
 
               </div>
 
@@ -1013,6 +1097,8 @@ export function ReviewScreen({
                 assumption={pick(a, "investigations_ordered")}
 
               />
+
+              <LoincDetailsEditor details={loincDetails} onChange={setLoincDetails} />
 
             </Group>
 
@@ -1482,42 +1568,380 @@ function SpeakerBanner({
 
 
 
-function IcdChips({ value }: { value: string }) {
+function IcdDetailsEditor({
+  details,
+  onChange,
+  onCodesChange,
+}: {
+  details: IcdDetailDraft[];
+  onChange: (details: IcdDetailDraft[]) => void;
+  onCodesChange: (codes: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<IcdSearchRow[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const rows = details.length > 0 ? details : [{ code: "", name: "" }];
 
-  const codes = value
+  useEffect(() => {
+    let cancelled = false;
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setResults([]);
+      setSearchError("");
+      setSearching(false);
+      return;
+    }
 
-    .split(/[,\s]+/)
+    setSearching(true);
+    const timer = window.setTimeout(async () => {
+      const { data, error } = await searchIcdCodes(trimmed);
+      if (cancelled) return;
+      setResults(data);
+      setSearchError(error);
+      setSearching(false);
+    }, 250);
 
-    .map((c) => c.trim())
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
 
-    .filter(Boolean);
+  function sync(next: IcdDetailDraft[]) {
+    onChange(next);
+    onCodesChange(next.map((row) => row.code.trim()).filter(Boolean));
+  }
 
-  if (codes.length === 0) return null;
+  function update(index: number, patch: Partial<IcdDetailDraft>) {
+    const next = rows.map((row, i) => (i === index ? { ...row, ...patch } : row));
+    sync(next);
+  }
+
+  function remove(index: number) {
+    sync(rows.filter((_, i) => i !== index));
+  }
+
+  function addFromIcd(row: IcdSearchRow) {
+    const detail = { code: row.code, name: row.name };
+    const hasOnlyBlankRow =
+      rows.length === 1 &&
+      !rows[0].code.trim() &&
+      !rows[0].name.trim();
+    sync(hasOnlyBlankRow ? [detail] : [...rows, detail]);
+    setQuery("");
+    setResults([]);
+  }
 
   return (
-
-    <div className="mt-1.5 flex flex-wrap gap-1.5">
-
-      {codes.map((c, i) => (
-
-        <span
-
-          key={`${c}-${i}`}
-
-          className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-700 dark:bg-ink-800 dark:text-ink-300"
-
-        >
-
-          {c}
-
-        </span>
-
+    <div className="mt-1.5 space-y-1.5">
+      <div className="relative">
+        <input
+          className="input-base h-9 text-xs"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search ICD by diagnosis name or code"
+        />
+        {query.trim().length >= 2 ? (
+          <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-ink-800 dark:bg-ink-950">
+            {searching ? (
+              <div className="px-3 py-2 text-xs text-slate-500 dark:text-ink-500">Searching...</div>
+            ) : searchError ? (
+              <div className="px-3 py-2 text-xs text-rose-600">{searchError}</div>
+            ) : results.length > 0 ? (
+              results.map((row) => (
+                <button
+                  key={row.code}
+                  type="button"
+                  onClick={() => addFromIcd(row)}
+                  className="block w-full border-b border-slate-100 px-3 py-2 text-left text-xs hover:bg-teal-50 dark:border-ink-800 dark:hover:bg-ink-900"
+                >
+                  <div className="font-semibold text-slate-900 dark:text-ink-100">{row.name}</div>
+                  <div className="mt-0.5 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-ink-500">
+                    <span className="font-mono">{row.code}</span>
+                    {row.category ? <span>{row.category}</span> : null}
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-xs text-slate-500 dark:text-ink-500">No ICD match.</div>
+            )}
+          </div>
+        ) : null}
+      </div>
+      {rows.map((detail, index) => (
+        <div key={index} className="grid grid-cols-1 gap-1.5 rounded-lg bg-slate-50 p-2 dark:bg-ink-900/70 sm:grid-cols-[140px_1fr_auto]">
+          <input
+            className="input-base h-9 font-mono text-xs"
+            value={detail.code}
+            onChange={(event) => update(index, { code: event.target.value })}
+            placeholder="ICD code"
+          />
+          <input
+            className="input-base h-9 text-xs"
+            value={detail.name}
+            onChange={(event) => update(index, { name: event.target.value })}
+            placeholder="ICD name"
+          />
+          <button
+            type="button"
+            onClick={() => remove(index)}
+            className="rounded-md px-2 text-xs font-bold text-slate-400 hover:bg-white hover:text-rose-600 dark:hover:bg-ink-950"
+            aria-label="Remove ICD detail"
+          >
+            X
+          </button>
+        </div>
       ))}
-
+      <button
+        type="button"
+        onClick={() => sync([...rows, { code: "", name: "" }])}
+        className="text-xs font-bold text-brand-700 hover:text-brand-800"
+      >
+        + Add ICD detail
+      </button>
     </div>
-
   );
+}
 
+function LoincDetailsEditor({
+  details,
+  onChange,
+}: {
+  details: LoincDetailDraft[];
+  onChange: (details: LoincDetailDraft[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<LoincSearchRow[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const rows = details.length > 0
+    ? details
+    : [blankLoincDetail()];
+
+  useEffect(() => {
+    let cancelled = false;
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setResults([]);
+      setSearchError("");
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const timer = window.setTimeout(async () => {
+      const { data, error } = await searchLoincCodes(trimmed);
+      if (cancelled) return;
+      setResults(data);
+      setSearchError(error);
+      setSearching(false);
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+
+  function update(index: number, patch: Partial<LoincDetailDraft>) {
+    const next = rows.map((row, i) => (i === index ? { ...row, ...patch } : row));
+    onChange(next);
+  }
+
+  function remove(index: number) {
+    onChange(rows.filter((_, i) => i !== index));
+  }
+
+  async function addFromLoinc(row: LoincSearchRow) {
+    const detail = loincToVisitDetail(row);
+    if (detail.ucum_unit) {
+      const { data } = await searchUcumUnits(detail.ucum_unit, 1);
+      const units = data as UcumUnitRow[];
+      const exact = units.find((unit) => unit.code === detail.ucum_unit) || units[0];
+      if (exact) {
+        detail.ucum_name = exact.display_name || exact.common_synonym || "";
+      }
+    }
+
+    const hasOnlyBlankRow =
+      rows.length === 1 &&
+      !rows[0].test_name.trim() &&
+      !rows[0].loinc_code.trim() &&
+      !rows[0].loinc_name.trim() &&
+      !rows[0].ucum_unit.trim() &&
+      !rows[0].ucum_name.trim();
+
+    onChange(hasOnlyBlankRow ? [detail] : [...rows, detail]);
+    setQuery("");
+    setResults([]);
+  }
+
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-ink-400">
+        LOINC / UCUM details
+      </div>
+      <div className="relative mt-1.5">
+        <input
+          className="input-base h-9 text-xs"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search LOINC by test name or code"
+        />
+        {query.trim().length >= 2 ? (
+          <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-ink-800 dark:bg-ink-950">
+            {searching ? (
+              <div className="px-3 py-2 text-xs text-slate-500 dark:text-ink-500">Searching...</div>
+            ) : searchError ? (
+              <div className="px-3 py-2 text-xs text-rose-600">{searchError}</div>
+            ) : results.length > 0 ? (
+              results.map((row) => (
+                <button
+                  key={row.loinc_num}
+                  type="button"
+                  onClick={() => addFromLoinc(row)}
+                  className="block w-full border-b border-slate-100 px-3 py-2 text-left text-xs hover:bg-teal-50 dark:border-ink-800 dark:hover:bg-ink-900"
+                >
+                  <div className="font-semibold text-slate-900 dark:text-ink-100">
+                    {row.display_name || row.long_common_name || row.shortname || row.component || row.loinc_num}
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-ink-500">
+                    <span className="font-mono">{row.loinc_num}</span>
+                    {row.example_ucum_units ? <span>UCUM {row.example_ucum_units}</span> : null}
+                    {row.class ? <span>{row.class}</span> : null}
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-xs text-slate-500 dark:text-ink-500">No LOINC match.</div>
+            )}
+          </div>
+        ) : null}
+      </div>
+      <div className="mt-1.5 space-y-2">
+        {rows.map((detail, index) => (
+          <div key={index} className="rounded-lg bg-slate-50 p-2 dark:bg-ink-900/70">
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              <input className="input-base h-9 text-xs" value={detail.test_name} onChange={(event) => update(index, { test_name: event.target.value })} placeholder="Test name" />
+              <input className="input-base h-9 font-mono text-xs" value={detail.loinc_code} onChange={(event) => update(index, { loinc_code: event.target.value })} placeholder="LOINC code" />
+              <input className="input-base h-9 text-xs sm:col-span-2" value={detail.loinc_name} onChange={(event) => update(index, { loinc_name: event.target.value })} placeholder="LOINC name" />
+              <div className="grid grid-cols-1 gap-1.5 sm:col-span-2 sm:grid-cols-[180px_1fr_auto]">
+                <UcumUnitInput
+                  value={detail.ucum_unit}
+                  onSelect={(unit) => update(index, {
+                    ucum_unit: unit.code,
+                    ucum_name: unit.display_name || unit.common_synonym || "",
+                  })}
+                  onChange={(value) => update(index, { ucum_unit: value })}
+                />
+                <input
+                  className="input-base h-9 text-xs"
+                  value={detail.ucum_name || ""}
+                  onChange={(event) => update(index, { ucum_name: event.target.value })}
+                  placeholder="UCUM name"
+                />
+                <button
+                  type="button"
+                  onClick={() => remove(index)}
+                  className="rounded-md px-2 text-xs font-bold text-slate-400 hover:bg-white hover:text-rose-600 dark:hover:bg-ink-950"
+                  aria-label="Remove LOINC detail"
+                >
+                  X
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange([...rows, blankLoincDetail()])}
+        className="mt-1.5 text-xs font-bold text-brand-700 hover:text-brand-800"
+      >
+        + Add LOINC detail
+      </button>
+    </div>
+  );
+}
+
+function UcumUnitInput({
+  value,
+  onChange,
+  onSelect,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSelect: (unit: UcumUnitRow) => void;
+}) {
+  const [results, setResults] = useState<UcumUnitRow[]>([]);
+  const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const trimmed = value.trim();
+    if (!open || !trimmed) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const timer = window.setTimeout(async () => {
+      const { data } = await searchUcumUnits(trimmed);
+      if (cancelled) return;
+      setResults(data);
+      setSearching(false);
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, value]);
+
+  return (
+    <div className="relative">
+      <input
+        className="input-base h-9 text-xs"
+        value={value}
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        placeholder="UCUM unit"
+      />
+      {open && value.trim() ? (
+        <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-ink-800 dark:bg-ink-950">
+          {searching ? (
+            <div className="px-3 py-2 text-xs text-slate-500 dark:text-ink-500">Searching...</div>
+          ) : results.length > 0 ? (
+            results.map((unit) => (
+              <button
+                key={unit.code}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onSelect(unit);
+                  setOpen(false);
+                }}
+                className="block w-full border-b border-slate-100 px-3 py-2 text-left text-xs hover:bg-teal-50 dark:border-ink-800 dark:hover:bg-ink-900"
+              >
+                <div className="font-mono font-semibold text-slate-900 dark:text-ink-100">{unit.code}</div>
+                <div className="text-[11px] text-slate-500 dark:text-ink-500">
+                  {[unit.display_name, unit.common_synonym, unit.unit_type].filter(Boolean).join(" / ")}
+                </div>
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-xs text-slate-500 dark:text-ink-500">No UCUM match.</div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 

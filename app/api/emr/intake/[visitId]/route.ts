@@ -35,11 +35,20 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: member } = await sb
+    let { data: member } = await sb
       .from("doctors")
       .select("id, role, clinic_id")
-      .eq("id", user.id)
+      .eq("auth_user_id", user.id)
       .maybeSingle();
+
+    if (!member) {
+      const { data: legacyMember } = await sb
+        .from("doctors")
+        .select("id, role, clinic_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      member = legacyMember;
+    }
     const clinicId = (member as { clinic_id?: string | null } | null)?.clinic_id;
     const role = (member as { role?: string } | null)?.role;
 
@@ -90,6 +99,8 @@ export async function PATCH(
     const visitUpdate = {
       ...sanitizeVisitUpdate(body.visit || {}),
       doctor_id: assignments[0].doctor_id,
+      // Advance from intake → queued now that a doctor has been assigned.
+      status: "queued",
     };
 
     const admin = supabaseAdmin();

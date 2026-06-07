@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState, type Ref } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 
-type Role = "ma" | "doctor" | "admin";
+type Role = "ma" | "doctor" | "admin" | "provider";
 type StaffRole = "medical_assistant" | "doctor" | "admin";
 
 type ClinicChoice = {
@@ -16,7 +16,7 @@ type ClinicChoice = {
   role: string;
 };
 
-const roleToStaffRole: Record<Role, StaffRole> = {
+const roleToStaffRole: Record<Exclude<Role, "provider">, StaffRole> = {
   ma: "medical_assistant",
   doctor: "doctor",
   admin: "admin",
@@ -32,15 +32,27 @@ function LoginInner() {
   const router = useRouter();
   const search = useSearchParams();
   const next = search.get("next") || "/dashboard";
+  const isProviderUrl = next === "/app-provider" || next.startsWith("/app-provider/");
   const { push } = useToast();
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [role, setRole] = useState<Role>("ma");
+  const [role, setRole] = useState<Role>(isProviderUrl ? "provider" : "ma");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [clinicChoices, setClinicChoices] = useState<ClinicChoice[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  const isProviderLogin = isProviderUrl || role === "provider";
+
+  useEffect(() => {
+    if (!isProviderLogin) return;
+    setEmail("");
+    setPassword("");
+    setClinicChoices([]);
+    setSelectedMemberId("");
+  }, [isProviderLogin]);
 
   async function chooseWorkspace(memberId: string) {
     const res = await fetch("/api/auth/clinics", {
@@ -52,8 +64,9 @@ function LoginInner() {
     if (!res.ok || !j.ok) throw new Error(j.error || "Could not select workspace");
   }
 
-  async function loadWorkspaces(selectedRole: Role) {
-    const res = await fetch("/api/auth/clinics", { cache: "no-store" });
+  async function loadWorkspaces(selectedRole: Exclude<Role, "provider">) {
+    const roleParam = encodeURIComponent(roleToStaffRole[selectedRole]);
+    const res = await fetch(`/api/auth/clinics?role=${roleParam}`, { cache: "no-store" });
     const j = (await res.json().catch(() => ({}))) as {
       ok?: boolean;
       error?: string;
@@ -71,15 +84,22 @@ function LoginInner() {
 
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        const workspaces = await loadWorkspaces(role);
+        if (isProviderLogin) {
+          push({ title: "Welcome back", variant: "success" });
+          router.replace("/app-provider");
+          return;
+        }
+
+        const workspaces = await loadWorkspaces(role as Exclude<Role, "provider">);
         if (workspaces.length === 0) {
+          if (role === "admin") {
+            push({ title: "Set up your clinic", variant: "info" });
+            router.replace("/onboarding");
+            return;
+          }
           push({
             title: "No matching role found",
             description: `This account is not linked as ${roleLabel[roleToStaffRole[role]]}.`,
@@ -89,9 +109,7 @@ function LoginInner() {
           return;
         }
 
-        if (workspaces.length === 1) {
-          await chooseWorkspace(workspaces[0].memberId);
-        } else {
+        if (workspaces.length > 1) {
           setClinicChoices(workspaces);
           setSelectedMemberId(workspaces[0].memberId);
           push({ title: "Choose workspace", variant: "info" });
@@ -100,16 +118,21 @@ function LoginInner() {
 
         push({ title: "Welcome back", variant: "success" });
         router.replace(next);
-        router.refresh();
       } else {
+        if (role !== "admin") {
+          push({
+            title: "Admin signup only",
+            description:
+              "Medical assistants and doctors must be added by the clinic admin from the team settings.",
+            variant: "error",
+          });
+          return;
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: {
-              role,
-            },
-          },
+          options: { data: { role } },
         });
 
         if (error) throw error;
@@ -117,11 +140,10 @@ function LoginInner() {
         if (data.session) {
           push({ title: "Account created", variant: "success" });
           router.replace("/onboarding");
-          router.refresh();
         } else {
           push({
             title: "Check your inbox",
-            description: "Confirm your email to finish signing up.",
+            description: "Confirm your email, then sign in to set up your clinic.",
             variant: "info",
           });
         }
@@ -129,10 +151,7 @@ function LoginInner() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
       push({
-        title:
-          mode === "signin"
-            ? "Could not sign in"
-            : "Could not create account",
+        title: mode === "signin" ? "Could not sign in" : "Could not create account",
         description: message,
         variant: "error",
       });
@@ -147,13 +166,11 @@ function LoginInner() {
       push({ title: "Choose a workspace", variant: "error" });
       return;
     }
-
     setBusy(true);
     try {
       await chooseWorkspace(selectedMemberId);
       push({ title: "Welcome back", variant: "success" });
       router.replace(next);
-      router.refresh();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Could not select workspace";
       push({ title: "Workspace selection failed", description: message, variant: "error" });
@@ -163,261 +180,346 @@ function LoginInner() {
   }
 
   const roles: { key: Role; short: string; label: string; detail: string }[] = [
-    { key: "ma", short: "MA", label: "Medical Assistant", detail: "Queue and intake" },
+    { key: "ma", short: "MA", label: "Medical Assistant", detail: "Queue & intake" },
     { key: "doctor", short: "DR", label: "Doctor", detail: "Clinical review" },
-    { key: "admin", short: "AD", label: "Admin", detail: "Clinic control" },
+    { key: "admin", short: "AD", label: "Admin", detail: "Clinic management" },
+    { key: "provider", short: "AP", label: "App Provider", detail: "Platform management" },
   ];
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f6faf9] p-4 sm:p-6">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_48%_42%_at_18%_16%,rgba(59,130,246,0.14),transparent_62%),radial-gradient(ellipse_42%_44%_at_84%_10%,rgba(14,165,164,0.20),transparent_64%),linear-gradient(135deg,#f8fbff_0%,#effaf7_48%,#d8f3ea_100%)]" />
-        <div
-          className="absolute inset-0 opacity-[0.055]"
-          style={{
-            backgroundImage:
-              "linear-gradient(#0f172a 1px, transparent 1px), linear-gradient(90deg, #0f172a 1px, transparent 1px)",
-            backgroundSize: "28px 28px",
-          }}
-        />
-      </div>
+    <div className="flex min-h-screen items-center justify-center bg-[#f0f4f8] px-4 py-12"
+      style={{
+        backgroundImage:
+          "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(14,165,164,0.08) 0%, transparent 70%)",
+      }}
+    >
+      <div className="w-full max-w-[460px]">
+        {/* Logo above card */}
+        <div className="mb-6 flex justify-center">
+          <BrandMark />
+        </div>
 
-      <main className="relative w-full max-w-[520px] overflow-hidden rounded-[30px] border border-white/70 bg-white/82 shadow-[0_30px_90px_-45px_rgba(15,23,42,0.55)] backdrop-blur-xl">
-        <section className="flex min-h-[620px] items-center justify-center px-5 py-8 sm:px-10">
-          <div className="w-full max-w-[440px]">
-            <div className="mb-7">
-              <BrandMark />
-            </div>
+        {/* Card */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white px-8 py-8 shadow-[0_4px_24px_-6px_rgba(15,23,42,0.12),0_1px_4px_rgba(15,23,42,0.06)]">
+          <div className="mb-6">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0ea5a4]">
+              {isProviderLogin ? "App provider access" : mode === "signin" ? "Welcome back" : "Get started"}
+            </p>
+            <h1 className="mt-2 text-[26px] font-extrabold tracking-tight text-slate-900">
+              {isProviderLogin
+                ? "Sign in to App Provider Console"
+                : mode === "signin"
+                ? "Sign in to MedAssist"
+                : "Create your account"}
+            </h1>
+            <p className="mt-1.5 text-sm font-medium text-slate-500">
+              {isProviderLogin
+                ? "Use your app-owner credentials to manage clinics."
+                : mode === "signin"
+                ? "Choose your role and continue to your workspace."
+                : "Admin accounts only. Staff are invited by the clinic admin."}
+            </p>
+          </div>
 
-            <div className="mb-7">
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#0ea5a4]">
-                {mode === "signin" ? "Welcome back" : "Start your clinic setup"}
-              </p>
-              <h2 className="mt-2 text-[30px] font-extrabold tracking-tight text-slate-950">
-                {mode === "signin" ? "Sign in to MedAssist" : "Create your account"}
-              </h2>
-              <p className="mt-2 text-sm font-medium text-slate-500">
-                {mode === "signin"
-                  ? "Choose your role and continue to your workspace."
-                  : "Create credentials first, then connect to your clinic."}
-              </p>
-            </div>
-
-            <div className="mb-6 grid grid-cols-2 rounded-full border border-slate-200 bg-slate-50 p-1">
+          {/* Sign in / Create Account toggle */}
+          {!isProviderLogin ? (
+            <div className="mb-6 grid grid-cols-2 rounded-full border border-slate-200 bg-slate-100/70 p-1">
               <button
                 type="button"
                 onClick={() => setMode("signin")}
-                className={`rounded-full px-4 py-2 text-[13px] font-extrabold transition ${
+                className={`rounded-full px-4 py-2 text-[13px] font-bold transition ${
                   mode === "signin"
                     ? "bg-white text-[#0c8a89] shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
+                    : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 Sign In
               </button>
-
               <button
                 type="button"
                 onClick={() => setMode("signup")}
-                className={`rounded-full px-4 py-2 text-[13px] font-extrabold transition ${
+                className={`rounded-full px-4 py-2 text-[13px] font-bold transition ${
                   mode === "signup"
                     ? "bg-white text-[#0c8a89] shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
+                    : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 Create Account
               </button>
             </div>
+          ) : null}
 
-            {clinicChoices.length > 1 ? (
-              <form onSubmit={continueWithClinic} className="space-y-5">
-                <div>
-                  <label className="mb-2 block text-[12px] font-extrabold uppercase tracking-wide text-slate-500">
-                    Select workspace
-                  </label>
-                  <div className="space-y-2">
-                    {clinicChoices.map((clinic) => {
-                      const active = selectedMemberId === clinic.memberId;
-                      return (
-                        <button
-                          key={clinic.memberId}
-                          type="button"
-                          onClick={() => setSelectedMemberId(clinic.memberId)}
-                          className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                            active
-                              ? "border-[#0ea5a4] bg-[#ecfdfc] text-[#064e4b]"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-teal-200 hover:bg-slate-50"
-                          }`}
-                        >
-                          <div className="text-sm font-extrabold">
-                            {clinic.clinicName}
-                          </div>
-                          <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            {roleLabel[clinic.role] || clinic.role}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#0f8f83] to-[#0ea5a4] px-4 py-2 text-[14px] font-extrabold text-white shadow-[0_16px_30px_-18px_rgba(14,165,164,0.85)] transition hover:-translate-y-0.5 hover:from-[#0c7f76] hover:to-[#0d9895] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {busy ? <Spinner /> : null}
-                  Continue
-                  <span aria-hidden="true">-&gt;</span>
-                </button>
-              </form>
-            ) : (
-            <form onSubmit={submit} className="space-y-5">
+          {/* Workspace picker */}
+          {clinicChoices.length > 1 ? (
+            <form onSubmit={continueWithClinic} className="space-y-5">
               <div>
                 <label className="mb-2 block text-[12px] font-extrabold uppercase tracking-wide text-slate-500">
-                  Select your role
+                  Select workspace
                 </label>
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {roles.map((item) => {
-                    const active = role === item.key;
-
+                <div className="space-y-2">
+                  {clinicChoices.map((clinic) => {
+                    const active = selectedMemberId === clinic.memberId;
                     return (
                       <button
-                        key={item.key}
+                        key={clinic.memberId}
                         type="button"
-                        onClick={() => setRole(item.key)}
-                        className={`relative rounded-2xl border px-3 py-3 text-left transition ${
+                        onClick={() => setSelectedMemberId(clinic.memberId)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
                           active
-                            ? "border-[#0ea5a4] bg-[#ecfdfc] text-[#064e4b] shadow-[0_12px_26px_-20px_rgba(14,165,164,0.8)]"
-                            : "border-slate-200 bg-white text-slate-500 hover:border-teal-200 hover:bg-slate-50"
+                            ? "border-[#0ea5a4] bg-teal-50 text-teal-900"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-teal-200 hover:bg-slate-50"
                         }`}
                       >
-                        <div className="text-[18px] font-extrabold leading-none">
-                          {item.short}
-                        </div>
-                        <div className="mt-2 text-[12px] font-extrabold text-slate-900">
-                          {item.label}
-                        </div>
-                        <div className="mt-0.5 text-[10px] font-semibold text-slate-500">
-                          {item.detail}
+                        <div className="text-sm font-bold">{clinic.clinicName}</div>
+                        <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          {roleLabel[clinic.role] || clinic.role}
                         </div>
                       </button>
                     );
                   })}
                 </div>
               </div>
+              <button type="submit" disabled={busy} className="btn-primary h-12 w-full">
+                {busy ? <Spinner /> : null}
+                Continue
+                <ArrowIcon />
+              </button>
+            </form>
+          ) : (
+            <form
+              key={isProviderLogin ? "app-provider-login" : "clinic-login"}
+              onSubmit={submit}
+              className="space-y-5"
+              autoComplete={isProviderLogin ? "off" : "on"}
+            >
+              {isProviderLogin ? (
+                <>
+                  <input className="hidden" name="username" type="text" autoComplete="username" />
+                  <input className="hidden" name="password" type="password" autoComplete="current-password" />
+                </>
+              ) : null}
+
+              {/* Role selector */}
+              {!isProviderLogin ? (
+                <div>
+                  <label className="mb-2 block text-[12px] font-extrabold uppercase tracking-wide text-slate-500">
+                    Your role
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {roles.map((item) => {
+                      const active = role === item.key;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => {
+                            setRole(item.key);
+                            emailInputRef.current?.focus();
+                          }}
+                          className={`relative rounded-2xl border px-3 py-3 text-left transition ${
+                            active
+                              ? "border-[#0ea5a4] bg-teal-50 shadow-sm"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-teal-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${
+                              active ? "bg-[#0ea5a4] text-white" : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {item.short}
+                          </span>
+                          <div className={`mt-2 text-[13px] font-bold ${active ? "text-teal-900" : "text-slate-800"}`}>
+                            {item.label}
+                          </div>
+                          <div className="mt-0.5 text-[11px] font-medium text-slate-400">{item.detail}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {mode === "signup" && role !== "admin" ? (
+                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-semibold text-amber-800">
+                      Only the clinic Admin can create an account. Doctors and medical assistants are added by the admin via invite.
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <AuthField
                 label="Email Address"
+                name={isProviderLogin ? "super_admin_email" : "email"}
                 type="email"
-                autoComplete="email"
+                inputRef={emailInputRef}
+                autoComplete={isProviderLogin ? "new-password" : "email"}
                 value={email}
                 onChange={setEmail}
-                placeholder="you@clinic.in"
+                placeholder={isProviderLogin ? "provider@example.com" : "you@clinic.in"}
               />
 
-              <AuthField
-                label="Password"
-                type="password"
-                minLength={6}
-                autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                value={password}
-                onChange={setPassword}
-                placeholder="At least 6 characters"
-              />
+              <div>
+                <AuthField
+                  label="Password"
+                  name={isProviderLogin ? "super_admin_password" : "password"}
+                  type="password"
+                  minLength={6}
+                  autoComplete={isProviderLogin ? "new-password" : mode === "signin" ? "current-password" : "new-password"}
+                  value={password}
+                  onChange={setPassword}
+                  placeholder="At least 6 characters"
+                />
+                {mode === "signin" ? (
+                  <div className="mt-2 text-right">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!email) {
+                          push({ title: "Enter your email first", variant: "error" });
+                          return;
+                        }
+                        const supabase = supabaseBrowser();
+                        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                          redirectTo: `${window.location.origin}/reset-password`,
+                        });
+                        if (error) {
+                          push({ title: "Could not send reset email", description: error.message, variant: "error" });
+                        } else {
+                          push({ title: "Reset email sent", description: "Check your inbox for a password reset link.", variant: "info" });
+                        }
+                      }}
+                      className="text-[12px] font-semibold text-[#0ea5a4] hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                ) : null}
+              </div>
 
               <button
                 type="submit"
                 disabled={busy}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#0f8f83] to-[#0ea5a4] px-4 py-2 text-[14px] font-extrabold text-white shadow-[0_16px_30px_-18px_rgba(14,165,164,0.85)] transition hover:-translate-y-0.5 hover:from-[#0c7f76] hover:to-[#0d9895] disabled:cursor-not-allowed disabled:opacity-70"
+                className="btn-primary h-12 w-full"
               >
                 {busy ? <Spinner /> : null}
-                {mode === "signin" ? "Sign In" : "Create Account"}
-                <span aria-hidden="true">-&gt;</span>
+                {isProviderLogin
+                  ? "Sign In to App Provider Console"
+                  : mode === "signin"
+                  ? "Sign In"
+                  : "Create Account"}
+                <ArrowIcon />
               </button>
             </form>
-            )}
+          )}
 
-            <p className="mt-5 text-center text-[12px] font-medium text-slate-500">
-              Protected workspace for clinic staff only.
-            </p>
+          {/* Security trust line */}
+          <div className="mt-5 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400">
+            <LockIcon />
+            Secure clinic workspace &middot; Role-based access
           </div>
-        </section>
-      </main>
+
+          {/* Patient portal separation */}
+          <div className="mt-6 border-t border-slate-200 pt-5 text-center">
+            <p className="text-[12px] font-semibold text-slate-500">
+              {isProviderLogin ? "Looking for staff login?" : "Are you a patient?"}
+            </p>
+            {isProviderLogin ? (
+              <a href="/login" className="btn-secondary mt-2.5 h-10 w-full text-[13px]">
+                Go to Staff Login
+              </a>
+            ) : (
+              <a href="/patient/clinics" className="btn-secondary mt-2.5 h-10 w-full text-[13px]">
+                Open Patient Portal
+              </a>
+            )}
+          </div>
+        </div>{/* end card */}
+
+        <p className="mt-5 text-center text-[11px] font-medium text-slate-400">
+          © {new Date().getFullYear()} MedAssist. All rights reserved.
+        </p>
+      </div>
     </div>
   );
 }
 
-function BrandMark({ large = false }: { large?: boolean }) {
+function BrandMark() {
   return (
     <div className="flex items-center gap-3">
-      <div
-        className={`flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#22c7bd] to-[#0a9ea6] text-white shadow-[0_18px_34px_-20px_rgba(14,165,164,0.9)] ${
-          large ? "h-14 w-14" : "h-12 w-12"
-        }`}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className={large ? "h-6 w-6" : "h-5 w-5"}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
+      <div className="brand-mark h-11 w-11">
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 3v6a4 4 0 008 0V3" />
           <path d="M10 14v2a4 4 0 008 0v-2" />
           <circle cx="18" cy="11" r="2" />
         </svg>
       </div>
       <div>
-        <div className={`${large ? "text-2xl" : "text-xl"} font-extrabold tracking-tight`}>
-          MedAssist
-        </div>
-        <div className={`${large ? "text-sm text-cyan-100/70" : "text-sm text-slate-500"}`}>
-          Clinic management & assisted EMR
-        </div>
+        <div className="text-[19px] font-extrabold tracking-tight text-slate-900">MedAssist</div>
+        <div className="text-[12px] font-medium text-slate-500">Clinic management & assisted EMR</div>
       </div>
     </div>
   );
 }
 
+
 function AuthField({
   label,
+  name,
   value,
   onChange,
   type,
   placeholder,
   autoComplete,
   minLength,
+  inputRef,
 }: {
   label: string;
+  name: string;
   value: string;
   onChange: (value: string) => void;
   type: string;
   placeholder: string;
   autoComplete: string;
   minLength?: number;
+  inputRef?: Ref<HTMLInputElement>;
 }) {
   return (
     <div>
-      <label className="mb-2 block text-[12px] font-extrabold uppercase tracking-wide text-slate-500">
+      <label className="mb-1.5 block text-[12px] font-extrabold uppercase tracking-wide text-slate-500">
         {label}
       </label>
       <input
+        name={name}
         type={type}
         required
+        ref={inputRef}
         minLength={minLength}
         autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[14px] font-semibold text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0ea5a4] focus:ring-4 focus:ring-[#0ea5a4]/10"
+        className="input-base h-12 rounded-2xl px-4"
       />
     </div>
   );
 }
+
+function ArrowIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 8h10M9 4l4 4-4 4" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="7" width="10" height="8" rx="2" />
+      <path d="M5 7V5a3 3 0 016 0v2" />
+    </svg>
+  );
+}
+
 
 export default function LoginPage() {
   return (

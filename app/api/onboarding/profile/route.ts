@@ -20,6 +20,7 @@ type ProfileBody = {
   clinicId?: string;
   clinicName?: string;
   role?: StaffRole;
+  isNewClinic?: boolean;
   profile?: {
     full_name?: string;
     qualification?: string;
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as ProfileBody;
     const clinicId = body.clinicId?.trim();
     const role = body.role;
+    const isNewClinic = body.isNewClinic === true;
     const fullName = body.profile?.full_name?.trim() || "";
 
     if (!clinicId) {
@@ -112,6 +114,18 @@ export async function POST(req: Request) {
     }
 
     const memberId = (member as { id?: string } | null)?.id || user.id;
+
+    // For brand-new clinics created by an admin, register a pending_approval subscription.
+    // ignoreDuplicates ensures existing subscriptions (e.g. joining a live clinic) are untouched.
+    if (role === "admin" && isNewClinic) {
+      await admin
+        .from("clinic_subscriptions")
+        .insert({ clinic_id: clinicId, status: "pending_approval", plan_code: "trial" } as never)
+        .select()
+        .maybeSingle()
+        .then(() => void 0);
+    }
+
     const cookieStore = await cookies();
     cookieStore.set(ACTIVE_CLINIC_COOKIE, clinicId, {
       httpOnly: true,

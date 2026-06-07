@@ -30,11 +30,13 @@ export default async function PrintPage({
   searchParams: Promise<{ auto?: string }>;
 }) {
   const supabase = await supabaseServer();
+  const admin = supabaseAdmin();
   const [{ id, vid }, resolvedSearchParams] = await Promise.all([
     params,
     searchParams,
   ]);
   const { member, clinic } = await requireMember();
+  const db = member.role === "doctor" ? admin : supabase;
  
   const [
     { data: patient },
@@ -43,25 +45,25 @@ export default async function PrintPage({
     { data: allergyRows },
   ] =
     await Promise.all([
-      supabase
+      db
         .from("patients")
         .select("*")
         .eq("id", id)
         .eq("clinic_id", clinic.id)
         .maybeSingle(),
-      supabase
+      db
         .from("visits")
         .select("*")
         .eq("id", vid)
         .eq("patient_id", id)
         .eq("clinic_id", clinic.id)
         .maybeSingle(),
-      supabase
+      db
         .from("immunizations")
         .select("*")
         .eq("patient_id", id)
         .order("date_given", { ascending: false }),
-      supabase.from("patient_allergies").select("*").eq("patient_id", id),
+      db.from("patient_allergies").select("*").eq("patient_id", id),
     ]);
  
   if (!patient || !visit) notFound();
@@ -75,7 +77,7 @@ export default async function PrintPage({
     }
   }
 
-  const { data: doctor } = await supabase
+  const { data: doctor } = await db
     .from("doctors")
     .select("*")
     .eq("id", v.doctor_id)

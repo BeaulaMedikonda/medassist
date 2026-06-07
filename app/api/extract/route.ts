@@ -5,6 +5,7 @@ import { getOptionalMember } from "@/lib/auth";
 import { extractEmrFromVisit } from "@/lib/claude/extract";
 import { recordUsage, modelToService } from "@/lib/usage";
 import { doctorCanAccessVisit } from "@/lib/doctor-access";
+import { featureDisabledResponse, isClinicFeatureEnabled } from "@/lib/features";
 import type { Patient, Visit } from "@/types/db";
 
 export const runtime = "nodejs";
@@ -39,6 +40,9 @@ export async function POST(req: Request) {
     const clinicId = v.clinic_id || memberContext?.clinic?.id || "";
     if (!clinicId || !(await doctorCanAccessVisit(sb, memberId, clinicId, visitId))) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
+    }
+    if (!(await isClinicFeatureEnabled(clinicId, "ai_extraction"))) {
+      return featureDisabledResponse("AI extraction");
     }
 
     const { data: patient } = await sb
@@ -110,7 +114,6 @@ export async function POST(req: Request) {
       provisional_diagnosis: result.provisional_diagnosis,
       confirmed_diagnosis: result.confirmed_diagnosis,
       investigations_ordered: result.investigations_ordered,
-      icd_codes: result.icd_codes,
       prescription: {
         medicines: result.prescription.medicines,
         previous_prescription_id: previousVisit?.id || null,

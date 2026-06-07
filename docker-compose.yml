@@ -1,0 +1,14 @@
+services:
+  fhir-validator:
+    build:
+      context: ./docker/fhir-validator
+    container_name: hello-doctor-fhir-validator
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      FHIR_VERSION: "4.0.1"
+      FHIR_VALIDATOR_IG_PACKAGE: "ndhm.in#6.5.0"
+      FHIR_VALIDATOR_TIMEOUT_MS: "120000"
+      FHIR_VALIDATOR_TX_SERVER: "n/a"
+    restart: unless-stopped

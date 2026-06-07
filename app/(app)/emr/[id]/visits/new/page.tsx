@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireMember } from "@/lib/auth";
 import { getDoctorAssignedScope } from "@/lib/doctor-access";
 import type { Patient, Visit } from "@/types/db";
@@ -17,9 +18,11 @@ export default async function NewVisitPage({
 }) {
   const { member, clinic } = await requireMember();
   const supabase = await supabaseServer();
+  const admin = supabaseAdmin();
   const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
+  const db = member.role === "doctor" ? admin : supabase;
 
-  const { data: patient } = await supabase
+  const { data: patient } = await db
     .from("patients")
     .select("*")
     .eq("id", id)
@@ -38,7 +41,7 @@ export default async function NewVisitPage({
   // Resume an existing visit if vid is provided (doctor's queue path).
   let existingVisit: Visit | null = null;
   if (resolvedSearchParams.vid) {
-    const { data: v } = await supabase
+    const { data: v } = await db
       .from("visits")
       .select("*")
       .eq("id", resolvedSearchParams.vid)
@@ -51,7 +54,7 @@ export default async function NewVisitPage({
   }
 
   // For prescription diff context, find the previous visit (excluding the one we're resuming).
-  let prevQuery = supabase
+  let prevQuery = db
     .from("visits")
     .select("*")
     .eq("patient_id", id)

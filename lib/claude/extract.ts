@@ -195,9 +195,9 @@ function normalizeResult(obj: Record<string, unknown>): ExtractionResult {
     provisional_diagnosis: strOrNull(obj.provisional_diagnosis),
     confirmed_diagnosis: strOrNull(obj.confirmed_diagnosis),
     investigations_ordered: strOrNull(obj.investigations_ordered),
-    icd_codes: Array.isArray(obj.icd_codes)
-      ? (obj.icd_codes as unknown[]).map((c) => String(c).trim()).filter(Boolean)
-      : [],
+    icd_codes: [],
+    icd_code_details: [],
+    loinc_code_details: [],
     prescription: {
       medicines: medicines.map((m) => ({
         name: (m.name as string) || "",
@@ -219,7 +219,7 @@ function normalizeResult(obj: Record<string, unknown>): ExtractionResult {
       provisional_diagnosis: coerceAssumption(assumptionsRaw.provisional_diagnosis),
       confirmed_diagnosis: coerceAssumption(assumptionsRaw.confirmed_diagnosis),
       investigations_ordered: coerceAssumption(assumptionsRaw.investigations_ordered),
-      icd_codes: coerceAssumption(assumptionsRaw.icd_codes),
+      icd_codes: null,
       vitals: neverAssumed("vitals"),
       advice: neverAssumed("advice"),
       prescription: neverAssumed("prescription"),

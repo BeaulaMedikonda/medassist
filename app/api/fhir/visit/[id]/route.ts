@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { buildOpConsultBundle } from "@/lib/fhir/bundle";
 import { recordDisclosure } from "@/lib/fhir/disclosures";
+import { featureDisabledResponse, isClinicFeatureEnabled } from "@/lib/features";
 import type {
   Appointment,
   Clinic,
   Doctor,
   Immunization,
   Patient,
-  PatientAllergy,
   Referral,
   Visit,
 } from "@/types/db";
@@ -55,12 +55,14 @@ export async function GET(
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
     const v = visit as Visit;
+    if (!v.clinic_id || !(await isClinicFeatureEnabled(v.clinic_id, "fhir_export"))) {
+      return featureDisabledResponse("FHIR export");
+    }
 
     const [
       { data: patient },
       { data: doctor },
       { data: clinic },
-      { data: allergyRows },
       { data: immunizationRows },
       { data: referralRows },
       { data: appointmentRows },
@@ -71,7 +73,6 @@ export async function GET(
       v.clinic_id
         ? sb.from("clinics").select("*").eq("id", v.clinic_id).maybeSingle()
         : Promise.resolve({ data: null }),
-      sb.from("patient_allergies").select("*").eq("patient_id", v.patient_id),
       sb
         .from("immunizations")
         .select("*")
@@ -102,7 +103,6 @@ export async function GET(
       patient: patient as Patient,
       visit: v,
       doctor: doctor as Doctor,
-      allergies: ((allergyRows as PatientAllergy[]) || []),
       clinic: (clinic as Clinic | null) || null,
       immunizations: ((immunizationRows as Immunization[]) || []),
       referrals: ((referralRows as Referral[]) || []),

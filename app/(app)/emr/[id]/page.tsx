@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireMember } from "@/lib/auth";
 import { getDoctorAssignedScope } from "@/lib/doctor-access";
-import type { Patient, Visit } from "@/types/db";
+import type { Doctor, Patient, Referral, Visit } from "@/types/db";
 import { formatDate, initials } from "@/lib/utils";
 import { VisitTimeline } from "@/components/emr/VisitTimeline";
 
@@ -16,6 +17,7 @@ export default async function PatientPage({
 }) {
   const { member, clinic } = await requireMember();
   const supabase = await supabaseServer();
+  const admin = supabaseAdmin();
 
   const { id } = await params;
 
@@ -35,20 +37,32 @@ export default async function PatientPage({
 
   let hasReferralAccess = false;
   if (doctorScope && !doctorScope.patientIds.has(id)) {
-    const { data: referral } = await supabase
+    const memberName = normalizeDoctorName(member.full_name);
+    const { data: referralRows } = await admin
       .from("referrals")
-      .select("id")
+      .select("id, referred_to_doctor_id, referred_to_name")
       .eq("clinic_id", clinic.id)
       .eq("patient_id", id)
-      .eq("referred_to_doctor_id", member.id)
-      .limit(1)
-      .maybeSingle();
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    const referral = (referralRows || []).find((row) => {
+      const referredName = normalizeDoctorName(
+        (row as { referred_to_name?: string | null }).referred_to_name,
+      );
+      return (
+        (row as { referred_to_doctor_id?: string | null }).referred_to_doctor_id === member.id ||
+        referredName === memberName ||
+        referredName.includes(memberName) ||
+        memberName.includes(referredName)
+      );
+    });
 
     if (!referral) notFound();
     hasReferralAccess = true;
   }
 
-  let visitsQuery = supabase
+  let visitsQuery = (hasReferralAccess ? admin : supabase)
     .from("visits")
     .select("*")
     .eq("patient_id", id)
@@ -60,9 +74,38 @@ export default async function PatientPage({
   }
 
   const { data: visits } = await visitsQuery;
+  const { data: referralsRaw } = await admin
+    .from("referrals")
+    .select("*")
+    .eq("clinic_id", clinic.id)
+    .eq("patient_id", id)
+    .order("created_at", { ascending: false });
 
   const p = patient as Patient;
   const v = (visits || []) as Visit[];
+  const referrals = (referralsRaw || []) as Referral[];
+  const referralDoctorIds = Array.from(
+    new Set(
+      referrals
+        .flatMap((referral) => [
+          referral.referring_doctor_id,
+          referral.referred_to_doctor_id,
+        ])
+        .filter((doctorId): doctorId is string => Boolean(doctorId)),
+    ),
+  );
+  const { data: referralDoctorsRaw } =
+    referralDoctorIds.length > 0
+      ? await admin
+          .from("doctors")
+          .select("id, full_name")
+          .in("id", referralDoctorIds)
+      : { data: [] as Array<Pick<Doctor, "id" | "full_name">> };
+  const referralDoctorById = new Map(
+    ((referralDoctorsRaw || []) as Array<Pick<Doctor, "id" | "full_name">>).map(
+      (doctor) => [doctor.id, doctor.full_name],
+    ),
+  );
 
   return (
     <div className="pb-24">
@@ -154,6 +197,72 @@ export default async function PatientPage({
       </header>
 
       <section className="mt-8">
+        <div className="mb-3">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-ink-100">
+            Referral History ({referrals.length})
+          </h2>
+
+          <p className="text-sm text-slate-500 dark:text-ink-500">
+            Shows who referred this patient, who received the referral, and the clinical reason.
+          </p>
+        </div>
+
+        <div className="premium-panel overflow-hidden">
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Specialty</th>
+                <th>Reason</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {referrals.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm font-medium text-slate-500 dark:text-ink-500">
+                    No referrals recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                referrals.map((referral) => (
+                  <tr key={referral.id}>
+                    <td className="px-5 py-3.5 text-sm text-slate-600 dark:text-ink-400">
+                      {formatDate(referral.created_at)}
+                    </td>
+                    <td className="px-5 py-3.5 font-medium text-slate-800 dark:text-ink-200">
+                      {referralDoctorById.get(referral.referring_doctor_id) || "Clinic doctor"}
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-700 dark:text-ink-300">
+                      {referral.referred_to_name}
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-700 dark:text-ink-300">
+                      {referral.referred_to_specialty}
+                    </td>
+                    <td className="max-w-[420px] px-5 py-3.5 text-slate-700 dark:text-ink-300">
+                      <span className="line-clamp-2">{referral.reason}</span>
+                      {referral.notes ? (
+                        <span className="mt-1 block text-xs text-slate-500 dark:text-ink-500">
+                          {referral.notes}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="inline-flex items-center rounded-full bg-cyan-50 px-2.5 py-0.5 text-[11px] font-semibold capitalize text-cyan-700 dark:bg-sky-900/40 dark:text-sky-300">
+                        {referral.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-8">
         <div className="mb-3 flex items-end justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-ink-100">
@@ -196,4 +305,12 @@ export default async function PatientPage({
       </Link>
     </div>
   );
+}
+
+function normalizeDoctorName(value: string | null | undefined) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/\bdr\.?\b/g, "")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
 }

@@ -25,11 +25,11 @@ export const SYSTEM = {
   composition: "http://snomed.info/sct",
 } as const;
 
-// FHIR Composition.type — LOINC 11488-4 = "Consult note"
+// FHIR Composition.type — SNOMED 371530004 = "Clinical consultation report" (ABDM OPConsultRecord)
 export const COMPOSITION_TYPE = {
-  system: SYSTEM.loinc,
-  code: "11488-4",
-  display: "Consult note",
+  system: SYSTEM.snomed,
+  code: "371530004",
+  display: "Clinical consultation report",
 };
 
 const ICD10_DISPLAY: Record<string, string> = {
@@ -129,12 +129,13 @@ export const VITAL_CODES = {
     unit: "kg",
     unitDisplay: "kg",
   },
-  height_cm: {
-    loinc: "8302-2",
-    display: "Body height",
-    unit: "cm",
-    unitDisplay: "cm",
-  },
+} as const;
+
+export const HEIGHT_CODE = {
+  loinc: "8302-2",
+  display: "Body height",
+  unit: "cm",
+  unitDisplay: "cm",
 } as const;
 
 // Indian shorthand → FHIR Timing structure (when + frequency + period).

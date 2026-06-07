@@ -6,6 +6,34 @@
    Base — html/body, selection, scrollbars, theme tokens
    ============================================================================= */
 @layer base {
+  :root {
+    --app-sidebar-width: 310px;
+    --app-content-max-width: 1460px;
+    --app-content-padding-x: 48px;
+    --app-content-padding-top: 28px;
+    --app-content-padding-bottom: 96px;
+    --app-mobile-header-height: 56px;
+    --page-gap: 28px;
+    --section-gap: 24px;
+    --card-padding: 20px;
+    --card-radius: 20px;
+    --panel-radius: 22px;
+    --module-card-min-height: 156px;
+    --font-xs: 11px;
+    --font-sm: 14px;
+    --font-base: 15px;
+    --font-lg: 18px;
+    --button-height: 40px;
+    --input-height: 42px;
+    --table-cell-padding-x: 20px;
+    --table-cell-padding-y: 14px;
+    --nav-link-min-height: 48px;
+    --nav-link-padding-x: 16px;
+    --nav-link-padding-y: 12px;
+    --modal-width: 600px;
+    --modal-padding-x: 24px;
+  }
+
   html,
   body {
     height: 100%;
@@ -64,6 +92,7 @@
   /* ---- Surfaces ---- */
   .card {
     @apply rounded-[20px] border bg-white transition-all duration-200;
+    border-radius: var(--card-radius);
     border-color: rgba(15, 23, 42, 0.065);
     box-shadow:
       0 1px 2px rgba(15, 23, 42, 0.04),
@@ -82,6 +111,7 @@
   }
   .card-flat {
     @apply rounded-[18px] border bg-white;
+    border-radius: calc(var(--card-radius) - 2px);
     border-color: rgba(15, 23, 42, 0.06);
   }
   .dark .card-flat {
@@ -89,6 +119,7 @@
   }
   .surface-muted {
     @apply rounded-2xl border;
+    border-radius: calc(var(--card-radius) - 4px);
     background: #f7f9fc;
     border-color: rgba(15, 23, 42, 0.05);
   }
@@ -97,16 +128,22 @@
   }
   .surface-elevated {
     @apply rounded-[18px] border bg-white;
+    border-radius: calc(var(--card-radius) - 2px);
     border-color: rgba(15, 23, 42, 0.06);
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 14px 34px -20px rgba(15, 23, 42, 0.22);
   }
 
   .premium-shell {
     @apply mx-auto w-full max-w-[1460px] space-y-7;
+    max-width: var(--app-content-max-width);
+  }
+  .premium-shell > :not([hidden]) ~ :not([hidden]) {
+    margin-top: var(--page-gap);
   }
 
   .premium-panel {
     @apply rounded-[22px] border bg-white;
+    border-radius: var(--panel-radius);
     border-color: rgba(15, 23, 42, 0.065);
     box-shadow:
       0 1px 2px rgba(15, 23, 42, 0.04),
@@ -119,6 +156,7 @@
 
   .premium-toolbar {
     @apply flex flex-col gap-3 rounded-[20px] border bg-white/85 p-3 backdrop-blur-md lg:flex-row lg:items-center lg:justify-between;
+    border-radius: var(--card-radius);
     border-color: rgba(15, 23, 42, 0.06);
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035), 0 12px 30px -24px rgba(15, 23, 42, 0.24);
   }
@@ -133,6 +171,19 @@
     @apply text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0ea5a4];
   }
 
+  .page-header {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
+  }
+  .page-kicker {
+    @apply text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#0ea5a4];
+  }
+  .page-title {
+    @apply text-2xl font-extrabold tracking-tight text-slate-950 dark:text-ink-50 sm:text-3xl;
+  }
+  .page-description {
+    @apply mt-2 max-w-3xl text-sm font-medium text-slate-600 dark:text-ink-400;
+  }
+
   .premium-table {
     @apply w-full border-collapse text-left text-sm;
   }
@@ -141,9 +192,11 @@
   }
   .premium-table th {
     @apply px-5 py-3.5 font-extrabold;
+    padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   }
   .premium-table td {
     @apply px-5 py-3.5 align-middle;
+    padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   }
   .premium-table tbody {
     @apply divide-y divide-[rgba(15,23,42,0.06)] dark:divide-ink-800/60;
@@ -161,8 +214,16 @@
     background: #ecfdfc;
   }
 
+  .table-shell {
+    @apply overflow-hidden rounded-[20px] border bg-white shadow-soft dark:border-ink-800 dark:bg-ink-900;
+    border-color: rgba(15, 23, 42, 0.065);
+  }
+
   .premium-module-card {
     @apply relative min-h-[156px] overflow-hidden rounded-[20px] border bg-white p-5 text-left transition-all duration-200;
+    min-height: var(--module-card-min-height);
+    border-radius: var(--card-radius);
+    padding: var(--card-padding);
     border-color: rgba(15, 23, 42, 0.06);
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 30px -24px rgba(15, 23, 42, 0.26);
   }
@@ -228,6 +289,8 @@
   /* ---- Inputs ---- */
   .input-base {
     @apply w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-[#101828] placeholder:text-slate-400 transition disabled:bg-slate-50 disabled:text-slate-500;
+    min-height: var(--input-height);
+    font-size: var(--font-sm);
     border-color: rgba(15, 23, 42, 0.10);
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
   }
@@ -240,6 +303,8 @@
   }
   .input-flush {
     @apply w-full rounded-xl border border-transparent bg-[#f7f9fc] px-3.5 py-2.5 text-sm text-[#101828] placeholder:text-slate-400 transition;
+    min-height: var(--input-height);
+    font-size: var(--font-sm);
   }
   .input-flush:focus {
     border-color: #0ea5a4;
@@ -253,6 +318,8 @@
   /* ---- Buttons ---- */
   .btn {
     @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50;
+    min-height: var(--button-height);
+    font-size: var(--font-sm);
   }
   .btn-sm {
     @apply px-2.5 py-1.5 text-xs;
@@ -310,12 +377,19 @@
 
   .btn-teal {
     @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50;
+    min-height: var(--button-height);
+    font-size: var(--font-sm);
     background: linear-gradient(135deg, #19b6b3 0%, #0ea5a4 58%, #0c8a89 100%);
     box-shadow: 0 12px 24px -10px rgba(14, 165, 164, 0.72), 0 2px 8px rgba(14, 165, 164, 0.28);
   }
   .btn-teal:hover:not(:disabled) {
     background: linear-gradient(135deg, #22c7bd 0%, #12b3ad 58%, #0d9895 100%);
     transform: translateY(-1px);
+  }
+
+  .brand-mark {
+    @apply flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#22c7bd] to-[#0a9ea6] text-white;
+    box-shadow: 0 18px 34px -20px rgba(14, 165, 164, 0.90);
   }
  
   /* ---- Badges ---- */
@@ -361,10 +435,28 @@
   .pill {
     @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold;
   }
+  .status-success {
+    @apply border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300;
+  }
+  .status-warning {
+    @apply border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300;
+  }
+  .status-danger {
+    @apply border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300;
+  }
+  .status-info {
+    @apply border border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-500/30 dark:bg-cyan-500/10 dark:text-cyan-300;
+  }
+  .status-neutral {
+    @apply border border-slate-200 bg-slate-50 text-slate-700 dark:border-ink-700 dark:bg-ink-800 dark:text-ink-300;
+  }
  
   /* ---- Sidebar nav (dark sidebar, always) ---- */
   .nav-link {
     @apply flex min-h-[48px] items-center justify-between gap-3 rounded-2xl px-4 py-3 text-[15px] font-semibold text-[#9bb2c5] transition hover:bg-white/[0.07] hover:text-white;
+    min-height: var(--nav-link-min-height);
+    padding: var(--nav-link-padding-y) var(--nav-link-padding-x);
+    font-size: var(--font-base);
   }
   .nav-link-active {
     @apply text-[#ecfeff] hover:text-white;
@@ -448,6 +540,297 @@
   }
   .dark .glass {
     @apply bg-ink-900/80;
+  }
+}
+
+/* =============================================================================
+   Responsive
+   Base CSS targets 1025px-1280px, including 1272 x 588.
+   ============================================================================= */
+.app-root {
+  font-size: var(--font-base);
+}
+
+.app-shell-sidebar {
+  width: var(--app-sidebar-width);
+}
+
+.app-main {
+  min-width: 0;
+  padding-left: var(--app-sidebar-width);
+}
+
+.app-content {
+  max-width: var(--app-content-max-width);
+  padding: var(--app-content-padding-top) var(--app-content-padding-x) var(--app-content-padding-bottom);
+}
+
+.app-mobile-header {
+  height: var(--app-mobile-header-height);
+}
+
+.app-mobile-drawer {
+  width: min(var(--app-sidebar-width), 86vw);
+}
+
+.card,
+.card-flat,
+.surface-muted,
+.surface-elevated,
+.premium-panel,
+.hero-card,
+.dashboard-hero {
+  min-width: 0;
+}
+
+.premium-table {
+  min-width: 680px;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  :root {
+    --app-sidebar-width: 288px;
+    --app-content-padding-x: 12px;
+    --app-content-padding-top: 14px;
+    --app-content-padding-bottom: 72px;
+    --app-mobile-header-height: 54px;
+    --page-gap: 14px;
+    --section-gap: 12px;
+    --card-padding: 12px;
+    --card-radius: 14px;
+    --panel-radius: 16px;
+    --module-card-min-height: 120px;
+    --font-xs: 10px;
+    --font-sm: 12px;
+    --font-base: 13px;
+    --font-lg: 16px;
+    --button-height: 38px;
+    --input-height: 38px;
+    --table-cell-padding-x: 12px;
+    --table-cell-padding-y: 10px;
+    --nav-link-min-height: 42px;
+    --nav-link-padding-x: 12px;
+    --nav-link-padding-y: 9px;
+    --modal-width: 100%;
+    --modal-padding-x: 16px;
+  }
+
+  .app-main {
+    padding-left: 0;
+  }
+
+  .premium-toolbar,
+  .premium-section-heading {
+    align-items: stretch;
+  }
+
+  .btn,
+  .btn-teal {
+    width: 100%;
+  }
+
+  .premium-table th,
+  .premium-table td {
+    white-space: nowrap;
+  }
+}
+
+/* Large mobile */
+@media (min-width: 481px) and (max-width: 640px) {
+  :root {
+    --app-sidebar-width: 296px;
+    --app-content-padding-x: 16px;
+    --app-content-padding-top: 16px;
+    --app-content-padding-bottom: 80px;
+    --app-mobile-header-height: 56px;
+    --page-gap: 16px;
+    --section-gap: 14px;
+    --card-padding: 14px;
+    --card-radius: 16px;
+    --panel-radius: 18px;
+    --module-card-min-height: 128px;
+    --font-sm: 13px;
+    --font-base: 14px;
+    --font-lg: 17px;
+    --button-height: 39px;
+    --input-height: 40px;
+    --table-cell-padding-x: 14px;
+    --table-cell-padding-y: 11px;
+    --nav-link-min-height: 44px;
+    --nav-link-padding-x: 13px;
+    --nav-link-padding-y: 10px;
+    --modal-width: 100%;
+    --modal-padding-x: 18px;
+  }
+
+  .app-main {
+    padding-left: 0;
+  }
+
+  .btn,
+  .btn-teal {
+    width: 100%;
+  }
+}
+
+/* Tablet */
+@media (min-width: 641px) and (max-width: 768px) {
+  :root {
+    --app-sidebar-width: 304px;
+    --app-content-padding-x: 24px;
+    --app-content-padding-top: 20px;
+    --app-content-padding-bottom: 84px;
+    --page-gap: 18px;
+    --section-gap: 16px;
+    --card-padding: 16px;
+    --card-radius: 18px;
+    --panel-radius: 20px;
+    --module-card-min-height: 136px;
+    --font-sm: 13px;
+    --font-base: 14px;
+    --font-lg: 17px;
+    --button-height: 40px;
+    --input-height: 40px;
+    --table-cell-padding-x: 16px;
+    --table-cell-padding-y: 12px;
+    --nav-link-min-height: 46px;
+    --nav-link-padding-x: 14px;
+    --nav-link-padding-y: 10px;
+  }
+
+  .app-main {
+    padding-left: 0;
+  }
+
+  .app-shell-sidebar {
+    display: none !important;
+  }
+
+  .app-mobile-header {
+    display: flex !important;
+  }
+}
+
+/* Small laptop */
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root {
+    --app-sidebar-width: 288px;
+    --app-content-padding-x: 28px;
+    --app-content-padding-top: 22px;
+    --app-content-padding-bottom: 88px;
+    --page-gap: 20px;
+    --section-gap: 18px;
+    --card-padding: 18px;
+    --card-radius: 18px;
+    --panel-radius: 20px;
+    --module-card-min-height: 144px;
+    --font-sm: 13px;
+    --font-base: 14px;
+    --font-lg: 17px;
+    --button-height: 40px;
+    --input-height: 40px;
+    --table-cell-padding-x: 16px;
+    --table-cell-padding-y: 12px;
+    --nav-link-min-height: 46px;
+    --nav-link-padding-x: 14px;
+    --nav-link-padding-y: 11px;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1281px) and (max-width: 1440px) {
+  :root {
+    --app-sidebar-width: 310px;
+    --app-content-max-width: 1500px;
+    --app-content-padding-x: 52px;
+    --app-content-padding-top: 32px;
+    --app-content-padding-bottom: 104px;
+    --page-gap: 30px;
+    --section-gap: 26px;
+    --card-padding: 22px;
+    --card-radius: 21px;
+    --panel-radius: 23px;
+    --module-card-min-height: 164px;
+    --font-sm: 14px;
+    --font-base: 15px;
+    --font-lg: 19px;
+    --button-height: 42px;
+    --input-height: 44px;
+    --table-cell-padding-x: 22px;
+    --table-cell-padding-y: 15px;
+    --nav-link-min-height: 50px;
+    --nav-link-padding-x: 17px;
+    --nav-link-padding-y: 13px;
+  }
+}
+
+/* Large desktop */
+@media (min-width: 1441px) and (max-width: 1600px) {
+  :root {
+    --app-sidebar-width: 320px;
+    --app-content-max-width: 1560px;
+    --app-content-padding-x: 56px;
+    --app-content-padding-top: 34px;
+    --app-content-padding-bottom: 112px;
+    --page-gap: 32px;
+    --section-gap: 28px;
+    --card-padding: 24px;
+    --card-radius: 22px;
+    --panel-radius: 24px;
+    --module-card-min-height: 172px;
+    --font-sm: 15px;
+    --font-base: 16px;
+    --font-lg: 20px;
+    --button-height: 44px;
+    --input-height: 46px;
+    --table-cell-padding-x: 24px;
+    --table-cell-padding-y: 16px;
+    --nav-link-min-height: 52px;
+    --nav-link-padding-x: 18px;
+    --nav-link-padding-y: 14px;
+  }
+}
+
+/* Extra large desktop */
+@media (min-width: 1601px) {
+  :root {
+    --app-sidebar-width: 328px;
+    --app-content-max-width: 1640px;
+    --app-content-padding-x: 64px;
+    --app-content-padding-top: 36px;
+    --app-content-padding-bottom: 120px;
+    --page-gap: 34px;
+    --section-gap: 30px;
+    --card-padding: 26px;
+    --card-radius: 22px;
+    --panel-radius: 24px;
+    --module-card-min-height: 176px;
+    --font-sm: 15px;
+    --font-base: 16px;
+    --font-lg: 21px;
+    --button-height: 44px;
+    --input-height: 46px;
+    --table-cell-padding-x: 26px;
+    --table-cell-padding-y: 17px;
+    --nav-link-min-height: 52px;
+    --nav-link-padding-x: 18px;
+    --nav-link-padding-y: 14px;
+  }
+}
+
+/* Short-height screens, including compact laptops. */
+@media (max-height: 650px) and (min-width: 769px) {
+  :root {
+    --app-content-padding-top: 18px;
+    --app-content-padding-bottom: 56px;
+    --page-gap: 18px;
+    --section-gap: 16px;
+    --card-padding: 16px;
+    --module-card-min-height: 132px;
+    --nav-link-min-height: 42px;
+    --nav-link-padding-y: 9px;
+    --table-cell-padding-y: 10px;
   }
 }
  

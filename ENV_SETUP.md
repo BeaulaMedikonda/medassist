@@ -14,6 +14,7 @@ These values should be filled before development starts:
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only service role key | Supabase Dashboard -> Project Settings -> API |
 | `SARVAM_API_KEY` | Sarvam API subscription key | Sarvam dashboard / API access page |
 | `ANTHROPIC_API_KEY` | Anthropic API key | Anthropic Console -> API Keys |
+| `PLATFORM_OWNER_EMAILS` | Comma-separated owner emails allowed into `/app-provider` before platform admin rows exist | Your app-owner email addresses |
 
 ## Usually keep these defaults
 
@@ -39,6 +40,7 @@ You can leave these as they are unless you have a specific reason to change them
 - `AUDIO_RETENTION_DAYS=30`
 - `PDF_PAGE_SIZE=A5`
 - `PDF_INCLUDE_DOCTOR_NOTES_BY_DEFAULT=false`
+- `PLATFORM_OWNER_EMAILS=owner@example.com`
 
 ## Optional values
 
@@ -66,6 +68,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 SARVAM_API_KEY=your-sarvam-api-key
 ANTHROPIC_API_KEY=your-anthropic-api-key
+PLATFORM_OWNER_EMAILS=owner@example.com
 ```
 
 ## Production note
@@ -74,3 +77,5 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 - When you move to production later, update `NEXT_PUBLIC_APP_URL` to your real deployed domain.
 - For deployment, these same variables should also be added to your hosting provider's environment settings, such as Vercel project environment variables.
 - Once `.env` is filled, tell me and I can scaffold and build the project around this config.
+
+

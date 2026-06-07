@@ -120,6 +120,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
           clinicId,
           clinicName,
           role: effectiveRole,
+          isNewClinic: mode === "create",
           profile,
           signature:
             effectiveRole !== "medical_assistant" && signatureFile
@@ -132,11 +133,19 @@ export function OnboardingForm({ userId }: { userId: string }) {
         throw new Error(err.error || "Could not save profile");
       }
  
-      push({
-        title: "Welcome!",
-        description: `Joined ${clinicName} as ${effectiveRole}`,
-        variant: "success",
-      });
+      if (mode === "create") {
+        push({
+          title: "Clinic registered!",
+          description: "Pending App Provider approval — you will see a confirmation screen.",
+          variant: "info",
+        });
+      } else {
+        push({
+          title: "Welcome!",
+          description: `Joined ${clinicName} as ${effectiveRole}`,
+          variant: "success",
+        });
+      }
       router.replace("/dashboard");
       router.refresh();
     } catch (err: unknown) {

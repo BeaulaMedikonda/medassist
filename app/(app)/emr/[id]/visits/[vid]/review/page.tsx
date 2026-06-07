@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireMember } from "@/lib/auth";
 import { getDoctorAssignedScope } from "@/lib/doctor-access";
 import type { Immunization, Patient, Visit } from "@/types/db";
@@ -15,11 +16,13 @@ export default async function ReviewPage({
   searchParams: Promise<{ edit?: string }>;
 }) {
   const supabase = await supabaseServer();
+  const admin = supabaseAdmin();
   const { id, vid } = await params;
   const sp = await searchParams;
   const { member, clinic } = await requireMember();
+  const db = member.role === "doctor" ? admin : supabase;
 
-  const { data: patient } = await supabase
+  const { data: patient } = await db
     .from("patients")
     .select("*")
     .eq("id", id)
@@ -27,7 +30,7 @@ export default async function ReviewPage({
     .maybeSingle();
   if (!patient) notFound();
 
-  const { data: visit } = await supabase
+  const { data: visit } = await db
     .from("visits")
     .select("*")
     .eq("id", vid)
@@ -50,7 +53,7 @@ export default async function ReviewPage({
     redirect(`/emr/${id}/visits/${vid}/view`);
   }
 
-  let prevVisitQuery = supabase
+  let prevVisitQuery = db
     .from("visits")
     .select("*")
     .eq("patient_id", id)
@@ -66,7 +69,7 @@ export default async function ReviewPage({
   const { data: prevVisitRows } = await prevVisitQuery;
   const previousVisit = ((prevVisitRows || []) as Visit[])[0] || null;
 
-  const { data: immunizationRows } = await supabase
+  const { data: immunizationRows } = await db
     .from("immunizations")
     .select("*")
     .eq("patient_id", id)

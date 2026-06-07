@@ -38,7 +38,7 @@ export function ReceptionIntakeEdit({
     age: patient.age?.toString() || "",
     sex: patient.sex || "",
     blood_group: patient.blood_group || "",
-    height_cm: patient.height_cm?.toString() || visit.height_cm?.toString() || "",
+    height_cm: patient.height_cm?.toString() || "",
     phone: patient.phone || "",
     email: patient.email || "",
     emergency_contact: patient.emergency_contact || "",

@@ -138,3 +138,4 @@ export async function recordUsage(input: RecordUsageInput): Promise<void> {
     console.error("[usage] failed to record", error.message);
   }
 }
+

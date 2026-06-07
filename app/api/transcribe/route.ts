@@ -7,6 +7,7 @@ import { transcribeWithSarvam } from "@/lib/stt/sarvam";
 import { recordUsage } from "@/lib/usage";
 import { serverEnv } from "@/lib/env";
 import { doctorCanAccessVisit } from "@/lib/doctor-access";
+import { featureDisabledResponse, isClinicFeatureEnabled } from "@/lib/features";
 import type { Visit } from "@/types/db";
 
 export const runtime = "nodejs";
@@ -41,6 +42,9 @@ export async function POST(req: Request) {
     const clinicId = v.clinic_id || memberContext?.clinic?.id || "";
     if (!clinicId || !(await doctorCanAccessVisit(sb, memberId, clinicId, v.id))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (!(await isClinicFeatureEnabled(clinicId, "ai_extraction"))) {
+      return featureDisabledResponse("AI extraction");
     }
     if (!visit.audio_url) {
       return NextResponse.json({ error: "No audio attached to this visit" }, { status: 400 });

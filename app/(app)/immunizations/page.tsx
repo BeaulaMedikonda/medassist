@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from "next/cache";
 import { requireMember } from "@/lib/auth";
+import { FeatureDisabled } from "@/components/FeatureDisabled";
+import { isClinicFeatureEnabled } from "@/lib/features";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Immunization, Patient } from "@/types/db";
 import { ImmunizationsClient } from "./ImmunizationsClient";
@@ -14,6 +16,10 @@ export default async function ImmunizationsPage() {
 
   if (member.role !== "doctor" && member.role !== "medical_assistant") {
     redirect("/dashboard");
+  }
+
+  if (!(await isClinicFeatureEnabled(clinic.id, "immunizations"))) {
+    return <FeatureDisabled featureName="Immunizations" />;
   }
 
   const supabase = await supabaseServer();

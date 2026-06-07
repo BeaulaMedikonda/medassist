@@ -1,10 +1,9 @@
 //app/(app)/emr/EmrListClient.tsx
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase/browser";
+import { FormEvent, useEffect, useState } from "react";
+import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import type { Patient } from "@/types/db";
 import type { LatestVisit, PatientFilter, PatientSummary, PatientVisitItem } from "./page";
 
@@ -14,6 +13,8 @@ type ReferralDoctor = {
 };
 
 type QuickAction = "vitals" | "labs" | "prescribe" | "carePlan";
+
+const PATIENTS_PAGE_SIZE = 8;
 
 type Props = {
   clinicId: string;
@@ -141,7 +142,6 @@ function getInitial(patient: Patient) {
 }
 
 export function EmrListClient({
-  clinicId,
   currentUserId,
   clinicName,
   initialQuery,
@@ -158,6 +158,7 @@ export function EmrListClient({
   const router = useRouter();
 
   const [query, setQuery] = useState(initialQuery);
+  const [page, setPage] = useState(1);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "summary" | "visits" | "labs">(
     "overview",
@@ -229,23 +230,23 @@ export function EmrListClient({
     }
 
     setReferralBusy(true);
-    const { error } = await supabaseBrowser()
-      .from("referrals")
-      .insert({
-        clinic_id: clinicId,
-        patient_id: selectedPatient.id,
-        referring_doctor_id: referringDoctorId,
-        referred_to_doctor_id: referredToDoctorId,
-        referred_to_name: referredName,
-        referred_to_specialty: specialty,
+    const res = await fetch("/api/referrals/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        patientId: selectedPatient.id,
+        referringDoctorId,
+        referredToDoctorId,
+        referredToName: referredName,
+        specialty,
         reason: referralReason.trim(),
-        status: "sent",
-        created_by: currentUserId,
-      });
+      }),
+    });
+    const result = (await res.json().catch(() => ({}))) as { error?: string };
     setReferralBusy(false);
 
-    if (error) {
-      setReferralError(error.message);
+    if (!res.ok) {
+      setReferralError(result.error || "Could not send referral.");
       return;
     }
 
@@ -253,6 +254,11 @@ export function EmrListClient({
     setReferredToDoctorId("");
     setReferredToName("");
     setReferralReason("");
+    router.refresh();
+    window.setTimeout(() => {
+      setReferralOpen(false);
+      closePatientModal();
+    }, 1200);
   }
 
   const tabs: Array<{
@@ -260,10 +266,15 @@ export function EmrListClient({
     label: string;
     count: number;
   }> = [
-    { key: "all", label: "All", count: counts.all },
-    { key: "today", label: "Today Visited", count: counts.today },
-    { key: "chronic", label: "Chronic Diseases", count: counts.chronic },
+    { key: "all", label: "All Patients", count: counts.all },
+    { key: "today", label: "Visited Today", count: counts.today },
+    { key: "chronic", label: "Chronic Conditions", count: counts.chronic },
   ];
+  const pageData = getClientPageItems(patients, page, PATIENTS_PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [initialFilter, initialQuery, patients.length]);
 
   return (
     <>
@@ -281,12 +292,6 @@ export function EmrListClient({
             </p>
           </div>
 
-          <Link
-            href="/emr/intake"
-            className="btn-teal self-start lg:self-auto"
-          >
-            + New Patient
-          </Link>
         </div>
 
         <div className="premium-toolbar">
@@ -349,11 +354,15 @@ export function EmrListClient({
                   </td>
                 </tr>
               ) : (
-                patients.map((patient) => {
+                pageData.pageItems.map((patient) => {
                   const latest = latestVisit[patient.id];
 
                   return (
-                    <tr key={patient.id}>
+                    <tr
+                      key={patient.id}
+                      onClick={() => openPatientModal(patient)}
+                      className="cursor-pointer transition hover:bg-slate-50"
+                    >
                       <td className="align-top">
                         <div className="flex items-center gap-3">
                           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#38bdf8] to-[#2563eb] text-xs font-bold text-white">
@@ -399,7 +408,10 @@ export function EmrListClient({
                       <td className="align-top text-right">
                         <button
                           type="button"
-                          onClick={() => openPatientModal(patient)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openPatientModal(patient);
+                          }}
                           className="premium-action"
                         >
                           View
@@ -411,6 +423,13 @@ export function EmrListClient({
               )}
             </tbody>
           </table>
+          <ClientPagination
+            page={pageData.currentPage}
+            pageSize={PATIENTS_PAGE_SIZE}
+            totalItems={patients.length}
+            onPageChange={setPage}
+            label="patients"
+          />
         </div>
       </div>
 
@@ -584,6 +603,16 @@ export function EmrListClient({
                 </p>
 
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(`/emr/${selectedPatient.id}/visits/new?mode=record`)
+                    }
+                    className="premium-action"
+                  >
+                    Start Voice
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setQuickAction("vitals")}

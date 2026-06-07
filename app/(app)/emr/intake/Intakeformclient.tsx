@@ -2,8 +2,9 @@
  
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import type { Patient } from "@/types/db";
  
 type DoctorOption = {
   id: string;
@@ -37,8 +38,6 @@ type PatientForm = {
  
 type Props = {
   clinicId: string;
-  currentUserId: string;
-  inviteCode: string;
   doctors: DoctorOption[];
 };
  
@@ -70,15 +69,18 @@ const initialPatientForm: PatientForm = {
  
 export function IntakeFormClient({
   clinicId,
-  currentUserId,
-  inviteCode,
   doctors,
 }: Props) {
   const router = useRouter();
  
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queueNotice, setQueueNotice] = useState<string | null>(null);
   const [patientForm, setPatientForm] = useState<PatientForm>(initialPatientForm);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<Patient[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [pickedPatient, setPickedPatient] = useState<Patient | null>(null);
  
   const [bpSystolic, setBpSystolic] = useState("");
   const [bpDiastolic, setBpDiastolic] = useState("");
@@ -89,19 +91,83 @@ export function IntakeFormClient({
  
   const [selectedDoctors, setSelectedDoctors] = useState<string[]>([]);
  
-  const emrNumber = useMemo(() => {
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const random = String(Date.now()).slice(-5);
-    return `HD-${inviteCode}-${yyyy}${mm}-${random}`;
-  }, [inviteCode]);
- 
   const fullName =
     patientForm.full_name.trim() ||
     buildFullName(patientForm.first_name, patientForm.last_name);
+
+  useEffect(() => {
+    if (pickedPatient) return;
+
+    const term = searchTerm.trim();
+    if (term.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { data } = await supabaseBrowser()
+          .from("patients")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .or(`full_name.ilike.%${term}%,phone.ilike.%${term}%,emr_number.ilike.%${term}%`)
+          .order("last_visit_at", { ascending: false, nullsFirst: false })
+          .limit(8);
+
+        if (!cancelled) setSearchResults((data || []) as Patient[]);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [clinicId, pickedPatient, searchTerm]);
+
+  function pickPatient(patient: Patient) {
+    setQueueNotice(null);
+    setPickedPatient(patient);
+    setSearchTerm("");
+    setSearchResults([]);
+    setPatientForm({
+      first_name: patient.first_name || "",
+      last_name: patient.last_name || "",
+      full_name: patient.full_name || "",
+      birthdate: patient.birthdate || "",
+      age: patient.age == null ? "" : String(patient.age),
+      sex: patient.sex || "",
+      blood_group: patient.blood_group || "",
+      height_cm: patient.height_cm == null ? "" : String(patient.height_cm),
+      phone: patient.phone || "",
+      email: patient.email || "",
+      emergency_contact: patient.emergency_contact || "",
+      address: patient.address || "",
+      city: patient.city || "",
+      state: patient.state || "",
+      postal_code: patient.postal_code || "",
+      country: patient.country || initialPatientForm.country,
+      known_allergies: patient.known_allergies || "",
+      chronic_conditions: patient.chronic_conditions || "",
+      chief_complaint: "",
+      abha_id: patient.abha_id || "",
+      abha_address: patient.abha_address || "",
+    });
+  }
+
+  function clearPickedPatient() {
+    setQueueNotice(null);
+    setPickedPatient(null);
+    setSearchTerm("");
+    setSearchResults([]);
+    setPatientForm(initialPatientForm);
+  }
  
   function updatePatient<K extends keyof PatientForm>(key: K, value: PatientForm[K]) {
+    setQueueNotice(null);
     setPatientForm((current) => {
       const previousAutoName = buildFullName(current.first_name, current.last_name);
       const next = { ...current, [key]: value };
@@ -117,6 +183,13 @@ export function IntakeFormClient({
       if (key === "birthdate") {
         const ageFromBirthdate = calculateAge(value);
         next.age = ageFromBirthdate == null ? "" : String(ageFromBirthdate);
+      }
+      if (pickedPatient && isPatientIdentityField(key) && hasDifferentIdentity(next, pickedPatient)) {
+        setPickedPatient(null);
+        setSearchResults([]);
+        setQueueNotice(
+          "Existing patient selection was cleared because name or phone was changed. This intake will be matched again or created as a new patient.",
+        );
       }
       return next;
     });
@@ -138,6 +211,7 @@ export function IntakeFormClient({
   }
  
   function toggleDoctor(id: string) {
+    setQueueNotice(null);
     setSelectedDoctors((current) =>
       current.includes(id)
         ? current.filter((doctorId) => doctorId !== id)
@@ -199,6 +273,7 @@ export function IntakeFormClient({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setQueueNotice(null);
  
     const validationError = validateForm();
     if (validationError) {
@@ -209,8 +284,6 @@ export function IntakeFormClient({
     setSaving(true);
  
     try {
-      const supabase = supabaseBrowser();
-      const now = new Date().toISOString();
       const firstDoctorId = selectedDoctors[0];
       const normalizedPhone = normalizePhone(patientForm.phone);
       const patientPayload = {
@@ -236,95 +309,45 @@ export function IntakeFormClient({
         abha_address: nullableText(patientForm.abha_address),
         known_allergies: nullableText(patientForm.known_allergies),
         chronic_conditions: nullableText(patientForm.chronic_conditions),
-        last_visit_at: now,
       };
- 
-      let patientId: string | null = null;
- 
-      if (normalizedPhone) {
-        const { data: existingPatient, error: existingError } = await supabase
-          .from("patients")
-          .select("id")
-          .eq("clinic_id", clinicId)
-          .eq("doctor_id", firstDoctorId)
-          .eq("phone", normalizedPhone)
-          .eq("full_name", fullName)
-          .maybeSingle();
- 
-        if (existingError) {
-          throw new Error(existingError.message);
-        }
- 
-        if (existingPatient?.id) {
-          const { error: updatePatientError } = await supabase
-            .from("patients")
-            .update(patientPayload)
-            .eq("id", existingPatient.id);
- 
-          if (updatePatientError) {
-            throw new Error(updatePatientError.message);
-          }
- 
-          patientId = existingPatient.id;
-        }
-      }
- 
-      if (!patientId) {
-        const { data: patient, error: patientError } = await supabase
-          .from("patients")
-          .insert({
-            ...patientPayload,
-            emr_number: emrNumber,
-          })
-          .select("id")
-          .single();
- 
-        if (patientError) {
-          throw new Error(patientError.message);
-        }
- 
-        patientId = patient.id;
-      }
- 
-      const { data: visit, error: visitError } = await supabase
-        .from("visits")
-        .insert({
-          clinic_id: clinicId,
-          patient_id: patientId,
-          doctor_id: firstDoctorId,
-          created_by: currentUserId,
-          visit_date: now,
-          status: "queued",
+
+      const res = await fetch("/api/intake/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          route: true,
+          patientId: pickedPatient?.id,
+          assignments: selectedDoctors.map((doctorId) => ({
+            doctor_id: doctorId,
+            role: "attending",
+          })),
+          patient: patientPayload,
+          chiefComplaint: nullableText(patientForm.chief_complaint),
+          vitals: {
           bp_systolic: toNumber(bpSystolic),
           bp_diastolic: toNumber(bpDiastolic),
           pulse: toNumber(pulse),
           temperature_f: toNumber(temperature),
           spo2: toNumber(spo2),
           weight_kg: toNumber(weight),
-          chief_complaints: nullableText(patientForm.chief_complaint),
-        })
-        .select("id")
-        .single();
- 
-      if (visitError) {
-        throw new Error(visitError.message);
+          },
+        }),
+      });
+      const result = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        reusedVisit?: boolean;
+      };
+      if (!res.ok) throw new Error(result.error || "Could not create EMR");
+
+      if (result.reusedVisit) {
+        setQueueNotice(
+          "This patient is still in queue for the selected doctor. Existing visit was updated, so a new EMR was not created.",
+        );
+        router.refresh();
+        return;
       }
- 
-      const visitDoctorRows = selectedDoctors.map((doctorId) => ({
-        visit_id: visit.id,
-        doctor_id: doctorId,
-        role: "attending",
-      }));
- 
-      const { error: assignmentError } = await supabase
-        .from("visit_doctors")
-        .insert(visitDoctorRows);
- 
-      if (assignmentError) {
-        throw new Error(assignmentError.message);
-      }
- 
-      router.push("/emr");
+
+      router.replace("/dashboard");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -373,6 +396,11 @@ export function IntakeFormClient({
             {error}
           </div>
         ) : null}
+        {queueNotice && !saving ? (
+          <div className="rounded-xl border border-[#0ea5a4]/30 bg-[#ecfdfc] px-4 py-3 text-sm font-semibold text-[#0f766e] lg:col-span-2">
+            {queueNotice}
+          </div>
+        ) : null}
  
         <div id="patient-section" className="card scroll-mt-6 p-5 xl:col-span-2">
           <h2 className="mb-4 text-[13px] font-extrabold text-slate-900">
@@ -382,6 +410,76 @@ export function IntakeFormClient({
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <FormSection title="Basic Information" className="lg:col-span-2">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="relative sm:col-span-2">
+                  {pickedPatient ? (
+                    <div>
+                      <Label optional>Search existing patient</Label>
+                      <div className="rounded-xl border border-[#0ea5a4]/30 bg-[#ecfdfc] px-3 py-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-[12px] font-extrabold text-slate-900">
+                              {pickedPatient.full_name}
+                            </div>
+                            <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                              {pickedPatient.emr_number}
+                              {pickedPatient.phone ? ` - ${pickedPatient.phone}` : ""}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={clearPickedPatient}
+                            className="text-[11px] font-extrabold text-[#0f8f83] hover:underline"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <TextField
+                        label="Search existing patient"
+                        optional
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        placeholder="Name, phone, or EMR ID"
+                      />
+                      {searchResults.length > 0 ? (
+                        <ul className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-xl border border-slate-200 bg-white shadow-soft">
+                          {searchResults.map((patient) => (
+                            <li key={patient.id}>
+                              <button
+                                type="button"
+                                onClick={() => pickPatient(patient)}
+                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate font-extrabold text-slate-900">
+                                    {patient.full_name}
+                                  </span>
+                                  <span className="block truncate text-[11px] text-slate-500">
+                                    {patient.emr_number}
+                                    {patient.phone ? ` - ${patient.phone}` : ""}
+                                  </span>
+                                </span>
+                                {patient.age != null || patient.sex ? (
+                                  <span className="shrink-0 text-[11px] text-slate-400">
+                                    {[patient.age, patient.sex].filter(Boolean).join(" / ")}
+                                  </span>
+                                ) : null}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {searching ? (
+                        <span className="absolute right-3 top-8 text-[11px] text-slate-400">
+                          searching...
+                        </span>
+                      ) : null}
+                    </>
+                  )}
+                </div>
                 <TextField
                   label="First Name"
                   optional
@@ -862,6 +960,19 @@ function normalizePhone(value: string) {
   const trimmed = value.trim();
   if (!trimmed || trimmed === "+91") return null;
   return trimmed;
+}
+
+function isPatientIdentityField(key: keyof PatientForm) {
+  return key === "first_name" || key === "last_name" || key === "full_name" || key === "phone";
+}
+
+function hasDifferentIdentity(form: PatientForm, patient: Patient) {
+  const formName = (form.full_name.trim() || buildFullName(form.first_name, form.last_name)).toLowerCase();
+  const patientName = (patient.full_name || "").trim().toLowerCase();
+  const formPhone = normalizePhone(form.phone) || "";
+  const patientPhone = normalizePhone(patient.phone || "") || "";
+
+  return formName !== patientName || formPhone !== patientPhone;
 }
  
 function isValidPhone(value: string) {

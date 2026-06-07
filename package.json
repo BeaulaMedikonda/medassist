@@ -11,6 +11,9 @@
     "fhir:fixture": "tsx scripts/fhir/generate-fixture.ts",
     "fhir:validate": "tsx scripts/fhir/generate-fixture.ts",
     "fhir:validate:strict": "bash scripts/fhir/validate.sh",
+    "fhir:validator:up": "docker compose up -d --build fhir-validator",
+    "fhir:validator:down": "docker compose down",
+    "fhir:validator:logs": "docker compose logs -f fhir-validator",
     "supabase:check": "tsx scripts/check-supabase.ts"
   },
   "dependencies": {
@@ -18,6 +21,7 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.46.1",
     "clsx": "^2.1.1",
+    "geist": "^1.7.2",
     "next": "^15.5.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

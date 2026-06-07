@@ -117,7 +117,26 @@ const visit: Visit = {
   provisional_diagnosis: "Viral fever with pharyngitis and myalgia",
   confirmed_diagnosis: null,
   icd_codes: ["J06.9", "R50.9", "M79.1"],
+  icd_code_details: [
+    { code: "J06.9", name: "Acute upper respiratory infection, unspecified" },
+    { code: "R50.9", name: "Fever, unspecified" },
+    { code: "M79.1", name: "Myalgia" },
+  ],
   investigations_ordered: "CBC, CRP",
+  loinc_code_details: [
+    {
+      test_name: "CBC",
+      loinc_code: null,
+      loinc_name: "Complete blood count panel",
+      ucum_unit: null,
+    },
+    {
+      test_name: "CRP",
+      loinc_code: "1988-5",
+      loinc_name: "C reactive protein [Mass/volume] in Serum or Plasma",
+      ucum_unit: null,
+    },
+  ],
   prescription: {
     medicines: [
       {
@@ -235,6 +254,7 @@ const referrals: Referral[] = [
     patient_id: patient.id,
     visit_id: visit.id,
     referring_doctor_id: doctor.id,
+    referred_to_doctor_id: null,
     referred_to_name: "Dr. ENT Specialist",
     referred_to_specialty: "ENT",
     referred_to_hospital: "City ENT Center",

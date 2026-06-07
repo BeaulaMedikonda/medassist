@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 import type { Appointment, Clinic, Doctor, Patient, Visit } from "@/types/db";
@@ -31,6 +32,8 @@ type AdminDashboardProps = {
   totalPatients: number;
   monthlyDrafts: number;
 };
+
+const ADMIN_TEAM_PAGE_SIZE = 8;
 
 export function AdminDashboard({
   member,
@@ -300,9 +303,11 @@ function TeamPane({
   onInvite: () => void;
 }) {
   const [filter, setFilter] = useState<"all" | "doctor" | "medical_assistant">("all");
+  const [page, setPage] = useState(1);
   const [members, setMembers] = useState(roster);
   const [editingMember, setEditingMember] = useState<RosterMember | null>(null);
   const filtered = members.filter((member) => filter === "all" || member.role === filter);
+  const pageData = getClientPageItems(filtered, page, ADMIN_TEAM_PAGE_SIZE);
 
   return (
     <section className="space-y-5">
@@ -336,7 +341,7 @@ function TeamPane({
                 </td>
               </tr>
             ) : (
-              filtered.map((staff) => (
+              pageData.pageItems.map((staff) => (
                 <tr key={staff.id}>
                   <td className="px-5 py-4">
                     <div className="font-extrabold text-slate-950">
@@ -367,6 +372,13 @@ function TeamPane({
             )}
           </tbody>
         </table>
+        <ClientPagination
+          page={pageData.currentPage}
+          pageSize={ADMIN_TEAM_PAGE_SIZE}
+          totalItems={filtered.length}
+          onPageChange={setPage}
+          label="staff"
+        />
       </div>
 
       {editingMember ? (

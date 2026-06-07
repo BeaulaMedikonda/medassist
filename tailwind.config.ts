@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
-// Palette inspired by Medplum (Mantine-based). Blue is the primary brand,
-// teal is the secondary accent, slate is the neutral base.
+// MedAssist product palette. Teal/cyan is the primary brand, slate/ink is the
+// neutral base, and blue is kept as a supporting clinical accent.
 const config: Config = {
   darkMode: "class",
   content: [
@@ -13,6 +13,18 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
+          50: "#ecfdfc",
+          100: "#ccfbef",
+          200: "#99f6e4",
+          300: "#5eead4",
+          400: "#2dd4bf",
+          500: "#14b8a6",
+          600: "#0d9488",
+          700: "#0f766e",
+          800: "#115e59",
+          900: "#134e4a",
+        },
+        clinical: {
           50: "#e7f5ff",
           100: "#d0ebff",
           200: "#a5d8ff",
@@ -54,8 +66,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        deva: ["Noto Sans Devanagari", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
+        deva: ["Noto Sans Devanagari", "var(--font-geist-sans)", "system-ui", "sans-serif"],
       },
       boxShadow: {
         xs:       "0 1px 2px rgba(15, 23, 42, 0.04)",

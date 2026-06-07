@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Visit } from "@/types/db";
 
 type AssignedVisit = Pick<Visit, "id" | "patient_id" | "doctor_id">;
@@ -8,6 +9,7 @@ export async function getDoctorAssignedScope(
   doctorId: string,
   clinicId: string,
 ) {
+  const admin = supabaseAdmin();
   const [{ data: directRows }, { data: assignmentRows }, { data: referralRows }] = await Promise.all([
     supabase
       .from("visits")
@@ -18,7 +20,7 @@ export async function getDoctorAssignedScope(
       .from("visit_doctors")
       .select("visit_id")
       .eq("doctor_id", doctorId),
-    supabase
+    admin
       .from("referrals")
       .select("patient_id")
       .eq("clinic_id", clinicId)
@@ -59,7 +61,7 @@ export async function getDoctorAssignedScope(
   );
 
   if (referredPatientIds.length > 0) {
-    const { data: referredRows } = await supabase
+    const { data: referredRows } = await admin
       .from("visits")
       .select("id, patient_id, doctor_id")
       .eq("clinic_id", clinicId)

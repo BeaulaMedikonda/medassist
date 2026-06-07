@@ -15,6 +15,25 @@ type ClinicMembership = {
   role: string;
 };
 
+const allowedRoles = new Set(["medical_assistant", "doctor", "admin"]);
+
+function setActiveWorkspaceCookies(response: NextResponse, membership: ClinicMembership) {
+  response.cookies.set(ACTIVE_CLINIC_COOKIE, membership.clinicId, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 180,
+  });
+  response.cookies.set(ACTIVE_MEMBER_COOKIE, membership.memberId, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 180,
+  });
+}
+
 async function getUserId() {
   const sb = await supabaseServer();
   const {
@@ -23,20 +42,29 @@ async function getUserId() {
   return user?.id || null;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const userId = await getUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const url = new URL(req.url);
+    const role = url.searchParams.get("role");
+    const selectedRole = role && allowedRoles.has(role) ? role : null;
 
     const admin = supabaseAdmin();
-    const { data, error } = await admin
+    let query = admin
       .from("doctors")
       .select("id, role, clinic_id, clinic_name, clinics(id, name)")
       .or(`auth_user_id.eq.${userId},id.eq.${userId}`)
       .not("clinic_id", "is", null)
       .order("clinic_name");
+
+    if (selectedRole) {
+      query = query.eq("role", selectedRole);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -63,7 +91,11 @@ export async function GET() {
       })
       .filter((clinic): clinic is ClinicMembership => clinic !== null);
 
-    return NextResponse.json({ ok: true, clinics });
+    const response = NextResponse.json({ ok: true, clinics });
+    if (selectedRole && clinics.length === 1) {
+      setActiveWorkspaceCookies(response, clinics[0]);
+    }
+    return response;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -128,20 +160,15 @@ export async function POST(req: Request) {
     }
 
     const cookieStore = await cookies();
-    cookieStore.set(ACTIVE_CLINIC_COOKIE, membership.clinic_id, {
+    const cookieOptions = {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: "lax" as const,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 180,
-    });
-    cookieStore.set(ACTIVE_MEMBER_COOKIE, membership.id, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 180,
-    });
+    };
+    cookieStore.set(ACTIVE_CLINIC_COOKIE, membership.clinic_id, cookieOptions);
+    cookieStore.set(ACTIVE_MEMBER_COOKIE, membership.id, cookieOptions);
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {

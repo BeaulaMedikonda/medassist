@@ -1,0 +1,710 @@
+﻿[
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[0]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[1]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[2]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[3]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[4]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[5]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[6]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[7]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[8]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[9]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[10]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[11]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[12]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[14]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[0].resource/*Composition/null*/.section[15]",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord|6.5.0 (this may not be a problem, but you should check that it\u0027s not intended to match a slice)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[1].resource/*Patient/f7c3e9b0-1111-4ddd-8888-aaaaaaaaaaaa*/.contact[0].relationship[0]",
+        "diagnostics":  null,
+        "details":  "No code provided, and a code should be provided from the value set \u0027Patient Contact Relationship \u0027 (http://hl7.org/fhir/ValueSet/patient-contactrelationship|4.0.1)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[1].resource/*Patient/f7c3e9b0-1111-4ddd-8888-aaaaaaaaaaaa*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[2].resource/*Organization/f7c3e9b0-3333-4ddd-8888-cccccccccccc*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[3].resource/*Practitioner/f7c3e9b0-2222-4ddd-8888-bbbbbbbbbbbb*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[4].resource/*PractitionerRole/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[5].resource/*Encounter/f7c3e9b0-4444-4ddd-8888-dddddddddddd*/.class",
+        "diagnostics":  null,
+        "details":  "Reference to draft CodeSystem http://terminology.hl7.org/CodeSystem/v3-ActCode|2018-08-12"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[5].resource/*Encounter/f7c3e9b0-4444-4ddd-8888-dddddddddddd*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[6].resource/*Condition/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[7].resource/*Condition/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[8].resource/*Condition/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[9].resource/*Medication/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[10].resource/*Medication/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[11].resource/*Medication/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[12].resource/*MedicationRequest/null*/.dosageInstruction[0].timing.repeat.periodUnit",
+        "diagnostics":  null,
+        "details":  "Unable to validate code without using server because: Resolved system http://unitsofmeasure.org (v3.0.1), but the definition doesn\u0027t include any codes, so the code has not been validated"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[12].resource/*MedicationRequest/null*/.dosageInstruction[0].doseAndRate[0].type",
+        "diagnostics":  null,
+        "details":  "Reference to draft CodeSystem http://terminology.hl7.org/CodeSystem/dose-rate-type|4.0.1"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[12].resource/*MedicationRequest/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[12].resource/*MedicationRequest/null*/.medication.ofType(Reference)",
+        "diagnostics":  null,
+        "details":  "The Profile \u0027https://nrces.in/ndhm/fhir/r4/StructureDefinition/MedicationRequest|6.5.0\u0027 definition allows for the type CodeableConcept but found type Reference"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[12].resource/*MedicationRequest/null*/.medication.ofType(Reference).reference",
+        "diagnostics":  null,
+        "details":  "This element is not allowed by the profile http://hl7.org/fhir/StructureDefinition/CodeableConcept|4.0.1"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[12].resource/*MedicationRequest/null*/.medication.ofType(Reference).reference",
+        "diagnostics":  null,
+        "details":  "This element is not allowed by the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/MedicationRequest|6.5.0"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[13].resource/*MedicationRequest/null*/.dosageInstruction[0].timing.repeat.periodUnit",
+        "diagnostics":  null,
+        "details":  "Unable to validate code without using server because: Resolved system http://unitsofmeasure.org (v3.0.1), but the definition doesn\u0027t include any codes, so the code has not been validated"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[13].resource/*MedicationRequest/null*/.dosageInstruction[0].doseAndRate[0].type",
+        "diagnostics":  null,
+        "details":  "Reference to draft CodeSystem http://terminology.hl7.org/CodeSystem/dose-rate-type|4.0.1"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[13].resource/*MedicationRequest/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[13].resource/*MedicationRequest/null*/.medication.ofType(Reference)",
+        "diagnostics":  null,
+        "details":  "The Profile \u0027https://nrces.in/ndhm/fhir/r4/StructureDefinition/MedicationRequest|6.5.0\u0027 definition allows for the type CodeableConcept but found type Reference"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[13].resource/*MedicationRequest/null*/.medication.ofType(Reference).reference",
+        "diagnostics":  null,
+        "details":  "This element is not allowed by the profile http://hl7.org/fhir/StructureDefinition/CodeableConcept|4.0.1"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[13].resource/*MedicationRequest/null*/.medication.ofType(Reference).reference",
+        "diagnostics":  null,
+        "details":  "This element is not allowed by the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/MedicationRequest|6.5.0"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[14].resource/*MedicationRequest/null*/.dosageInstruction[0].timing.repeat.periodUnit",
+        "diagnostics":  null,
+        "details":  "Unable to validate code without using server because: Resolved system http://unitsofmeasure.org (v3.0.1), but the definition doesn\u0027t include any codes, so the code has not been validated"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[14].resource/*MedicationRequest/null*/.dosageInstruction[0].doseAndRate[0].type",
+        "diagnostics":  null,
+        "details":  "Reference to draft CodeSystem http://terminology.hl7.org/CodeSystem/dose-rate-type|4.0.1"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[14].resource/*MedicationRequest/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[14].resource/*MedicationRequest/null*/.medication.ofType(Reference)",
+        "diagnostics":  null,
+        "details":  "The Profile \u0027https://nrces.in/ndhm/fhir/r4/StructureDefinition/MedicationRequest|6.5.0\u0027 definition allows for the type CodeableConcept but found type Reference"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[14].resource/*MedicationRequest/null*/.medication.ofType(Reference).reference",
+        "diagnostics":  null,
+        "details":  "This element is not allowed by the profile http://hl7.org/fhir/StructureDefinition/CodeableConcept|4.0.1"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[14].resource/*MedicationRequest/null*/.medication.ofType(Reference).reference",
+        "diagnostics":  null,
+        "details":  "This element is not allowed by the profile https://nrces.in/ndhm/fhir/r4/StructureDefinition/MedicationRequest|6.5.0"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Blood pressure systolic and diastolic profile (http://hl7.org/fhir/StructureDefinition/bp) which is required by the FHIR specification because the LOINC code 8480-6 was found"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "This element does not match any known slice defined in the profile http://hl7.org/fhir/StructureDefinition/bp|4.0.1 and slicing is CLOSED: Bundle.entry[15].resource/*Observation/null*/.value.ofType(Quantity): Does not match slice \u0027valueQuantity\u0027 (discriminator: $this.empty())"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Observation.component: minimum required = 2, but only found 0 (from http://hl7.org/fhir/StructureDefinition/bp|4.0.1)"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Slice \u0027Observation.component:SystolicBP\u0027: a matching slice is required, but not found (from http://hl7.org/fhir/StructureDefinition/bp|4.0.1). Note that other slices are allowed in addition to this required slice"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Slice \u0027Observation.component:DiastolicBP\u0027: a matching slice is required, but not found (from http://hl7.org/fhir/StructureDefinition/bp|4.0.1). Note that other slices are allowed in addition to this required slice"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/.code",
+        "diagnostics":  null,
+        "details":  "Could not confirm that the codes provided are from the extensible value set http://hl7.org/fhir/ValueSet/observation-vitalsignresult|4.0.1 because there is no terminology service"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/.code",
+        "diagnostics":  null,
+        "details":  "BPCode: magic LOINC code 85354-9 required, but not found (from http://hl7.org/fhir/StructureDefinition/bp|4.0.1). Note that other Observation codes are allowed in addition to this required magic code"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "Unable to validate code \u0027mm[Hg]\u0027 in system \u0027http://unitsofmeasure.org\u0027 because the validator is running without terminology services"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[15].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[16].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[16].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "Unable to validate code \u0027mm[Hg]\u0027 in system \u0027http://unitsofmeasure.org\u0027 because the validator is running without terminology services"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[16].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[17].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Heart rate profile (http://hl7.org/fhir/StructureDefinition/heartrate) which is required by the FHIR specification because the LOINC code 8867-4 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[17].resource/*Observation/null*/.code",
+        "diagnostics":  null,
+        "details":  "Could not confirm that the codes provided are from the extensible value set http://hl7.org/fhir/ValueSet/observation-vitalsignresult|4.0.1 because there is no terminology service"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[17].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "Unable to validate code \u0027/min\u0027 in system \u0027http://unitsofmeasure.org\u0027 because the validator is running without terminology services"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[17].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[18].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Body temperature profile (http://hl7.org/fhir/StructureDefinition/bodytemp) which is required by the FHIR specification because the LOINC code 8310-5 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[18].resource/*Observation/null*/.code",
+        "diagnostics":  null,
+        "details":  "Could not confirm that the codes provided are from the extensible value set http://hl7.org/fhir/ValueSet/observation-vitalsignresult|4.0.1 because there is no terminology service"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[18].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "Unable to validate code \u0027[degF]\u0027 in system \u0027http://unitsofmeasure.org\u0027 because the validator is running without terminology services"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[18].resource/*Observation/null*/.value.ofType(Quantity).code",
+        "diagnostics":  null,
+        "details":  "Unable to validate code without using server because: Resolved system http://unitsofmeasure.org (v3.0.1), but the definition doesn\u0027t include any codes, so the code has not been validated"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[18].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[19].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Oxygen saturation profile (http://hl7.org/fhir/StructureDefinition/oxygensat) which is required by the FHIR specification because the LOINC code 59408-5 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[19].resource/*Observation/null*/.code",
+        "diagnostics":  null,
+        "details":  "Could not confirm that the codes provided are from the extensible value set http://hl7.org/fhir/ValueSet/observation-vitalsignresult|4.0.1 because there is no terminology service"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.entry[19].resource/*Observation/null*/.code",
+        "diagnostics":  null,
+        "details":  "OxygenSatCode: magic LOINC code 2708-6 required, but not found (from http://hl7.org/fhir/StructureDefinition/oxygensat|4.0.1). Note that other Observation codes are allowed in addition to this required magic code"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[19].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "Unable to validate code \u0027%\u0027 in system \u0027http://unitsofmeasure.org\u0027 because the validator is running without terminology services"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[19].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[20].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Body weight profile (http://hl7.org/fhir/StructureDefinition/bodyweight) which is required by the FHIR specification because the LOINC code 29463-7 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[20].resource/*Observation/null*/.code",
+        "diagnostics":  null,
+        "details":  "Could not confirm that the codes provided are from the extensible value set http://hl7.org/fhir/ValueSet/observation-vitalsignresult|4.0.1 because there is no terminology service"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[20].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "Unable to validate code \u0027kg\u0027 in system \u0027http://unitsofmeasure.org\u0027 because the validator is running without terminology services"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[20].resource/*Observation/null*/.value.ofType(Quantity).code",
+        "diagnostics":  null,
+        "details":  "Unable to validate code without using server because: Resolved system http://unitsofmeasure.org (v3.0.1), but the definition doesn\u0027t include any codes, so the code has not been validated"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[20].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[21].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Body height profile (http://hl7.org/fhir/StructureDefinition/bodyheight) which is required by the FHIR specification because the LOINC code 8302-2 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[21].resource/*Observation/null*/.code",
+        "diagnostics":  null,
+        "details":  "Could not confirm that the codes provided are from the extensible value set http://hl7.org/fhir/ValueSet/observation-vitalsignresult|4.0.1 because there is no terminology service"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[21].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "Unable to validate code \u0027cm\u0027 in system \u0027http://unitsofmeasure.org\u0027 because the validator is running without terminology services"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[21].resource/*Observation/null*/.value.ofType(Quantity).code",
+        "diagnostics":  null,
+        "details":  "Unable to validate code without using server because: Resolved system http://unitsofmeasure.org (v3.0.1), but the definition doesn\u0027t include any codes, so the code has not been validated"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[21].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[22].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[22].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[23].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Best Practice Recommendation: In general, all observations should have a performer"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[23].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "Unable to validate code \u0027{score}\u0027 in system \u0027http://unitsofmeasure.org\u0027 because the validator is running without terminology services"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[23].resource/*Observation/null*/.value.ofType(Quantity)",
+        "diagnostics":  null,
+        "details":  "UCUM Codes that contain human readable annotations like {score} can be misleading (e.g. they are ignored when comparing units). Best Practice is not to depend on annotations in the UCUM code, so this usage should be checked"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[23].resource/*Observation/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[24].resource/*AllergyIntolerance/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[25].resource/*ServiceRequest/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[26].resource/*ServiceRequest/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[27].resource/*ServiceRequest/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[28].resource/*Immunization/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[29].resource/*Appointment/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[30].resource/*CarePlan/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[31].resource/*DocumentReference/null*/.content[0].attachment.contentType",
+        "diagnostics":  null,
+        "details":  "The value provided (\u0027text/plain\u0027) could not be validated in the absence of a terminology server"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[31].resource/*DocumentReference/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[32].resource/*DocumentReference/null*/.content[0].attachment.contentType",
+        "diagnostics":  null,
+        "details":  "The value provided (\u0027text/plain\u0027) could not be validated in the absence of a terminology server"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[32].resource/*DocumentReference/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[33].resource/*DocumentReference/null*/.content[0].attachment.contentType",
+        "diagnostics":  null,
+        "details":  "The value provided (\u0027text/plain\u0027) could not be validated in the absence of a terminology server"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[33].resource/*DocumentReference/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[34].resource/*DocumentReference/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[35].resource/*DocumentReference/null*/.content[0].attachment.contentType",
+        "diagnostics":  null,
+        "details":  "The value provided (\u0027text/plain\u0027) could not be validated in the absence of a terminology server"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[35].resource/*DocumentReference/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[36].resource/*Provenance/null*/.agent[0].type",
+        "diagnostics":  null,
+        "details":  "No code provided, and a code should be provided from the value set \u0027Provenance participant type\u0027 (http://hl7.org/fhir/ValueSet/provenance-agent-type|4.0.1)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[36].resource/*Provenance/null*/.agent[1].type",
+        "diagnostics":  null,
+        "details":  "No code provided, and a code should be provided from the value set \u0027Provenance participant type\u0027 (http://hl7.org/fhir/ValueSet/provenance-agent-type|4.0.1)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[36].resource/*Provenance/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[37].resource/*AuditEvent/null*/",
+        "diagnostics":  null,
+        "details":  "Constraint failed: dom-6: \u0027A resource should have narrative for robust management\u0027 (defined in http://hl7.org/fhir/StructureDefinition/DomainResource) (Best Practice Recommendation)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[39]",
+        "diagnostics":  null,
+        "details":  "Entry \u0027urn:uuid:6d8f7bec-aadc-442b-a6a6-48dc162a6f96\u0027 isn\u0027t reachable by traversing forwards from the Composition. Only Provenance is approved to be used this way (R4 section 3.3.1)"
+    },
+    {
+        "severity":  "warning",
+        "path":  "Bundle.entry[39]",
+        "diagnostics":  null,
+        "details":  "Entry \u0027urn:uuid:89a7ec05-5208-4770-98ae-7859b59f8398\u0027 isn\u0027t reachable by traversing forwards from the Composition. Only Provenance is approved to be used this way (R4 section 3.3.1)"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[15].resource",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Blood pressure systolic and diastolic profile (http://hl7.org/fhir/StructureDefinition/bp) which is required by the FHIR specification because the LOINC code 8480-6 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[17].resource",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Heart rate profile (http://hl7.org/fhir/StructureDefinition/heartrate) which is required by the FHIR specification because the LOINC code 8867-4 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[18].resource",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Body temperature profile (http://hl7.org/fhir/StructureDefinition/bodytemp) which is required by the FHIR specification because the LOINC code 8310-5 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[19].resource",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Oxygen saturation profile (http://hl7.org/fhir/StructureDefinition/oxygensat) which is required by the FHIR specification because the LOINC code 59408-5 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[20].resource",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Body weight profile (http://hl7.org/fhir/StructureDefinition/bodyweight) which is required by the FHIR specification because the LOINC code 29463-7 was found"
+    },
+    {
+        "severity":  "information",
+        "path":  "Bundle.entry[21].resource",
+        "diagnostics":  null,
+        "details":  "Validate Observation against the Body height profile (http://hl7.org/fhir/StructureDefinition/bodyheight) which is required by the FHIR specification because the LOINC code 8302-2 was found"
+    },
+    {
+        "severity":  "error",
+        "path":  "Bundle.meta",
+        "diagnostics":  null,
+        "details":  "Bundle.meta.versionId: minimum required = 1, but only found 0 (from https://nrces.in/ndhm/fhir/r4/StructureDefinition/DocumentBundle|6.5.0)"
+    }
+]

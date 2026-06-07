@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { supabaseBrowser } from "@/lib/supabase/browser";
 import {
   MicIcon,
   BrainIcon,
@@ -95,7 +95,6 @@ export function ClinicalModules({
   voiceToTextHref,
   summaryPatients = [],
   patientSummaries = [],
-  clinicId,
   currentUserId,
   referralDoctors = [],
 }: {
@@ -106,8 +105,10 @@ export function ClinicalModules({
   currentUserId: string;
   referralDoctors?: ReferralDoctor[];
 }) {
+  const router = useRouter();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [referralOpen, setReferralOpen] = useState(false);
+  const [voiceStartOpen, setVoiceStartOpen] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState("");
   const [copied, setCopied] = useState(false);
   const [referralPatientId, setReferralPatientId] = useState("");
@@ -126,6 +127,7 @@ export function ClinicalModules({
     [patientSummaries, selectedPatientId],
   );
   const latestSummary = selectedSummaries[0] || null;
+  const activeVoiceHref = voiceToTextHref && voiceToTextHref !== "/emr" ? voiceToTextHref : null;
 
   async function copySummary() {
     if (!latestSummary) return;
@@ -152,23 +154,23 @@ export function ClinicalModules({
     }
 
     setReferralBusy(true);
-    const { error } = await supabaseBrowser()
-      .from("referrals")
-      .insert({
-        clinic_id: clinicId,
-        patient_id: referralPatientId,
-        referring_doctor_id: referringDoctorId,
-        referred_to_doctor_id: referredToDoctorId,
-        referred_to_name: referredName,
-        referred_to_specialty: specialty,
+    const res = await fetch("/api/referrals/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        patientId: referralPatientId,
+        referringDoctorId,
+        referredToDoctorId,
+        referredToName: referredName,
+        specialty,
         reason: reason.trim(),
-        status: "sent",
-        created_by: currentUserId,
-      });
+      }),
+    });
+    const result = (await res.json().catch(() => ({}))) as { error?: string };
     setReferralBusy(false);
 
-    if (error) {
-      setReferralError(error.message);
+    if (!res.ok) {
+      setReferralError(result.error || "Could not send referral.");
       return;
     }
 
@@ -176,6 +178,10 @@ export function ClinicalModules({
     setReferredToDoctorId("");
     setReferredToName("");
     setReason("");
+    router.refresh();
+    window.setTimeout(() => {
+      setReferralOpen(false);
+    }, 1200);
   }
 
   return (
@@ -207,7 +213,7 @@ export function ClinicalModules({
               <p className="mt-1 text-[13px] leading-relaxed text-[#64748b] dark:text-ink-500">
                 {m.description}
               </p>
-              {(isReferralManagement || isPatientSummaries) ? (
+              {(isVoiceCharting || isReferralManagement || isPatientSummaries) ? (
                 <span className="mt-4 inline-flex text-[12px] font-extrabold text-[#0f8f83] opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100">
                   Open
                 </span>
@@ -215,10 +221,19 @@ export function ClinicalModules({
             </>
           );
 
-          return isVoiceCharting && voiceToTextHref ? (
-            <Link key={m.title} href={voiceToTextHref} className={className}>
+          return isVoiceCharting && activeVoiceHref ? (
+            <Link key={m.title} href={activeVoiceHref} className={className}>
               {card}
             </Link>
+          ) : isVoiceCharting ? (
+            <button
+              key={m.title}
+              type="button"
+              onClick={() => setVoiceStartOpen(true)}
+              className={actionClassName}
+            >
+              {card}
+            </button>
           ) : isReferralManagement ? (
             <button
               key={m.title}
@@ -250,6 +265,71 @@ export function ClinicalModules({
           );
         })}
       </div>
+
+      {voiceStartOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 px-4 pt-10 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-deep">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <h3 className="flex items-center gap-2 text-[18px] font-extrabold text-[#0f172a]">
+                <MicIcon />
+                Start Voice Charting
+              </h3>
+              <button
+                type="button"
+                onClick={() => setVoiceStartOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Close voice charting options"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="space-y-3 px-5 py-5">
+              <p className="text-sm font-medium leading-relaxed text-slate-600">
+                No active patient is waiting for voice charting. Select an existing patient or create a new EMR to start a visit.
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Link
+                  href="/emr"
+                  onClick={() => setVoiceStartOpen(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-left transition hover:border-cyan-300 hover:bg-cyan-50"
+                >
+                  <div className="text-sm font-extrabold text-slate-950">
+                    Search Patient
+                  </div>
+                  <div className="mt-1 text-[12px] font-medium text-slate-500">
+                    Find an existing EMR and start a visit.
+                  </div>
+                </Link>
+
+                <Link
+                  href="/emr/new"
+                  onClick={() => setVoiceStartOpen(false)}
+                  className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-4 text-left transition hover:border-cyan-400 hover:bg-cyan-100"
+                >
+                  <div className="text-sm font-extrabold text-cyan-900">
+                    New EMR
+                  </div>
+                  <div className="mt-1 text-[12px] font-medium text-cyan-800/80">
+                    Register a patient and create a visit.
+                  </div>
+                </Link>
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setVoiceStartOpen(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {referralOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 px-4 pt-10 backdrop-blur-sm">

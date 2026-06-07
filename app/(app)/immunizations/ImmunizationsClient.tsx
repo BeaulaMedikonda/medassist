@@ -1,7 +1,8 @@
 "use client";
  
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Immunization, Patient, StaffRole } from "@/types/db";
 import { formatDate } from "@/lib/utils";
@@ -56,6 +57,7 @@ export function ImmunizationsClient({
     patient_id: patients[0]?.id || "",
   });
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(initialError || "");
   const currentForm = { ...emptyForm, ...form };
@@ -81,6 +83,11 @@ export function ImmunizationsClient({
         .some((value) => String(value).toLowerCase().includes(q));
     });
   }, [patientById, query, records]);
+  const pageData = getClientPageItems(filteredRecords, page, 25);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, filteredRecords.length]);
  
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -244,7 +251,7 @@ export function ImmunizationsClient({
                     </td>
                   </tr>
                 ) : (
-                  filteredRecords.map((record) => {
+                  pageData.pageItems.map((record) => {
                     const patient = patientById[record.patient_id];
                     return (
                       <tr key={record.id} className="bg-white hover:bg-slate-50 dark:bg-ink-900 dark:hover:bg-ink-800/70">
@@ -280,6 +287,13 @@ export function ImmunizationsClient({
               </tbody>
             </table>
           </div>
+          <ClientPagination
+            page={pageData.currentPage}
+            pageSize={25}
+            totalItems={filteredRecords.length}
+            onPageChange={setPage}
+            label="records"
+          />
         </div>
       </div>
     </section>

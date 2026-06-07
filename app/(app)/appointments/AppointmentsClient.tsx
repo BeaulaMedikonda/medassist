@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 type DoctorRow = {
@@ -37,15 +38,26 @@ type Props = {
   clinicId: string;
   clinicName: string;
   currentUserId: string;
+  currentUserRole: string;
   doctors: DoctorRow[];
   patients: PatientRow[];
   appointments: AppointmentRow[];
   error: string | null;
 };
 
+const APPOINTMENTS_PAGE_SIZE = 8;
+
 function todayInputValue() {
   const now = new Date();
   return now.toISOString().slice(0, 10);
+}
+
+function dateFromInput(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date();
+  date.setFullYear(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
 function startOfToday() {
@@ -182,10 +194,18 @@ function statusBadgeClass(status: string) {
   return "bg-slate-50 text-slate-700 ring-slate-200";
 }
 
+function statToneClass(tone: "booked" | "waiting" | "done" | "open") {
+  if (tone === "booked") return "bg-blue-50 text-blue-700 ring-blue-100";
+  if (tone === "waiting") return "bg-amber-50 text-amber-700 ring-amber-100";
+  if (tone === "done") return "bg-emerald-50 text-emerald-700 ring-emerald-100";
+  return "bg-cyan-50 text-cyan-700 ring-cyan-100";
+}
+
 export function AppointmentsClient({
   clinicId,
   clinicName,
   currentUserId,
+  currentUserRole,
   doctors,
   patients,
   appointments,
@@ -194,6 +214,13 @@ export function AppointmentsClient({
   const router = useRouter();
 
   const [viewMode, setViewMode] = useState<"weekly" | "list">("list");
+  const [selectedDate, setSelectedDate] = useState(todayInputValue());
+  const isDoctorView = currentUserRole === "doctor";
+  const [selectedDoctorId, setSelectedDoctorId] = useState(
+    isDoctorView ? currentUserId : "all",
+  );
+  const [todayPage, setTodayPage] = useState(1);
+  const [upcomingPage, setUpcomingPage] = useState(1);
 
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [showRecallModal, setShowRecallModal] = useState(false);
@@ -210,19 +237,26 @@ export function AppointmentsClient({
   const [priority, setPriority] = useState("normal");
   const [notes, setNotes] = useState("");
 
+  const selectedDateObject = dateFromInput(selectedDate);
   const todayStart = startOfToday();
   const todayEnd = endOfToday();
   const weekDays = getCurrentWeekDays();
 
-  const todayAppointments = appointments.filter((appointment) => {
+  const selectedDayAppointments = appointments.filter((appointment) => {
     const scheduled = new Date(appointment.scheduled_at);
-    return scheduled >= todayStart && scheduled <= todayEnd;
+    const doctorMatches =
+      selectedDoctorId === "all" || appointment.doctor_id === selectedDoctorId;
+    return doctorMatches && isSameDay(scheduled, selectedDateObject);
   });
 
   const upcomingAppointments = appointments.filter((appointment) => {
     const scheduled = new Date(appointment.scheduled_at);
-    return scheduled > todayEnd;
+    const doctorMatches =
+      selectedDoctorId === "all" || appointment.doctor_id === selectedDoctorId;
+    return doctorMatches && scheduled > todayEnd;
   });
+  const todayPageData = getClientPageItems(selectedDayAppointments, todayPage, APPOINTMENTS_PAGE_SIZE);
+  const upcomingPageData = getClientPageItems(upcomingAppointments, upcomingPage, APPOINTMENTS_PAGE_SIZE);
 
   const timeSlots = useMemo(
     () => [
@@ -243,13 +277,43 @@ export function AppointmentsClient({
     ],
     [],
   );
+  const slotRows = timeSlots.map((slot) => {
+    const bookedAppointments = selectedDayAppointments.filter((appointment) => {
+      const appointmentDate = new Date(appointment.scheduled_at);
+      const hour = appointmentDate.getHours().toString().padStart(2, "0");
+      const minute = appointmentDate.getMinutes().toString().padStart(2, "0");
+      return `${hour}:${minute}` === slot.value;
+    });
 
-  function openBookingModal() {
+    return { ...slot, appointments: bookedAppointments };
+  });
+  const bookedCount = selectedDayAppointments.length;
+  const checkedInCount = selectedDayAppointments.filter((appointment) => appointment.status === "checked_in").length;
+  const completedCount = selectedDayAppointments.filter((appointment) => appointment.status === "completed").length;
+  const openSlotCount = slotRows.filter((slot) => slot.appointments.length === 0).length;
+  const selectedDoctorName =
+    selectedDoctorId === "all" ? "All doctors" : getDoctorName(selectedDoctorId, doctors);
+  const bookableDoctors = isDoctorView
+    ? doctors.filter((doctor) => doctor.id === currentUserId)
+    : doctors;
+
+  useEffect(() => {
+    setTodayPage(1);
+    setUpcomingPage(1);
+  }, [selectedDate, selectedDoctorId]);
+
+  function openBookingModal(slotValue = "09:00") {
     setFormError(null);
     setPatientId(patients[0]?.id || "");
-    setDoctorId(doctors[0]?.id || "");
-    setDate(todayInputValue());
-    setTimeSlot("09:00");
+    setDoctorId(
+      isDoctorView
+        ? currentUserId
+        : selectedDoctorId === "all"
+          ? doctors[0]?.id || ""
+          : selectedDoctorId,
+    );
+    setDate(selectedDate);
+    setTimeSlot(slotValue);
     setAppointmentType("regular");
     setPriority("normal");
     setNotes("");
@@ -321,7 +385,7 @@ export function AppointmentsClient({
   return (
     <>
       <div className="premium-shell">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="hidden">
           <div>
             <h1 className="flex items-center gap-2 text-[24px] font-extrabold tracking-tight text-slate-900">
               <span>🗓️</span>
@@ -349,7 +413,7 @@ export function AppointmentsClient({
 
             <button
               type="button"
-              onClick={openBookingModal}
+              onClick={() => openBookingModal()}
               className="btn-teal"
             >
               + Book Appointment
@@ -357,7 +421,7 @@ export function AppointmentsClient({
           </div>
         </div>
 
-        <div className="border-b border-slate-200">
+        <div className="hidden">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
             <button
               type="button"
@@ -385,11 +449,89 @@ export function AppointmentsClient({
           </div>
         </div>
 
-        <p className="text-[13px] text-slate-500">
+        <p className="hidden">
           {viewMode === "weekly"
             ? "Showing weekly calendar mode. Review appointments across the week."
             : "Showing list mode. Use the slot suggestions below for optimal scheduling."}
         </p>
+
+        <section className="dashboard-hero rounded-[24px] p-5 sm:p-6">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-[#0f8f83]">
+                Scheduling command center
+              </p>
+              <h1 className="mt-2 text-[28px] font-extrabold tracking-tight text-slate-950">
+                Appointment Scheduling
+              </h1>
+              <p className="mt-1 text-sm font-medium text-slate-500">
+                {selectedDoctorName} · {bookedCount} booked · {openSlotCount} open slots
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[150px_220px_auto] xl:min-w-[620px]">
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
+                  Date
+                </span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-[#0f8f83]"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
+                  Doctor
+                </span>
+                <select
+                  value={selectedDoctorId}
+                  onChange={(event) => setSelectedDoctorId(event.target.value)}
+                  disabled={isDoctorView}
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none focus:border-[#0f8f83]"
+                >
+                  {!isDoctorView ? <option value="all">All doctors</option> : null}
+                  {doctors.map((doctor) => (
+                    <option key={doctor.id} value={doctor.id}>
+                      Dr. {doctor.full_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="flex items-end gap-2">
+                <button type="button" onClick={() => setShowRecallModal(true)} className="btn-secondary h-11">
+                  Recall
+                </button>
+                <button type="button" onClick={() => setShowWaitlistModal(true)} className="btn-secondary h-11">
+                  Waitlist
+                </button>
+                <button type="button" onClick={() => openBookingModal()} className="btn-teal h-11">
+                  + Book
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            { label: "Booked", value: bookedCount, hint: "selected day", tone: "booked" as const },
+            { label: "Checked in", value: checkedInCount, hint: "waiting in clinic", tone: "waiting" as const },
+            { label: "Completed", value: completedCount, hint: "finished visits", tone: "done" as const },
+            { label: "Open slots", value: openSlotCount, hint: "standard slots", tone: "open" as const },
+          ].map((stat) => (
+            <div key={stat.label} className={`rounded-lg p-4 ring-1 ${statToneClass(stat.tone)}`}>
+              <div className="text-[12px] font-extrabold uppercase tracking-wide opacity-75">
+                {stat.label}
+              </div>
+              <div className="mt-2 text-3xl font-black leading-none">{stat.value}</div>
+              <div className="mt-1 text-[12px] font-semibold opacity-70">{stat.hint}</div>
+            </div>
+          ))}
+        </section>
 
         {error ? (
           <div className="mb-4 rounded border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
@@ -400,7 +542,10 @@ export function AppointmentsClient({
         {viewMode === "weekly" ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
             {weekDays.map((day) => {
-              const dayAppointments = appointmentsForDate(appointments, day.date);
+              const dayAppointments = appointmentsForDate(appointments, day.date).filter(
+                (appointment) =>
+                  selectedDoctorId === "all" || appointment.doctor_id === selectedDoctorId,
+              );
 
               return (
                 <div
@@ -448,9 +593,82 @@ export function AppointmentsClient({
         {viewMode === "list" ? (
           <>
             <section>
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-[18px] font-extrabold text-slate-900">
+                    Day Schedule
+                  </h2>
+                  <p className="text-[13px] font-medium text-slate-500">
+                    Compact view of booked and available times for the selected day.
+                  </p>
+                </div>
+                <button type="button" onClick={() => openBookingModal()} className="btn-secondary btn-sm">
+                  Book selected day
+                </button>
+              </div>
+
+              <div className="premium-panel overflow-hidden">
+                {slotRows.map((slot) => {
+                  const firstAppointment = slot.appointments[0] || null;
+                  const patient = firstAppointment
+                    ? getPatient(firstAppointment.patient_id, patients)
+                    : null;
+
+                  return (
+                    <button
+                      key={slot.value}
+                      type="button"
+                      onClick={() => openBookingModal(slot.value)}
+                      className={`grid w-full grid-cols-[92px_1fr_auto] items-center gap-4 border-b px-5 py-3 text-left transition last:border-b-0 hover:bg-slate-50 ${
+                        firstAppointment
+                          ? "border-slate-100 bg-white"
+                          : "border-slate-100 bg-slate-50/40"
+                      }`}
+                    >
+                      <div>
+                        <div className="text-[14px] font-black text-slate-950">
+                          {slot.label}
+                        </div>
+                        <div className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                          {firstAppointment ? `${firstAppointment.duration_minutes} min` : "Available"}
+                        </div>
+                      </div>
+
+                      {firstAppointment ? (
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-extrabold text-slate-900">
+                            {patient?.full_name || "No patient"}
+                          </div>
+                          <div className="mt-1 truncate text-[12px] font-semibold text-slate-500">
+                            Dr. {getDoctorName(firstAppointment.doctor_id, doctors)}
+                            <span className="mx-1 text-slate-300">·</span>
+                            {prettyText(firstAppointment.type)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="min-w-0 text-sm font-semibold text-slate-500">
+                          No booking in this slot
+                        </div>
+                      )}
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ring-1 ${
+                          firstAppointment
+                            ? statusBadgeClass(firstAppointment.status)
+                            : "bg-white text-slate-500 ring-slate-200"
+                        }`}
+                      >
+                        {firstAppointment ? prettyText(firstAppointment.status) : "Book"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section>
               <h2 className="mb-3 flex items-center gap-2 text-[18px] font-extrabold text-slate-900">
                 <span>🗓️</span>
-                Today — {formatDayHeading(new Date().toISOString())}
+                Selected Day — {formatDayHeading(selectedDateObject.toISOString())}
               </h2>
 
               <div className="premium-panel overflow-hidden">
@@ -468,17 +686,25 @@ export function AppointmentsClient({
                   </thead>
 
                   <tbody className="divide-y divide-slate-200">
-                    {todayAppointments.length === 0 ? (
+                    {selectedDayAppointments.length === 0 ? (
                       <tr>
                         <td
                           colSpan={7}
-                          className="px-3 py-14 text-center text-sm font-semibold text-slate-400"
+                          className="px-3 py-12 text-center"
                         >
-                          No records yet.
+                          <div className="text-sm font-extrabold text-slate-700">
+                            No appointments booked for this selection.
+                          </div>
+                          <div className="mt-1 text-[13px] font-medium text-slate-500">
+                            Use the slot board above or book a walk-in appointment.
+                          </div>
+                          <button type="button" onClick={() => openBookingModal()} className="btn-teal btn-sm mt-4">
+                            Book appointment
+                          </button>
                         </td>
                       </tr>
                     ) : (
-                      todayAppointments.map((appointment) => {
+                      todayPageData.pageItems.map((appointment) => {
                         const patient = getPatient(appointment.patient_id, patients);
 
                         return (
@@ -521,7 +747,13 @@ export function AppointmentsClient({
                             <td className="px-3 py-3">
                               <button
                                 type="button"
-                                className="premium-action"
+                                onClick={() =>
+                                  appointment.patient_id
+                                    ? router.push(`/emr/${appointment.patient_id}`)
+                                    : undefined
+                                }
+                                disabled={!appointment.patient_id}
+                                className="premium-action disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 View
                               </button>
@@ -532,6 +764,13 @@ export function AppointmentsClient({
                     )}
                   </tbody>
                 </table>
+                <ClientPagination
+                  page={todayPageData.currentPage}
+                  pageSize={APPOINTMENTS_PAGE_SIZE}
+                  totalItems={selectedDayAppointments.length}
+                  onPageChange={setTodayPage}
+                  label="appointments"
+                />
               </div>
             </section>
 
@@ -558,13 +797,18 @@ export function AppointmentsClient({
                       <tr>
                         <td
                           colSpan={5}
-                          className="px-3 py-14 text-center text-sm font-semibold text-slate-400"
+                          className="px-3 py-12 text-center"
                         >
-                          No records yet.
+                          <div className="text-sm font-extrabold text-slate-700">
+                            No upcoming appointments found.
+                          </div>
+                          <div className="mt-1 text-[13px] font-medium text-slate-500">
+                            Future bookings for the selected doctor will appear here.
+                          </div>
                         </td>
                       </tr>
                     ) : (
-                      upcomingAppointments.map((appointment) => {
+                      upcomingPageData.pageItems.map((appointment) => {
                         const patient = getPatient(appointment.patient_id, patients);
 
                         return (
@@ -597,12 +841,19 @@ export function AppointmentsClient({
                     )}
                   </tbody>
                 </table>
+                <ClientPagination
+                  page={upcomingPageData.currentPage}
+                  pageSize={APPOINTMENTS_PAGE_SIZE}
+                  totalItems={upcomingAppointments.length}
+                  onPageChange={setUpcomingPage}
+                  label="appointments"
+                />
               </div>
             </section>
           </>
         ) : null}
 
-        <section>
+        <section className="hidden">
           <h2 className="mb-4 flex items-center gap-2 text-[18px] font-extrabold text-slate-900">
             <span>🧰</span>
             Scheduling Tools
@@ -750,10 +1001,11 @@ export function AppointmentsClient({
                   <select
                     value={doctorId}
                     onChange={(event) => setDoctorId(event.target.value)}
+                    disabled={isDoctorView}
                     className="h-11 w-full rounded border border-slate-300 bg-white px-3 text-[14px] outline-none focus:border-[#0f8f83]"
                   >
                     <option value="">Select doctor</option>
-                    {doctors.map((doctor) => (
+                    {bookableDoctors.map((doctor) => (
                       <option key={doctor.id} value={doctor.id}>
                         Dr. {doctor.full_name}
                         {doctor.qualification ? ` — ${doctor.qualification}` : ""}

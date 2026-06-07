@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { generatePreVisitSummary, type PainMapBrief } from "@/lib/claude/summary";
 import { recordUsage, modelToService } from "@/lib/usage";
 import { serverEnv } from "@/lib/env";
+import { featureDisabledResponse, isClinicFeatureEnabled } from "@/lib/features";
 import type { Immunization, Patient, Visit } from "@/types/db";
 
 export const runtime = "nodejs";
@@ -32,6 +33,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Visit not found" }, { status: 404 });
     }
     const v = visit as Visit;
+    if (!v.clinic_id || !(await isClinicFeatureEnabled(v.clinic_id, "pre_visit_summary"))) {
+      return featureDisabledResponse("Pre-visit summary");
+    }
 
     // Skip if a summary already exists and the caller didn't force a refresh.
     if (!body.force && v.pre_visit_summary && v.pre_visit_summary.length > 0) {
