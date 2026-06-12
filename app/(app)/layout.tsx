@@ -7,6 +7,7 @@ import { ClinicAccessBlocked } from "@/components/ClinicAccessBlocked";
 import { ClinicPendingApproval } from "@/components/ClinicPendingApproval";
 import { getClinicSubscriptionState, isClinicAccessBlocked, isClinicPendingApproval } from "@/lib/clinic-subscription";
 import { getClinicFeatureFlags } from "@/lib/features";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export default async function AppLayout({
   children,
@@ -18,6 +19,18 @@ export default async function AppLayout({
     getClinicFeatureFlags(clinic.id),
     getClinicSubscriptionState(clinic.id),
   ]);
+
+  const isMaOrAdmin = member.role === "medical_assistant" || member.role === "admin";
+  const portalEnabled = featureFlags?.patient_portal !== false;
+  let portalRequestCount = 0;
+  if (isMaOrAdmin && portalEnabled) {
+    const { count } = await supabaseAdmin()
+      .from("patient_portal_intake_submissions")
+      .select("*", { count: "exact", head: true })
+      .eq("clinic_id", clinic.id)
+      .eq("status", "submitted");
+    portalRequestCount = count ?? 0;
+  }
   const pending = isClinicPendingApproval(subscription);
   const blocked = isClinicAccessBlocked(subscription);
 
@@ -30,6 +43,7 @@ export default async function AppLayout({
       email={email}
       featureFlags={featureFlags}
       subscription={subscription}
+      portalRequestCount={portalRequestCount}
     >
       {pending ? (
         <ClinicPendingApproval clinicName={clinic.name} />

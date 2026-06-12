@@ -273,6 +273,7 @@ export function AppShell({
   email,
   featureFlags,
   subscription,
+  portalRequestCount = 0,
   children,
 }: {
   userName: string;
@@ -282,6 +283,7 @@ export function AppShell({
   email: string;
   featureFlags?: Record<string, boolean>;
   subscription?: ClinicSubscriptionState;
+  portalRequestCount?: number;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -302,13 +304,25 @@ export function AppShell({
 
   useEffect(() => {
     const savedLanguage = window.localStorage.getItem("hd-interface-language");
-    if (savedLanguage) {
+    if (savedLanguage && isSupportedLanguage(savedLanguage)) {
       setLanguage(savedLanguage);
       setDraftLanguage(savedLanguage);
+      applyLanguagePreference(savedLanguage);
+    } else {
+      applyLanguagePreference("en");
     }
     const savedCollapsed = window.localStorage.getItem("hd-sidebar-collapsed");
     if (savedCollapsed === "true") setSidebarCollapsed(true);
   }, []);
+
+  useEffect(() => {
+    applyLanguagePreference(language);
+    window.dispatchEvent(
+      new CustomEvent("medassist:language-change", {
+        detail: { language },
+      }),
+    );
+  }, [language]);
 
   function toggleSidebar() {
     setSidebarCollapsed((v) => {
@@ -358,6 +372,8 @@ export function AppShell({
   const showLanguageTool = featureFlags?.multilingual !== false;
   const visibleBottomLinks = bottomLinks.filter((item) => featureFlags?.[item.feature] !== false);
   const billingNotice = subscription ? getClinicBillingNotice(subscription) : null;
+  const selectedLanguageChoice =
+    LANGUAGE_CHOICES.find((item) => item.locale === language) || LANGUAGE_CHOICES[0];
 
   useEffect(() => {
     const hrefs = [
@@ -397,7 +413,9 @@ export function AppShell({
     setLanguage(draftLanguage);
     window.localStorage.setItem("hd-interface-language", draftLanguage);
     setLanguageModalOpen(false);
-    push({ title: "Language saved", variant: "success" });
+    const savedChoice =
+      LANGUAGE_CHOICES.find((item) => item.locale === draftLanguage) || LANGUAGE_CHOICES[0];
+    push({ title: `${savedChoice.label} saved`, variant: "success" });
   }
 
   function handleNavIntent(href: string, active: boolean) {
@@ -477,9 +495,21 @@ export function AppShell({
                 )}
               >
                 <span className={cn("flex min-w-0 items-center", sidebarCollapsed ? "justify-center" : "gap-3")}>
-                  {n.icon}
+                  <span className="relative shrink-0">
+                    {n.icon}
+                    {n.href === "/patient-portal-requests" && portalRequestCount > 0 && sidebarCollapsed && (
+                      <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] font-extrabold text-white">
+                        {portalRequestCount > 9 ? "9+" : portalRequestCount}
+                      </span>
+                    )}
+                  </span>
                   {!sidebarCollapsed && <span className="truncate">{n.label}</span>}
                 </span>
+                {n.href === "/patient-portal-requests" && portalRequestCount > 0 && !sidebarCollapsed && !pending && (
+                  <span className="ml-auto rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-extrabold text-white">
+                    {portalRequestCount}
+                  </span>
+                )}
                 {pending ? (
                   <Spinner className={cn("h-3.5 w-3.5 shrink-0 text-cyan-200", sidebarCollapsed && "absolute right-1.5 top-1.5")} />
                 ) : null}
@@ -502,7 +532,14 @@ export function AppShell({
               >
                 <span className={cn("flex min-w-0 items-center", sidebarCollapsed ? "justify-center" : "gap-3")}>
                   <TranslateIcon />
-                  {!sidebarCollapsed && <span className="truncate">Language</span>}
+                  {!sidebarCollapsed && (
+                    <span className="truncate">
+                      Language
+                      <span className="ml-2 text-[11px] font-bold uppercase text-[#7890a2]">
+                        {selectedLanguageChoice.locale}
+                      </span>
+                    </span>
+                  )}
                 </span>
               </button>
             ) : null}
@@ -658,8 +695,8 @@ export function AppShell({
  
   return (
     <div className="app-bg min-h-screen bg-slate-50 dark:bg-ink-950">
-      {/* Mobile top bar */}
-      <header className="no-print sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/85 px-4 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/85 md:hidden">
+      {/* Mobile top bar — visible below lg (1024px) */}
+      <header className="no-print sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/85 px-4 backdrop-blur-md dark:border-ink-800 dark:bg-ink-950/85 lg:hidden">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setDrawerOpen(true)}
@@ -685,14 +722,14 @@ export function AppShell({
         </div>
       </header>
  
-      {/* Mobile drawer */}
+      {/* Mobile drawer — visible below lg (1024px) */}
       {drawerOpen ? (
-        <div className="no-print fixed inset-0 z-40 md:hidden">
+        <div className="no-print fixed inset-0 z-40 lg:hidden">
           <div
             className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm animate-fadeIn"
             onClick={() => setDrawerOpen(false)}
           />
-          <aside className="relative ml-0 flex h-full w-[310px] max-w-[86vw] flex-col bg-[#062b3d] shadow-deep animate-slideUp">
+          <aside className="relative ml-0 flex h-full max-w-[86vw] flex-col bg-[#062b3d] shadow-deep animate-slideUp" style={{ width: "var(--app-sidebar-width)" }}>
             <button
               onClick={() => setDrawerOpen(false)}
               className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"
@@ -707,20 +744,25 @@ export function AppShell({
         </div>
       ) : null}
  
-      {/* Desktop sidebar */}
-      <aside className={cn(
-        "no-print fixed left-0 top-0 z-20 hidden h-screen flex-col bg-[#062b3d] transition-all duration-300 ease-in-out md:flex",
-        sidebarCollapsed ? "w-16" : "w-[288px]"
-      )}>
+      {/* Desktop sidebar — visible from lg (1024px) up; width driven by --app-sidebar-width */}
+      <aside
+        className={cn(
+          "no-print fixed left-0 top-0 z-20 hidden h-screen flex-col bg-[#062b3d] transition-all duration-300 ease-in-out lg:flex",
+          sidebarCollapsed ? "w-16" : undefined,
+        )}
+        style={sidebarCollapsed ? undefined : { width: "var(--app-sidebar-width)" }}
+      >
         {sidebarBody}
       </aside>
 
-      {/* Main content */}
+      {/* Main content — offset by sidebar width on lg+ (1024px); no offset on mobile */}
       <main className={cn(
         "transition-all duration-300 ease-in-out",
-        sidebarCollapsed ? "md:pl-16" : "md:pl-[288px]"
+        sidebarCollapsed
+          ? "lg:pl-16"
+          : "lg:pl-[var(--app-sidebar-width)]",
       )}>
-        <div className="mx-auto w-full max-w-[1460px] px-4 pb-24 pt-7 sm:px-8 lg:px-12">
+        <div className="mx-auto w-full max-w-[1460px] px-4 pb-20 pt-4 sm:px-6 sm:pt-6 lg:px-10 lg:pb-24 lg:pt-7 xl:px-12">
           {billingNotice ? (
             <div
               className={cn(
@@ -760,6 +802,18 @@ export function AppShell({
   );
 }
 
+function isSupportedLanguage(language: string) {
+  return LANGUAGE_CHOICES.some((item) => item.locale === language);
+}
+
+function applyLanguagePreference(language: string) {
+  const locale = isSupportedLanguage(language) ? language : "en";
+  const root = document.documentElement;
+  root.lang = locale;
+  root.dir = locale === "ar" ? "rtl" : "ltr";
+  root.dataset.interfaceLanguage = locale;
+}
+
 function LanguageSettingsModal({
   selectedLanguage,
   onSelect,
@@ -777,12 +831,12 @@ function LanguageSettingsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="language-settings-title"
-        className="w-full max-w-[600px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl"
+        className="w-full max-w-[600px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl dark:border-ink-700 dark:bg-ink-900"
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-ink-700">
           <h2
             id="language-settings-title"
-            className="flex items-center gap-2 text-[17px] font-extrabold text-slate-900"
+            className="flex items-center gap-2 text-[17px] font-extrabold text-slate-900 dark:text-ink-100"
           >
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-100 text-[12px] font-black text-sky-600">
               A
@@ -792,7 +846,7 @@ function LanguageSettingsModal({
           <button
             type="button"
             onClick={onCancel}
-            className="flex h-8 w-8 items-center justify-center rounded text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            className="flex h-8 w-8 items-center justify-center rounded text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
             aria-label="Close language settings"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
@@ -802,7 +856,7 @@ function LanguageSettingsModal({
         </div>
 
         <div className="px-6 py-9">
-          <p className="mb-4 text-sm text-slate-500">
+          <p className="mb-4 text-sm text-slate-500 dark:text-ink-400">
             Select interface language. Patient-facing forms will also reflect this language.
           </p>
 
@@ -815,11 +869,12 @@ function LanguageSettingsModal({
                   key={item.locale}
                   type="button"
                   onClick={() => onSelect(item.locale)}
+                  aria-pressed={active}
                   className={cn(
-                    "flex h-12 items-center justify-center gap-2 rounded-md border px-3 text-[15px] font-semibold text-slate-800 transition hover:border-cyan-400 hover:bg-cyan-50",
+                    "flex h-12 items-center justify-center gap-2 rounded-md border px-3 text-[15px] font-semibold text-slate-800 transition hover:border-cyan-400 hover:bg-cyan-50 dark:text-ink-200 dark:hover:border-cyan-600 dark:hover:bg-cyan-900/20",
                     active
-                      ? "border-cyan-500 bg-cyan-50 text-teal-700 shadow-[0_0_0_1px_rgba(6,182,212,0.35)]"
-                      : "border-slate-200 bg-white",
+                      ? "border-cyan-500 bg-cyan-50 text-teal-700 shadow-[0_0_0_1px_rgba(6,182,212,0.35)] dark:border-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300"
+                      : "border-slate-200 bg-white dark:border-ink-700 dark:bg-ink-800",
                   )}
                 >
                   <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-600">
@@ -831,16 +886,16 @@ function LanguageSettingsModal({
             })}
           </div>
 
-          <p className="mt-4 text-sm text-slate-500">
+          <p className="mt-4 text-sm text-slate-500 dark:text-ink-400">
             30+ languages supported including French, German, Portuguese, Russian, and more.
           </p>
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 dark:border-ink-700 dark:bg-ink-900/60">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-600 transition hover:bg-slate-100"
+            className="rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-600 transition hover:bg-slate-100 dark:border-ink-600 dark:bg-ink-800 dark:text-ink-300 dark:hover:bg-ink-700"
           >
             Cancel
           </button>

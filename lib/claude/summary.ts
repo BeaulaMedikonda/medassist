@@ -10,8 +10,8 @@ function client() {
   return cachedClient;
 }
 
-// Use the env-configured default model (Sonnet 4.6 currently). The summary is
-// short and infrequent; the quality bump matters more than the cost.
+// Pre-visit summaries use their own lower-cost model so EMR extraction can
+// keep the higher-reasoning default model.
 
 export const SUMMARY_SYSTEM_PROMPT = `You are a pre-visit briefer for an Indian OPD doctor about to see a patient.
 
@@ -77,7 +77,7 @@ export async function generatePreVisitSummary(input: SummaryInput): Promise<{
   );
 
   const response = await client().messages.create({
-    model: serverEnv.anthropicDefaultModel,
+    model: serverEnv.anthropicSummaryModel,
     max_tokens: 600,
     temperature: 0.2,
     system: [
@@ -105,7 +105,7 @@ export async function generatePreVisitSummary(input: SummaryInput): Promise<{
   return {
     summary: textBlock.text.trim(),
     raw: response,
-    modelUsed: serverEnv.anthropicDefaultModel,
+    modelUsed: serverEnv.anthropicSummaryModel,
     usage: {
       input_tokens: u?.input_tokens ?? null,
       output_tokens: u?.output_tokens ?? null,

@@ -3,7 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth";
 import { getDoctorAssignedScope } from "@/lib/doctor-access";
 import { EmrListClient } from "./EmrListClient";
-import type { Patient, Prescription } from "@/types/db";
+import type { LoincCodeDetail, Patient, Prescription } from "@/types/db";
  
 export const dynamic = "force-dynamic";
  
@@ -43,6 +43,7 @@ export type PatientVisitItem = {
   diagnosis: string | null;
   chief_complaints: string | null;
   investigations_ordered: string | null;
+  loinc_code_details: LoincCodeDetail[];
   has_vitals: boolean;
 };
  
@@ -53,20 +54,12 @@ export default async function EmrListPage({
 }) {
   noStore();
  
-  const { member, clinic } = await requireMember();
-  const supabase = await supabaseServer();
-  const { data: referralDoctorsRaw } = await supabase
-    .from("doctors")
-    .select("id, full_name")
-    .eq("clinic_id", clinic.id)
-    .eq("role", "doctor")
-    .order("full_name");
-  const referralDoctors =
-    referralDoctorsRaw && referralDoctorsRaw.length > 0
-      ? (referralDoctorsRaw as Array<{ id: string; full_name: string }>)
-      : [{ id: member.id, full_name: member.full_name }];
- 
-  const resolvedSearchParams = await searchParams;
+  const [authContext, supabase, resolvedSearchParams] = await Promise.all([
+    requireMember(),
+    supabaseServer(),
+    searchParams,
+  ]);
+  const { member, clinic } = authContext;
   const q = (resolvedSearchParams.q || "").trim();
  
   const filter: PatientFilter =
@@ -79,10 +72,22 @@ export default async function EmrListPage({
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
  
-  const doctorScope =
+  const [referralDoctorsResult, doctorScope] = await Promise.all([
+    supabase
+      .from("doctors")
+      .select("id, full_name")
+      .eq("clinic_id", clinic.id)
+      .eq("role", "doctor")
+      .order("full_name"),
     member.role === "doctor"
-      ? await getDoctorAssignedScope(supabase, member.id, clinic.id)
-      : null;
+      ? getDoctorAssignedScope(supabase, member.id, clinic.id)
+      : Promise.resolve(null),
+  ]);
+  const referralDoctorsRaw = referralDoctorsResult.data;
+  const referralDoctors =
+    referralDoctorsRaw && referralDoctorsRaw.length > 0
+      ? (referralDoctorsRaw as Array<{ id: string; full_name: string }>)
+      : [{ id: member.id, full_name: member.full_name }];
   const scopedPatientIds = doctorScope ? Array.from(doctorScope.patientIds) : null;
  
   if (scopedPatientIds && scopedPatientIds.length === 0) {
@@ -123,9 +128,17 @@ export default async function EmrListPage({
   }
  
   if (q) {
-    patientQuery = patientQuery.or(
-      `full_name.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%,emr_number.ilike.%${q}%,abha_id.ilike.%${q}%,abha_address.ilike.%${q}%`,
-    );
+    let searchFields = ["full_name", "first_name", "last_name"];
+
+    if (isPhoneLikeQuery(q)) {
+      searchFields = ["phone"];
+    } else if (isEmailLikeQuery(q)) {
+      searchFields = ["email"];
+    } else if (isEmrLikeQuery(q)) {
+      searchFields = ["emr_number"];
+    }
+
+    patientQuery = patientQuery.or(searchFields.map((field) => `${field}.ilike.%${q}%`).join(","));
   }
  
   if (filter === "today") {
@@ -137,8 +150,6 @@ export default async function EmrListPage({
       .not("chronic_conditions", "is", null)
       .neq("chronic_conditions", "");
   }
- 
-  const { data: patients, error } = await patientQuery;
  
   let allCountQuery = supabase
     .from("patients")
@@ -168,12 +179,14 @@ export default async function EmrListPage({
     chronicCountQuery = chronicCountQuery.in("id", scopedPatientIds);
   }
  
-  const [allCount, todayCount, visitedCount, chronicCount] = await Promise.all([
+  const [patientResult, allCount, todayCount, visitedCount, chronicCount] = await Promise.all([
+    patientQuery,
     allCountQuery,
     todayCountQuery,
     visitedCountQuery,
     chronicCountQuery,
   ]);
+  const { data: patients, error } = patientResult;
  
   const patientIds = (patients || []).map((p) => (p as Patient).id);
   const latestVisit: Record<string, LatestVisit> = {};
@@ -184,7 +197,7 @@ export default async function EmrListPage({
   if (patientIds.length > 0) {
     let latestVisitQuery = supabase
       .from("visits")
-      .select("id, patient_id, confirmed_diagnosis, provisional_diagnosis, visit_date, status, bp_systolic, bp_diastolic, pulse, temperature_f, spo2, weight_kg, chief_complaints, investigations_ordered, prescription, advice, follow_up_date, follow_up_notes")
+      .select("id, patient_id, confirmed_diagnosis, provisional_diagnosis, visit_date, status, bp_systolic, bp_diastolic, pulse, temperature_f, spo2, weight_kg, chief_complaints, investigations_ordered, loinc_code_details, prescription, advice, follow_up_date, follow_up_notes")
       .in("patient_id", patientIds)
       .order("visit_date", { ascending: false });
  
@@ -247,7 +260,10 @@ export default async function EmrListPage({
         if (!latestVitalsVisit[v.patient_id] && hasVitals(v)) {
           latestVitalsVisit[v.patient_id] = mapped;
         }
- 
+
+        const loincCodeDetails =
+          (v as typeof v & { loinc_code_details?: LoincCodeDetail[] | null })
+            .loinc_code_details || [];
         patientVisits[v.patient_id] = patientVisits[v.patient_id] || [];
         patientVisits[v.patient_id].push({
           visit_id: v.id,
@@ -256,6 +272,7 @@ export default async function EmrListPage({
           diagnosis: v.confirmed_diagnosis || v.provisional_diagnosis || null,
           chief_complaints: v.chief_complaints,
           investigations_ordered: v.investigations_ordered,
+          loinc_code_details: loincCodeDetails,
           has_vitals: hasVitals(v),
         });
       }
@@ -325,6 +342,19 @@ function hasVitals(visit: {
     visit.spo2 != null ||
     visit.weight_kg != null
   );
+}
+
+function isPhoneLikeQuery(rawQuery: string) {
+  return /^[+\d\s()-]+$/.test(rawQuery.trim());
+}
+
+function isEmailLikeQuery(rawQuery: string) {
+  return rawQuery.includes("@");
+}
+
+function isEmrLikeQuery(rawQuery: string) {
+  const query = rawQuery.trim().toLowerCase();
+  return query.includes("emr") || query.includes("hd-") || query.includes("clinic") || /-\d/.test(query);
 }
  
  

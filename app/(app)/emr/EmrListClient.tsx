@@ -2,7 +2,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import type { Patient } from "@/types/db";
 import type { LatestVisit, PatientFilter, PatientSummary, PatientVisitItem } from "./page";
@@ -38,10 +38,10 @@ type Props = {
 };
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "—";
+  if (!value) return "-";
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "-";
 
   return date.toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -51,7 +51,7 @@ function formatDate(value: string | null | undefined) {
 }
 
 function displaySex(value: string | null | undefined) {
-  if (!value) return "—";
+  if (!value) return "-";
   if (value === "M") return "male";
   if (value === "F") return "female";
   if (value === "O") return "other";
@@ -59,12 +59,12 @@ function displaySex(value: string | null | undefined) {
 }
 
 function ageSex(patient: Patient) {
-  const age = patient.age != null ? `${patient.age}y` : "—";
+  const age = patient.age != null ? `${patient.age}y` : "-";
   const sex = displaySex(patient.sex);
 
-  if (age === "—" && sex === "—") return "—";
-  if (age !== "—" && sex !== "—") return `${age} / ${sex}`;
-  if (age !== "—") return age;
+  if (age === "-" && sex === "-") return "-";
+  if (age !== "-" && sex !== "-") return `${age} / ${sex}`;
+  if (age !== "-") return age;
 
   return sex;
 }
@@ -84,13 +84,13 @@ function modalAgeSex(patient: Patient) {
     parts.push(patient.blood_group);
   }
 
-  return parts.length > 0 ? parts.join(" · ") : "—";
+  return parts.length > 0 ? parts.join(" / ") : "-";
 }
 
 function formatBirthdate(value: string | null | undefined) {
-  if (!value) return "â€”";
+  if (!value) return "-";
   const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "â€”";
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
@@ -107,7 +107,7 @@ function patientAddress(patient: Patient) {
     patient.country,
   ]
     .filter(Boolean)
-    .join(", ") || "â€”";
+    .join(", ") || "-";
 }
 
 function formatPatientBirthdate(value: string | null | undefined) {
@@ -134,11 +134,68 @@ function patientAddressText(patient: Patient) {
 }
 
 function conditionText(patient: Patient) {
-  return patient.chronic_conditions?.trim() || "—";
+  return patient.chronic_conditions?.trim() || "-";
 }
 
 function getInitial(patient: Patient) {
   return patient.full_name?.trim()?.charAt(0)?.toUpperCase() || "P";
+}
+
+function isPhoneLikeQuery(rawQuery: string) {
+  return /^[+\d\s()-]+$/.test(rawQuery.trim());
+}
+
+function isEmailLikeQuery(rawQuery: string) {
+  return rawQuery.includes("@");
+}
+
+function isEmrLikeQuery(rawQuery: string) {
+  const query = rawQuery.trim().toLowerCase();
+  return query.includes("emr") || query.includes("hd-") || query.includes("clinic") || /-\d/.test(query);
+}
+
+function patientMatchesQuery(patient: Patient, rawQuery: string) {
+  const needle = rawQuery.trim().toLowerCase();
+  if (!needle) return true;
+
+  const nameFields = [
+    patient.full_name,
+    patient.first_name,
+    patient.last_name,
+  ];
+
+  if (isPhoneLikeQuery(rawQuery)) {
+    return patient.phone?.toLowerCase().includes(needle) || false;
+  }
+
+  if (isEmailLikeQuery(rawQuery)) {
+    return patient.email?.toLowerCase().includes(needle) || false;
+  }
+
+  if (isEmrLikeQuery(rawQuery)) {
+    return patient.emr_number?.toLowerCase().includes(needle) || false;
+  }
+
+  return nameFields.some((value) => value?.toLowerCase().includes(needle));
+}
+
+function searchRank(patient: Patient, rawQuery: string) {
+  const needle = rawQuery.trim().toLowerCase();
+  if (!needle) return 0;
+
+  const name = patient.full_name?.toLowerCase() || "";
+  const first = patient.first_name?.toLowerCase() || "";
+  const last = patient.last_name?.toLowerCase() || "";
+  const emr = patient.emr_number?.toLowerCase() || "";
+  const email = patient.email?.toLowerCase() || "";
+
+  if (name === needle || first === needle || last === needle) return 0;
+  if (name.startsWith(needle) || first.startsWith(needle) || last.startsWith(needle)) return 1;
+  if (name.includes(needle) || first.includes(needle) || last.includes(needle)) return 2;
+  if (emr.startsWith(needle)) return 3;
+  if (emr.includes(needle)) return 4;
+  if (email.includes(needle)) return 5;
+  return 6;
 }
 
 export function EmrListClient({
@@ -173,6 +230,21 @@ export function EmrListClient({
   const [referralBusy, setReferralBusy] = useState(false);
   const [referralError, setReferralError] = useState<string | null>(null);
   const [referralSaved, setReferralSaved] = useState(false);
+  const currentDoctor = useMemo(
+    () => referralDoctors.find((doctor) => doctor.id === currentUserId) || null,
+    [referralDoctors, currentUserId],
+  );
+  const referringDoctorName = currentDoctor?.full_name.trim().toLowerCase() || "";
+  const referredToDoctors = useMemo(
+    () =>
+      referralDoctors.filter(
+        (doctor) =>
+          doctor.id !== currentUserId &&
+          doctor.id !== referringDoctorId &&
+          doctor.full_name.trim().toLowerCase() !== referringDoctorName,
+      ),
+    [currentUserId, referralDoctors, referringDoctorId, referringDoctorName],
+  );
 
   function buildUrl(nextFilter: PatientFilter, nextQuery = query) {
     const params = new URLSearchParams();
@@ -228,6 +300,13 @@ export function EmrListClient({
       setReferralError("Please complete all required fields.");
       return;
     }
+    if (
+      referringDoctorId === referredToDoctorId ||
+      referredToName.trim().toLowerCase() === referringDoctorName
+    ) {
+      setReferralError("Referring and referred doctors must be different.");
+      return;
+    }
 
     setReferralBusy(true);
     const res = await fetch("/api/referrals/create", {
@@ -270,11 +349,22 @@ export function EmrListClient({
     { key: "today", label: "Visited Today", count: counts.today },
     { key: "chronic", label: "Chronic Conditions", count: counts.chronic },
   ];
-  const pageData = getClientPageItems(patients, page, PATIENTS_PAGE_SIZE);
+  const visiblePatients = useMemo(
+    () =>
+      patients
+        .filter((patient) => patientMatchesQuery(patient, query))
+        .toSorted((a, b) => searchRank(a, query) - searchRank(b, query)),
+    [patients, query],
+  );
+  const pageData = getClientPageItems(visiblePatients, page, PATIENTS_PAGE_SIZE);
 
   useEffect(() => {
     setPage(1);
-  }, [initialFilter, initialQuery, patients.length]);
+  }, [initialFilter, initialQuery, patients.length, query]);
+
+  useEffect(() => {
+    setQuery(initialQuery);
+  }, [initialQuery]);
 
   return (
     <>
@@ -313,13 +403,17 @@ export function EmrListClient({
             ))}
           </div>
 
-          <form onSubmit={onSearch} className="w-full lg:w-[320px]">
+          <form onSubmit={onSearch} className="flex w-full gap-2 lg:w-[420px]">
             <input
+              type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search patient or EMR ID..."
-              className="input-base h-11"
+              className="input-base h-11 min-w-0 flex-1"
             />
+            <button type="submit" className="btn-teal h-11 shrink-0 px-4">
+              Search
+            </button>
           </form>
         </div>
 
@@ -329,7 +423,7 @@ export function EmrListClient({
           </div>
         ) : null}
 
-        <div className="premium-panel overflow-hidden">
+        <div className="premium-panel overflow-x-auto">
           <table className="premium-table">
             <thead>
               <tr>
@@ -344,7 +438,7 @@ export function EmrListClient({
             </thead>
 
             <tbody>
-              {patients.length === 0 ? (
+              {visiblePatients.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
@@ -373,14 +467,14 @@ export function EmrListClient({
                               {patient.full_name}
                             </div>
                             <div className="mt-0.5 truncate text-[11px] text-[#64748b]">
-                              {patient.phone || "—"}
+                              {patient.phone || "-"}
                             </div>
                           </div>
                         </div>
                       </td>
 
                       <td className="align-top font-mono text-[12px] text-[#64748b]">
-                        {patient.emr_number || "—"}
+                        {patient.emr_number || "-"}
                       </td>
 
                       <td className="align-top text-[#334155]">
@@ -388,12 +482,12 @@ export function EmrListClient({
                       </td>
 
                       <td className="align-top text-[#334155]">
-                        {patient.blood_group || "—"}
+                        {patient.blood_group || "-"}
                       </td>
 
                       <td className="align-top">
-                        {conditionText(patient) === "—" ? (
-                          <span className="text-slate-400">—</span>
+                        {conditionText(patient) === "-" ? (
+                          <span className="text-slate-400">-</span>
                         ) : (
                           <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
                             {conditionText(patient)}
@@ -426,7 +520,7 @@ export function EmrListClient({
           <ClientPagination
             page={pageData.currentPage}
             pageSize={PATIENTS_PAGE_SIZE}
-            totalItems={patients.length}
+            totalItems={visiblePatients.length}
             onPageChange={setPage}
             label="patients"
           />
@@ -445,9 +539,12 @@ export function EmrListClient({
               <button
                 type="button"
                 onClick={closePatientModal}
-                className="text-xl leading-none text-slate-400 hover:text-slate-700"
+                aria-label="Close patient profile"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-ink-800 dark:hover:text-ink-200"
               >
-                ×
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M5 5l10 10M15 5L5 15" />
+                </svg>
               </button>
             </div>
 
@@ -463,11 +560,11 @@ export function EmrListClient({
                   </h3>
 
                   <p className="mt-2 text-[12px] font-medium text-slate-500">
-                    {selectedPatient.emr_number || "—"} · {modalAgeSex(selectedPatient)}
+                    {selectedPatient.emr_number || "-"} / {modalAgeSex(selectedPatient)}
                   </p>
 
                   <p className="mt-3 text-[12px] text-slate-500">
-                    {selectedPatient.phone || "—"}
+                    {selectedPatient.phone || "-"}
                   </p>
                 </div>
               </div>
@@ -521,36 +618,36 @@ export function EmrListClient({
 
               {activeTab === "overview" ? (
                 <div className="mt-5 grid grid-cols-1 gap-x-12 gap-y-4 text-[13px] sm:grid-cols-2">
-                  <ProfileField label="First Name" value={selectedPatient.first_name || "â€”"} />
-                  <ProfileField label="Last Name" value={selectedPatient.last_name || "â€”"} />
+                  <ProfileField label="First Name" value={selectedPatient.first_name || "-"} />
+                  <ProfileField label="Last Name" value={selectedPatient.last_name || "-"} />
                   <ProfileField label="Birthdate" value={formatPatientBirthdate(selectedPatient.birthdate)} />
                   <ProfileField
                     label="Height"
-                    value={selectedPatient.height_cm ? `${selectedPatient.height_cm} cm` : "â€”"}
+                    value={selectedPatient.height_cm ? `${selectedPatient.height_cm} cm` : "-"}
                   />
-                  <ProfileField label="Phone" value={selectedPatient.phone || "â€”"} />
-                  <ProfileField label="Email" value={selectedPatient.email || "â€”"} />
+                  <ProfileField label="Phone" value={selectedPatient.phone || "-"} />
+                  <ProfileField label="Email" value={selectedPatient.email || "-"} />
                   <ProfileField
                     label="Emergency Contact"
-                    value={selectedPatient.emergency_contact || "â€”"}
+                    value={selectedPatient.emergency_contact || "-"}
                   />
                   <ProfileField label="Address" value={patientAddressText(selectedPatient)} />
-                  <ProfileField label="ABHA ID" value={selectedPatient.abha_id || "â€”"} />
+                  <ProfileField label="ABHA ID" value={selectedPatient.abha_id || "-"} />
                   <ProfileField
                     label="ABHA Address"
-                    value={selectedPatient.abha_address || "â€”"}
+                    value={selectedPatient.abha_address || "-"}
                   />
                   <div>
                     <p className="text-[12px] font-medium text-slate-500">Blood Group</p>
                     <p className="mt-1 font-extrabold text-slate-900">
-                      {selectedPatient.blood_group || "—"}
+                      {selectedPatient.blood_group || "-"}
                     </p>
                   </div>
 
                   <div>
                     <p className="text-[12px] font-medium text-slate-500">Allergies</p>
                     <p className="mt-1 font-extrabold text-slate-900">
-                      {selectedPatient.known_allergies || "—"}
+                      {selectedPatient.known_allergies || "-"}
                     </p>
                   </div>
 
@@ -559,7 +656,7 @@ export function EmrListClient({
                       Chronic Conditions
                     </p>
                     <p className="mt-1 font-extrabold text-slate-900">
-                      {selectedPatient.chronic_conditions || "—"}
+                      {selectedPatient.chronic_conditions || "-"}
                     </p>
                   </div>
 
@@ -661,10 +758,12 @@ export function EmrListClient({
               <button
                 type="button"
                 onClick={() => setReferralOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
                 aria-label="Close referral"
               >
-                x
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M5 5l10 10M15 5L5 15" />
+                </svg>
               </button>
             </div>
 
@@ -675,14 +774,13 @@ export function EmrListClient({
                 </span>
                 <select
                   value={referringDoctorId}
-                  onChange={(event) => setReferringDoctorId(event.target.value)}
-                  className="input-base h-11"
+                  onChange={() => undefined}
+                  disabled
+                  className="input-base h-11 bg-slate-50 text-slate-600"
                 >
-                  {referralDoctors.map((doctor) => (
-                    <option key={doctor.id} value={doctor.id}>
-                      {doctor.full_name}
-                    </option>
-                  ))}
+                  <option value={currentUserId}>
+                    {currentDoctor?.full_name || "Current doctor"}
+                  </option>
                 </select>
               </label>
 
@@ -694,14 +792,14 @@ export function EmrListClient({
                   value={referredToDoctorId}
                   onChange={(event) => {
                     const doctorId = event.target.value;
-                    const doctor = referralDoctors.find((item) => item.id === doctorId);
+                    const doctor = referredToDoctors.find((item) => item.id === doctorId);
                     setReferredToDoctorId(doctorId);
                     setReferredToName(doctor?.full_name || "");
                   }}
                   className="input-base h-11"
                 >
                   <option value="">Select doctor...</option>
-                  {referralDoctors.map((doctor) => (
+                  {referredToDoctors.map((doctor) => (
                     <option key={doctor.id} value={doctor.id}>
                       {doctor.full_name}
                     </option>
@@ -858,7 +956,7 @@ function QuickActionPanel({
                 <p className="mt-1 text-slate-600">
                   {[medicine.dose, medicine.frequency, medicine.duration, medicine.route]
                     .filter(Boolean)
-                    .join(" · ") || "-"}
+                    .join(" / ") || "-"}
                 </p>
                 {medicine.instructions ? (
                   <p className="mt-1 text-slate-500">{medicine.instructions}</p>
@@ -962,7 +1060,10 @@ function PatientVisitsPanel({ visits }: { visits: PatientVisitItem[] }) {
 }
 
 function PatientLabsPanel({ visits }: { visits: PatientVisitItem[] }) {
-  const labVisits = visits.filter((visit) => visit.investigations_ordered?.trim());
+  const labVisits = visits.filter(
+    (visit) =>
+      visit.investigations_ordered?.trim() || visit.loinc_code_details.length > 0,
+  );
 
   if (labVisits.length === 0) {
     return (
@@ -988,12 +1089,22 @@ function PatientLabsPanel({ visits }: { visits: PatientVisitItem[] }) {
             </span>
           </div>
           <div className="whitespace-pre-wrap text-[13px] font-semibold leading-relaxed text-slate-800">
-            {visit.investigations_ordered}
+            {[
+              visit.investigations_ordered?.trim(),
+              ...visit.loinc_code_details.map(formatLoincDetail),
+            ]
+              .filter(Boolean)
+              .join("\n")}
           </div>
         </article>
       ))}
     </div>
   );
+}
+
+function formatLoincDetail(detail: PatientVisitItem["loinc_code_details"][number]) {
+  const testName = detail.test_name || detail.loinc_name || detail.loinc_code || "Lab test";
+  return detail.ucum_name ? `${testName} (${detail.ucum_name})` : testName;
 }
 
 function PatientSummaryPanel({

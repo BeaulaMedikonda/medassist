@@ -1,5 +1,5 @@
 import { requirePatient } from "@/lib/auth-patient";
-import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { PatientPortalShell } from "@/components/patient/PatientPortalShell";
 import { EmptyState, PageHeader } from "@/components/patient/PatientCards";
 import {
@@ -10,9 +10,9 @@ import {
 } from "@/components/ui/ServerPagination";
 import { formatDate } from "@/lib/utils";
 import type { Medicine, Prescription, Visit } from "@/types/db";
-
+ 
 export const dynamic = "force-dynamic";
-
+ 
 export default async function PatientReportsPage({
   searchParams,
 }: {
@@ -20,22 +20,22 @@ export default async function PatientReportsPage({
 }) {
   const params = await searchParams;
   const { patient, clinic } = await requirePatient();
-  const supabase = await supabaseServer();
-
+  const supabase = supabaseAdmin();
+ 
   const { data } = await supabase
     .from("visits")
     .select("id, visit_date, investigations_ordered, prescription, advice, follow_up_date")
     .eq("patient_id", patient.id)
     .order("visit_date", { ascending: false })
     .limit(50);
-
+ 
   const reports = ((data || []) as Visit[]).filter((visit) => {
     const meds = ((visit.prescription as Prescription | null)?.medicines || []) as Medicine[];
     return Boolean(visit.investigations_ordered || visit.advice || meds.length);
   });
   const page = getPageFromParams(params);
   const pageData = paginateServerItems(reports, page, 10);
-
+ 
   return (
     <PatientPortalShell patient={patient} clinic={clinic}>
       <PageHeader
@@ -43,14 +43,14 @@ export default async function PatientReportsPage({
         title="Prescriptions & Reports"
         description="Prescription, investigation, and advice records generated from clinic visit summaries."
       />
-
+ 
       {reports.length === 0 ? (
         <EmptyState label="reports or prescriptions" />
       ) : (
         <div className="space-y-4">
           {pageData.pageItems.map((visit) => {
             const medicines = ((visit.prescription as Prescription | null)?.medicines || []) as Medicine[];
-
+ 
             return (
               <article key={visit.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -65,13 +65,13 @@ export default async function PatientReportsPage({
                     ) : null}
                   </div>
                 </div>
-
+ 
                 {visit.investigations_ordered ? (
                   <ReportBlock title="Investigations" value={visit.investigations_ordered} />
                 ) : null}
-
+ 
                 {visit.advice ? <ReportBlock title="Advice" value={visit.advice} /> : null}
-
+ 
                 {medicines.length > 0 ? (
                   <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
                     <div className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
@@ -105,7 +105,7 @@ export default async function PatientReportsPage({
     </PatientPortalShell>
   );
 }
-
+ 
 function ReportBlock({ title, value }: { title: string; value: string }) {
   return (
     <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">

@@ -1142,24 +1142,6 @@ export function ReviewScreen({
 
             </div>
 
-            <Group id="immunization" title="Immunization" subtitle="Printed with this prescription">
-
-              <ImmunizationQuickEntry
-
-                records={visitImmunizations}
-
-                includedIds={includedImmunizationIds}
-
-                form={immunizationForm}
-
-                onChange={setImmunizationForm}
-
-                onToggleIncluded={toggleImmunizationIncluded}
-
-              />
-
-            </Group>
-
 
 
             <Group id="plan" title="Plan">
@@ -1940,6 +1922,117 @@ function UcumUnitInput({
           )}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function PrescriptionPrintPreview({
+  patient,
+  fields,
+  icdDetails,
+  loincDetails,
+}: {
+  patient: Patient;
+  fields: EditableFields;
+  icdDetails: IcdDetailDraft[];
+  loincDetails: LoincDetailDraft[];
+}) {
+  const vitals = [
+    fields.bp_systolic && fields.bp_diastolic
+      ? `BP ${fields.bp_systolic}/${fields.bp_diastolic} mmHg`
+      : null,
+    fields.pulse ? `Pulse ${fields.pulse}` : null,
+    fields.temperature_f ? `Temp ${fields.temperature_f} F` : null,
+    fields.spo2 ? `SpO2 ${fields.spo2}%` : null,
+    fields.weight_kg ? `Wt ${fields.weight_kg} kg` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const icdCodes = fields.icd_codes
+    .split(/[,\s]+/)
+    .map((code) => code.trim())
+    .filter(Boolean);
+  const icdLine = icdCodes
+    .map((code) => {
+      const detail = icdDetails.find(
+        (item) => item.code.trim().toUpperCase() === code.trim().toUpperCase(),
+      );
+      return detail?.name ? `${code} - ${detail.name}` : code;
+    })
+    .join(", ");
+  const loincLine = loincDetails
+    .map((detail) =>
+      [
+        detail.test_name,
+        detail.loinc_code ? `LOINC ${detail.loinc_code}` : null,
+        detail.loinc_name,
+        detail.ucum_unit ? `UCUM ${detail.ucum_unit}` : null,
+        detail.ucum_name,
+      ]
+        .filter(Boolean)
+        .join(" / "),
+    )
+    .filter(Boolean)
+    .join("\n");
+  const patientMedicalLine = [
+    patient.blood_group ? `Blood group ${patient.blood_group}` : null,
+    patient.height_cm ? `Height ${patient.height_cm} cm` : null,
+    patient.chronic_conditions ? `Chronic conditions: ${patient.chronic_conditions}` : null,
+    patient.emergency_contact ? `Emergency contact: ${patient.emergency_contact}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const rows = [
+    { label: "Patient details", value: patientMedicalLine },
+    { label: "Allergies", value: patient.known_allergies },
+    { label: "Vitals", value: vitals },
+    { label: "Complaints", value: fields.chief_complaints },
+    { label: "History", value: fields.history_present_illness },
+    { label: "Past history", value: fields.past_history },
+    { label: "On examination", value: fields.examination_findings },
+    {
+      label: "Diagnosis",
+      value: [fields.confirmed_diagnosis || fields.provisional_diagnosis, icdLine]
+        .filter(Boolean)
+        .join("\n"),
+    },
+    {
+      label: "Investigations",
+      value: [fields.investigations_ordered, loincLine].filter(Boolean).join("\n"),
+    },
+    { label: "Advice", value: fields.advice },
+    {
+      label: "Follow-up",
+      value: fields.follow_up_date
+        ? `${fields.follow_up_date}${fields.follow_up_notes ? ` - ${fields.follow_up_notes}` : ""}`
+        : fields.follow_up_notes,
+    },
+  ].filter((row) => row.value && row.value.trim().length > 0);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-ink-800 dark:bg-ink-900/60">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-ink-500">
+          Will print with prescription
+        </div>
+        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-ink-950 dark:text-ink-400 dark:ring-ink-700">
+          {rows.length} filled
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label} className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-ink-500">
+              {row.label}
+            </div>
+            <div className="mt-0.5 whitespace-pre-line text-xs leading-relaxed text-slate-800 dark:text-ink-200">
+              {row.value}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

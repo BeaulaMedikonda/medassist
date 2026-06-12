@@ -1,7 +1,7 @@
 "use client";
  
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Patient } from "@/types/db";
@@ -40,6 +40,20 @@ type Props = {
   clinicId: string;
   doctors: DoctorOption[];
 };
+
+type IntakeDraft = {
+  patientForm: PatientForm;
+  bpSystolic: string;
+  bpDiastolic: string;
+  pulse: string;
+  temperature: string;
+  spo2: string;
+  weight: string;
+  selectedDoctors: string[];
+  immunizationSummary: string;
+  painMapSummary: string;
+  savedVisitId?: string;
+};
  
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
  
@@ -72,6 +86,7 @@ export function IntakeFormClient({
   doctors,
 }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
  
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +96,8 @@ export function IntakeFormClient({
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [searching, setSearching] = useState(false);
   const [pickedPatient, setPickedPatient] = useState<Patient | null>(null);
+  const [savedPatientId, setSavedPatientId] = useState(searchParams.get("patientId") || "");
+  const [savedVisitId, setSavedVisitId] = useState(searchParams.get("visitId") || "");
  
   const [bpSystolic, setBpSystolic] = useState("");
   const [bpDiastolic, setBpDiastolic] = useState("");
@@ -90,10 +107,31 @@ export function IntakeFormClient({
   const [weight, setWeight] = useState("");
  
   const [selectedDoctors, setSelectedDoctors] = useState<string[]>([]);
+  const pickedPatientId = pickedPatient?.id || "";
+  const activePatientId = pickedPatient?.id || savedPatientId;
  
   const fullName =
     patientForm.full_name.trim() ||
     buildFullName(patientForm.first_name, patientForm.last_name);
+  const [immunizationSummary, setImmunizationSummary] = useState(
+    searchParams.get("immunizationSummary") || "",
+  );
+  const [painMapSummary, setPainMapSummary] = useState(
+    searchParams.get("painMapSummary") || "",
+  );
+  const returnPatientHref = buildReturnHref(
+    activePatientId,
+    savedVisitId,
+    immunizationSummary,
+    painMapSummary,
+  );
+  const immunizationHref = activePatientId
+    ? `/immunizations?patientId=${encodeURIComponent(activePatientId)}&visitId=${encodeURIComponent(savedVisitId)}&returnTo=${encodeURIComponent(returnPatientHref)}`
+    : "/immunizations";
+  const painMapHref = activePatientId
+    ? `/dashboard?tool=pain-map&patientId=${encodeURIComponent(activePatientId)}&visitId=${encodeURIComponent(savedVisitId)}&returnTo=${encodeURIComponent(returnPatientHref)}`
+    : "/dashboard?tool=pain-map";
+  const visitCreated = Boolean(activePatientId && savedVisitId);
 
   useEffect(() => {
     if (pickedPatient) return;
@@ -128,9 +166,102 @@ export function IntakeFormClient({
     };
   }, [clinicId, pickedPatient, searchTerm]);
 
+  useEffect(() => {
+    const patientId = searchParams.get("patientId");
+    if (!patientId || pickedPatient?.id === patientId) return;
+    const loadedPatientId = patientId;
+
+    let cancelled = false;
+    async function loadPatient() {
+      const { data } = await supabaseBrowser()
+        .from("patients")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("id", loadedPatientId)
+        .maybeSingle();
+
+      if (!cancelled && data) {
+        pickPatient(data as Patient);
+        setSavedPatientId(loadedPatientId);
+      }
+    }
+
+    void loadPatient();
+    return () => {
+      cancelled = true;
+    };
+  }, [clinicId, pickedPatient?.id, searchParams]);
+
+  useEffect(() => {
+    const nextImmunizationSummary = searchParams.get("immunizationSummary") || "";
+    const nextPainMapSummary = searchParams.get("painMapSummary") || "";
+    if (nextImmunizationSummary) setImmunizationSummary(nextImmunizationSummary);
+    if (nextPainMapSummary) setPainMapSummary(nextPainMapSummary);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!pickedPatientId) return;
+    const stored = window.sessionStorage.getItem(draftKey(pickedPatientId));
+    if (!stored) return;
+
+    try {
+      const draft = JSON.parse(stored) as Partial<IntakeDraft>;
+      if (draft.patientForm) setPatientForm(draft.patientForm);
+      setBpSystolic(draft.bpSystolic || "");
+      setBpDiastolic(draft.bpDiastolic || "");
+      setPulse(draft.pulse || "");
+      setTemperature(draft.temperature || "");
+      setSpo2(draft.spo2 || "");
+      setWeight(draft.weight || "");
+      setSelectedDoctors(draft.selectedDoctors || []);
+      if (draft.savedVisitId) setSavedVisitId(draft.savedVisitId);
+      if (draft.immunizationSummary) {
+        setImmunizationSummary((current) => current || draft.immunizationSummary || "");
+      }
+      if (draft.painMapSummary) {
+        setPainMapSummary((current) => current || draft.painMapSummary || "");
+      }
+    } catch {
+      window.sessionStorage.removeItem(draftKey(pickedPatientId));
+    }
+  }, [pickedPatientId]);
+
+  useEffect(() => {
+    if (!pickedPatient) return;
+    const draft: IntakeDraft = {
+      patientForm,
+      bpSystolic,
+      bpDiastolic,
+      pulse,
+      temperature,
+      spo2,
+      weight,
+      selectedDoctors,
+      immunizationSummary,
+      painMapSummary,
+      savedVisitId,
+    };
+    window.sessionStorage.setItem(draftKey(pickedPatient.id), JSON.stringify(draft));
+  }, [
+    bpDiastolic,
+    bpSystolic,
+    immunizationSummary,
+    painMapSummary,
+    patientForm,
+    pickedPatient,
+    pulse,
+    savedVisitId,
+    selectedDoctors,
+    spo2,
+    temperature,
+    weight,
+  ]);
+
   function pickPatient(patient: Patient) {
     setQueueNotice(null);
     setPickedPatient(patient);
+    setSavedPatientId(patient.id);
+    setSavedVisitId("");
     setSearchTerm("");
     setSearchResults([]);
     setPatientForm({
@@ -161,13 +292,28 @@ export function IntakeFormClient({
   function clearPickedPatient() {
     setQueueNotice(null);
     setPickedPatient(null);
+    setSavedPatientId("");
+    setSavedVisitId("");
     setSearchTerm("");
     setSearchResults([]);
     setPatientForm(initialPatientForm);
+    clearPatientContext();
+  }
+
+  function clearPatientContext() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("patientId");
+    params.delete("visitId");
+    params.delete("immunizationSummary");
+    params.delete("painMapSummary");
+    const query = params.toString();
+    router.replace(query ? `/emr/new?${query}` : "/emr/new", { scroll: false });
   }
  
   function updatePatient<K extends keyof PatientForm>(key: K, value: PatientForm[K]) {
     setQueueNotice(null);
+    setSavedVisitId("");
+    let shouldClearContext = false;
     setPatientForm((current) => {
       const previousAutoName = buildFullName(current.first_name, current.last_name);
       const next = { ...current, [key]: value };
@@ -185,14 +331,21 @@ export function IntakeFormClient({
         next.age = ageFromBirthdate == null ? "" : String(ageFromBirthdate);
       }
       if (pickedPatient && isPatientIdentityField(key) && hasDifferentIdentity(next, pickedPatient)) {
-        setPickedPatient(null);
-        setSearchResults([]);
-        setQueueNotice(
-          "Existing patient selection was cleared because name or phone was changed. This intake will be matched again or created as a new patient.",
-        );
+        shouldClearContext = true;
       }
       return next;
     });
+
+    if (shouldClearContext) {
+      setPickedPatient(null);
+      setSavedPatientId("");
+      setSavedVisitId("");
+      setSearchResults([]);
+      clearPatientContext();
+      setQueueNotice(
+        "Existing patient selection was cleared because name or phone was changed. This intake will be matched again or created as a new patient.",
+      );
+    }
   }
  
   function toNumber(value: string) {
@@ -212,11 +365,18 @@ export function IntakeFormClient({
  
   function toggleDoctor(id: string) {
     setQueueNotice(null);
+    setSavedVisitId("");
     setSelectedDoctors((current) =>
       current.includes(id)
         ? current.filter((doctorId) => doctorId !== id)
         : [...current, id],
     );
+  }
+
+  function updateVital(setter: (value: string) => void, value: string) {
+    setQueueNotice(null);
+    setSavedVisitId("");
+    setter(value);
   }
  
   function validateForm() {
@@ -270,15 +430,34 @@ export function IntakeFormClient({
     return null;
   }
  
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function currentDraft(visitId = savedVisitId): IntakeDraft {
+    return {
+      patientForm,
+      bpSystolic,
+      bpDiastolic,
+      pulse,
+      temperature,
+      spo2,
+      weight,
+      selectedDoctors,
+      immunizationSummary,
+      painMapSummary,
+      savedVisitId: visitId,
+    };
+  }
+
+  function saveDraft(patientId: string, visitId = savedVisitId) {
+    window.sessionStorage.setItem(draftKey(patientId), JSON.stringify(currentDraft(visitId)));
+  }
+
+  async function createIntake({ clearDraftOnSuccess = false }: { clearDraftOnSuccess?: boolean } = {}) {
     setError(null);
     setQueueNotice(null);
  
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
-      return;
+      return null;
     }
  
     setSaving(true);
@@ -335,25 +514,95 @@ export function IntakeFormClient({
       });
       const result = (await res.json().catch(() => ({}))) as {
         error?: string;
+        patientId?: string;
+        visitId?: string;
         reusedVisit?: boolean;
       };
       if (!res.ok) throw new Error(result.error || "Could not create EMR");
 
-      if (result.reusedVisit) {
-        setQueueNotice(
-          "This patient is still in queue for the selected doctor. Existing visit was updated, so a new EMR was not created.",
-        );
-        router.refresh();
-        return;
+      if (clearDraftOnSuccess && pickedPatient?.id) {
+        window.sessionStorage.removeItem(draftKey(pickedPatient.id));
       }
-
-      router.replace("/dashboard");
-      router.refresh();
+      return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
+      return null;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveAndCreateVisit() {
+    const result = await createIntake();
+    if (!result?.patientId || !result.visitId) return;
+
+    setSavedPatientId(result.patientId);
+    setSavedVisitId(result.visitId);
+    saveDraft(result.patientId, result.visitId);
+    setQueueNotice(
+      result.reusedVisit
+        ? "Existing active visit was updated. Optional tools are now enabled."
+        : "Patient visit saved and routed. Optional tools are now enabled.",
+    );
+    router.replace(buildReturnHref(result.patientId, result.visitId, immunizationSummary, painMapSummary), {
+      scroll: false,
+    });
+    router.refresh();
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!visitCreated) {
+      setError("Click Save before continuing.");
+      return;
+    }
+
+    if (activePatientId) {
+      window.sessionStorage.removeItem(draftKey(activePatientId));
+    }
+    router.replace("/dashboard");
+    router.refresh();
+  }
+
+  async function openPainMap(event: React.MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    if (!activePatientId || !visitCreated) {
+      setError("Click Save first. Graphic Pain Map can be added after the visit exists.");
+      return;
+    }
+    saveDraft(activePatientId);
+
+    const nextReturnHref = buildReturnHref(
+      activePatientId,
+      savedVisitId,
+      immunizationSummary,
+      painMapSummary,
+    );
+    router.replace(
+      `/dashboard?tool=pain-map&patientId=${encodeURIComponent(activePatientId)}&visitId=${encodeURIComponent(savedVisitId)}&returnTo=${encodeURIComponent(nextReturnHref)}`,
+    );
+    router.refresh();
+  }
+
+  async function openImmunization(event: React.MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    if (!activePatientId || !visitCreated) {
+      setError("Click Save first. Immunization can be added after the visit exists.");
+      return;
+    }
+    saveDraft(activePatientId);
+
+    const nextReturnHref = buildReturnHref(
+      activePatientId,
+      savedVisitId,
+      immunizationSummary,
+      painMapSummary,
+    );
+    router.replace(
+      `/immunizations?patientId=${encodeURIComponent(activePatientId)}&visitId=${encodeURIComponent(savedVisitId)}&returnTo=${encodeURIComponent(nextReturnHref)}`,
+    );
+    router.refresh();
   }
 
   function scrollToSection(id: string) {
@@ -670,24 +919,24 @@ export function IntakeFormClient({
                 label="BP Systolic (mmHg)"
                 optional
                 value={bpSystolic}
-                onChange={setBpSystolic}
+                onChange={(value) => updateVital(setBpSystolic, value)}
               />
               <TextField
                 label="BP Diastolic (mmHg)"
                 optional
                 value={bpDiastolic}
-                onChange={setBpDiastolic}
+                onChange={(value) => updateVital(setBpDiastolic, value)}
               />
             </div>
  
             <div className="grid grid-cols-2 gap-3">
-              <TextField label="Pulse (bpm)" optional value={pulse} onChange={setPulse} />
-              <TextField label="Temp (F)" optional value={temperature} onChange={setTemperature} />
+              <TextField label="Pulse (bpm)" optional value={pulse} onChange={(value) => updateVital(setPulse, value)} />
+              <TextField label="Temp (F)" optional value={temperature} onChange={(value) => updateVital(setTemperature, value)} />
             </div>
  
             <div className="grid grid-cols-2 gap-3">
-              <TextField label="SpO2 (%)" optional value={spo2} onChange={setSpo2} />
-              <TextField label="Weight (kg)" optional value={weight} onChange={setWeight} />
+              <TextField label="SpO2 (%)" optional value={spo2} onChange={(value) => updateVital(setSpo2, value)} />
+              <TextField label="Weight (kg)" optional value={weight} onChange={(value) => updateVital(setWeight, value)} />
             </div>
           </div>
         </div>
@@ -732,7 +981,59 @@ export function IntakeFormClient({
             )}
           </div>
         </div>
+
+        <div className="xl:col-span-2 flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={() => void saveAndCreateVisit()}
+            disabled={saving}
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Saving..." : visitCreated ? "Saved" : "Save"}
+          </button>
+          {error ? (
+            <p className="max-w-xl text-right text-xs font-semibold text-rose-600">
+              {error}
+            </p>
+          ) : queueNotice && !saving ? (
+            <p className="max-w-xl text-right text-xs font-semibold text-[#0f766e]">
+              {queueNotice}
+            </p>
+          ) : null}
+        </div>
  
+        <div className="card xl:col-span-2 p-5">
+          <h2 className="mb-3 text-[13px] font-extrabold text-slate-900">
+            Optional Tools
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Link
+              href={immunizationHref}
+              onClick={openImmunization}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-[#0ea5a4]/50 hover:bg-[#ecfdfc]"
+            >
+              <span className="block text-[13px] font-extrabold text-slate-900">
+                Immunization
+              </span>
+              <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+                {immunizationSummary || (pickedPatient ? "Immunization Registry" : "Save patient first")}
+              </span>
+            </Link>
+            <Link
+              href={painMapHref}
+              onClick={openPainMap}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-[#0ea5a4]/50 hover:bg-[#ecfdfc]"
+            >
+              <span className="block text-[13px] font-extrabold text-slate-900">
+                Graphic Pain Map
+              </span>
+              <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+                {painMapSummary || (pickedPatient ? "MA Dashboard" : "Save patient first")}
+              </span>
+            </Link>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between pb-10 xl:col-span-2">
           <Link href="/emr" className="btn-secondary">
             Cancel
@@ -740,10 +1041,10 @@ export function IntakeFormClient({
  
           <button
             type="submit"
-            disabled={saving}
+            disabled={!visitCreated}
             className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saving ? "Saving..." : "Save & Route to Doctor"}
+            Next
           </button>
         </div>
       </form>
@@ -954,6 +1255,32 @@ function calculateAge(value: string) {
 function nullableText(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function draftKey(patientId: string) {
+  return `new-emr-draft:${patientId}`;
+}
+
+function buildReturnHref(
+  patientId: string | undefined,
+  visitId: string | undefined,
+  immunizationSummary: string,
+  painMapSummary: string,
+) {
+  if (!patientId) return "/emr/new";
+
+  const params = new URLSearchParams({ patientId });
+  if (visitId) {
+    params.set("visitId", visitId);
+  }
+  if (immunizationSummary) {
+    params.set("immunizationSummary", immunizationSummary);
+  }
+  if (painMapSummary) {
+    params.set("painMapSummary", painMapSummary);
+  }
+
+  return `/emr/new?${params.toString()}`;
 }
  
 function normalizePhone(value: string) {

@@ -42,24 +42,10 @@ export async function POST(request: Request) {
 
   const { data: account } = await accountQuery.maybeSingle();
 
-  let registrationQuery = supabase
-    .from("patient_portal_registration_requests")
-    .select("id, clinic_id")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  if (selectedClinicId) {
-    registrationQuery = registrationQuery.eq("clinic_id", selectedClinicId);
-  }
-
-  const { data: registration } = await registrationQuery.maybeSingle();
-
   const payload = {
     user_id: user.id,
     patient_id: account?.patient_id || null,
-    registration_request_id: registration?.id || null,
-    clinic_id: selectedClinicId || account?.clinic_id || registration?.clinic_id || null,
+    clinic_id: selectedClinicId || account?.clinic_id || null,
     first_name: text(body.first_name),
     last_name: text(body.last_name),
     full_name: text(body.full_name),
@@ -88,6 +74,12 @@ export async function POST(request: Request) {
     spo2: numberOrNull(body.spo2),
     weight_kg: numberOrNull(body.weight_kg),
     status: "submitted",
+    pain_markers: Array.isArray(body.pain_markers) && body.pain_markers.length > 0
+      ? body.pain_markers
+      : null,
+    pain_intensity: numberOrNull(body.pain_intensity),
+    pain_type: text(body.pain_type),
+    pain_summary: text(body.pain_summary),
   };
 
   if (!payload.full_name || !payload.phone) {

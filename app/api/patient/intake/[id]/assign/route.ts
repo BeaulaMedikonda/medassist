@@ -2,10 +2,20 @@ import { NextResponse } from "next/server";
 import { requireMember } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { generateEmrNumber } from "@/lib/emr";
-
+ 
 type AssignBody = {
   doctor_id?: string;
   updates?: Partial<PatientPortalIntakeSubmission>;
+};
+ 
+type PainMarkerRecord = {
+  id: string;
+  side: string;
+  x: number;
+  y: number;
+  location: string;
+  intensity: number;
+  painType: string;
 };
 
 type PatientPortalIntakeSubmission = {
@@ -39,8 +49,12 @@ type PatientPortalIntakeSubmission = {
   spo2: number | null;
   weight_kg: number | null;
   chief_complaint: string | null;
+  pain_markers: PainMarkerRecord[] | null;
+  pain_intensity: number | null;
+  pain_type: string | null;
+  pain_summary: string | null;
 };
-
+ 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -49,30 +63,45 @@ export async function POST(
   if (member.role !== "medical_assistant" && member.role !== "admin") {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
-
+ 
   const { id } = await params;
   const body = (await request.json().catch(() => ({}))) as AssignBody;
   const doctorId = body.doctor_id;
-
+ 
   if (!doctorId) {
     return NextResponse.json({ ok: false, error: "Doctor is required" }, { status: 400 });
   }
-
+ 
   const admin = supabaseAdmin();
+  const { data: doctor, error: doctorError } = await admin
+    .from("doctors")
+    .select("id")
+    .eq("id", doctorId)
+    .eq("clinic_id", clinic.id)
+    .eq("role", "doctor")
+    .maybeSingle();
+
+  if (doctorError) {
+    return NextResponse.json({ ok: false, error: doctorError.message }, { status: 500 });
+  }
+  if (!doctor) {
+    return NextResponse.json({ ok: false, error: "Selected doctor was not found in this clinic" }, { status: 400 });
+  }
+
   const { data: rawSubmission, error: submissionError } = await admin
     .from("patient_portal_intake_submissions")
     .select("*")
     .eq("id", id)
     .maybeSingle();
   let submission = rawSubmission as unknown as PatientPortalIntakeSubmission | null;
-
+ 
   if (submissionError || !submission) {
     return NextResponse.json(
       { ok: false, error: submissionError?.message || "Submission not found" },
       { status: 404 },
     );
   }
-
+ 
   if (body.updates) {
     const patch = sanitizeSubmissionUpdates(body.updates);
     if (Object.keys(patch).length > 0) {
@@ -82,26 +111,26 @@ export async function POST(
         .eq("id", id)
         .select("*")
         .single();
-
+ 
       if (patchError || !updatedSubmission) {
         return NextResponse.json(
           { ok: false, error: patchError?.message || "Could not update patient details" },
           { status: 400 },
         );
       }
-
+ 
       submission = updatedSubmission as unknown as PatientPortalIntakeSubmission;
     }
   }
-
+ 
   const fullName = String(submission.full_name || "").trim();
   if (!fullName) {
     return NextResponse.json({ ok: false, error: "Patient full name is required" }, { status: 400 });
   }
-
+ 
   const patientId = submission.patient_id || null;
   let finalPatientId = patientId;
-
+ 
   if (!finalPatientId) {
     const emrNumber = await generateEmrNumber();
     const { data: createdPatient, error: patientError } = await admin
@@ -133,7 +162,7 @@ export async function POST(
       } as never)
       .select("id")
       .single();
-
+ 
     if (patientError || !createdPatient) {
       const duplicatePatient = await findExistingPatient(admin, doctorId, fullName, submission.phone);
       if (duplicatePatient?.id) {
@@ -148,8 +177,8 @@ export async function POST(
       finalPatientId = (createdPatient as { id: string }).id;
     }
   }
-
-  await admin
+ 
+  const { error: patientUpdateError } = await admin
     .from("patients")
     .update({
       doctor_id: doctorId,
@@ -177,6 +206,10 @@ export async function POST(
     } as never)
     .eq("id", finalPatientId);
 
+  if (patientUpdateError) {
+    return NextResponse.json({ ok: false, error: patientUpdateError.message }, { status: 500 });
+  }
+ 
   if (submission.user_id) {
     const linkPayload = {
       user_id: submission.user_id,
@@ -184,23 +217,37 @@ export async function POST(
       clinic_id: clinic.id,
       status: "active",
     } as never;
-
-    const { error: linkError } = await admin
+ 
+    const { data: existingAccount, error: existingAccountError } = await admin
       .from("patient_portal_accounts")
-      .upsert(linkPayload, { onConflict: "user_id" });
+      .select("id")
+      .eq("user_id", submission.user_id)
+      .maybeSingle();
 
-    if (linkError) {
-      await admin
+    if (existingAccountError) {
+      return NextResponse.json({ ok: false, error: existingAccountError.message }, { status: 500 });
+    }
+
+    if (existingAccount) {
+      const { error: updateLinkError } = await admin
         .from("patient_portal_accounts")
-        .update({
-          user_id: submission.user_id,
-          clinic_id: clinic.id,
-          status: "active",
-        } as never)
-        .eq("patient_id", finalPatientId);
+        .update(linkPayload)
+        .eq("id", (existingAccount as { id: string }).id);
+
+      if (updateLinkError) {
+        return NextResponse.json({ ok: false, error: updateLinkError.message }, { status: 500 });
+      }
+    } else {
+      const { error: insertLinkError } = await admin
+        .from("patient_portal_accounts")
+        .insert(linkPayload);
+
+      if (insertLinkError) {
+        return NextResponse.json({ ok: false, error: insertLinkError.message }, { status: 500 });
+      }
     }
   }
-
+ 
   const { data: visit, error: visitError } = await admin
     .from("visits")
     .insert({
@@ -220,21 +267,46 @@ export async function POST(
     } as never)
     .select("id")
     .single();
-
+ 
   if (visitError || !visit) {
     return NextResponse.json(
       { ok: false, error: visitError?.message || "Could not create visit" },
       { status: 500 },
     );
   }
-
+ 
   const visitId = (visit as { id: string }).id;
-  await admin.from("visit_doctors").insert({
+  const { error: assignmentError } = await admin.from("visit_doctors").insert({
     visit_id: visitId,
     doctor_id: doctorId,
     role: "attending",
   } as never);
 
+  if (assignmentError) {
+    return NextResponse.json({ ok: false, error: assignmentError.message }, { status: 500 });
+  }
+
+  // If patient submitted a pain map during intake, persist it to graphic_pain_maps
+  const painMarkers = submission.pain_markers;
+  if (Array.isArray(painMarkers) && painMarkers.length > 0) {
+    const { error: painMapError } = await admin.from("graphic_pain_maps").insert({
+      clinic_id: clinic.id,
+      patient_id: finalPatientId,
+      visit_id: visitId,
+      created_by: member.id,
+      pain_type: submission.pain_type || "Mixed",
+      intensity: submission.pain_intensity ?? 5,
+      pain_locations: painMarkers.map((m) => m.location).filter(Boolean),
+      marked_points: painMarkers.map((m) => `${m.location} - ${m.painType} - ${m.intensity}/10`),
+      pain_summary: submission.pain_summary || painMarkers.map((m) => `${m.location} - ${m.painType} - ${m.intensity}/10`).join("; "),
+      markers: painMarkers,
+    } as never);
+
+    if (painMapError) {
+      return NextResponse.json({ ok: false, error: painMapError.message }, { status: 500 });
+    }
+  }
+ 
   const { error: updateError } = await admin
     .from("patient_portal_intake_submissions")
     .update({
@@ -248,14 +320,14 @@ export async function POST(
       created_visit_id: visitId,
     } as never)
     .eq("id", id);
-
+ 
   if (updateError) {
     return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
   }
-
+ 
   return NextResponse.json({ ok: true, patientId: finalPatientId, visitId });
 }
-
+ 
 function normalizeSex(value: string | null) {
   const normalized = String(value || "").trim().toLowerCase();
   if (normalized === "female" || normalized === "f") return "F";
@@ -263,7 +335,12 @@ function normalizeSex(value: string | null) {
   if (normalized === "others" || normalized === "other" || normalized === "o") return "O";
   return null;
 }
-
+ 
+function normalizePhone(value: string | null) {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length > 10 ? digits.slice(-10) : digits || null;
+}
+ 
 async function findExistingPatient(
   admin: ReturnType<typeof supabaseAdmin>,
   doctorId: string,
@@ -276,27 +353,27 @@ async function findExistingPatient(
     .eq("doctor_id", doctorId)
     .eq("full_name", fullName)
     .limit(1);
-
+ 
   if (phone) {
     query = query.eq("phone", phone);
   }
-
+ 
   const { data } = await query.maybeSingle();
   return data as { id: string } | null;
 }
-
+ 
 function clean(value: unknown) {
   if (typeof value !== "string") return value ?? null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
-
+ 
 function numberOrNull(value: unknown) {
   if (value === "" || value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
-
+ 
 function sanitizeSubmissionUpdates(updates: Partial<PatientPortalIntakeSubmission>) {
   return {
     first_name: clean(updates.first_name),
@@ -328,10 +405,12 @@ function sanitizeSubmissionUpdates(updates: Partial<PatientPortalIntakeSubmissio
     chief_complaint: clean(updates.chief_complaint),
   };
 }
-
+ 
 function displaySex(value: string | null) {
   if (value === "F") return "Female";
   if (value === "M") return "Male";
   if (value === "O") return "Others";
   return null;
 }
+ 
+ 

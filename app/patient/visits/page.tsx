@@ -1,5 +1,5 @@
 import { requirePatient } from "@/lib/auth-patient";
-import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { PatientPortalShell } from "@/components/patient/PatientPortalShell";
 import { EmptyState, PageHeader, VisitSummaryCard } from "@/components/patient/PatientCards";
 import {
@@ -9,9 +9,9 @@ import {
   type SearchParamsRecord,
 } from "@/components/ui/ServerPagination";
 import type { Visit } from "@/types/db";
-
+ 
 export const dynamic = "force-dynamic";
-
+ 
 export default async function PatientVisitsPage({
   searchParams,
 }: {
@@ -19,19 +19,19 @@ export default async function PatientVisitsPage({
 }) {
   const params = await searchParams;
   const { patient, clinic } = await requirePatient();
-  const supabase = await supabaseServer();
-
+  const supabase = supabaseAdmin();
+ 
   const { data } = await supabase
     .from("visits")
     .select("*")
     .eq("patient_id", patient.id)
     .order("visit_date", { ascending: false })
     .limit(50);
-
+ 
   const visits = (data || []) as Visit[];
   const page = getPageFromParams(params);
   const pageData = paginateServerItems(visits, page, 10);
-
+ 
   return (
     <PatientPortalShell patient={patient} clinic={clinic}>
       <PageHeader
@@ -39,7 +39,7 @@ export default async function PatientVisitsPage({
         title="My Visit Summaries"
         description="Clinic-approved consultation summaries, diagnosis, advice, investigations, and prescription details."
       />
-
+ 
       {visits.length === 0 ? (
         <EmptyState label="visit summaries" />
       ) : (
@@ -59,3 +59,5 @@ export default async function PatientVisitsPage({
     </PatientPortalShell>
   );
 }
+ 
+ 

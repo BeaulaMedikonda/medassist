@@ -1,14 +1,17 @@
-"use client";
+// "use client";
 
 // import Link from "next/link";
-// import { useMemo, useState } from "react";
+// import { useRouter } from "next/navigation";
+// import { useEffect, useMemo, useState } from "react";
+// import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 // import { StatCard } from "@/components/dashboard/StatCard";
 // import { DashboardHero } from "@/components/dashboard/DashboardHero";
 // import {
 //   CheckCircleIcon,
 //   ClipboardIcon,
 //   ClockIcon,
-//   PlusIcon,
+//   GlobeIcon,
+//   // PlusIcon,
 //   UsersIcon,
 // } from "@/components/dashboard/icons";
 // import { initials } from "@/lib/dashboard-utils";
@@ -53,32 +56,61 @@
 //   width: number;
 //   height: number;
 // };
+// type SavedPainMap = {
+//   id: string;
+//   pain_type: string | null;
+//   intensity: number | null;
+//   pain_summary: string | null;
+//   marked_points: string[] | null;
+//   created_at: string;
+// };
 
 // export function MaDashboard({
 //   member,
 //   clinic,
 //   todayVisits,
+//   currentQueueVisits,
 //   patientById,
 //   assignments,
 //   doctorRoster,
 //   currentUserId,
 //   vitalTrendVisits,
+//   portalRequestCount,
+//   hasOldPortalRequest,
+//   initialPainMapPatientId = "",
+//   initialPainMapOpen = false,
+//   initialPainMapReturnTo = "",
 // }: {
 //   member: Doctor;
 //   clinic: Clinic;
 //   todayVisits: Visit[];
-//   awaitingVisits: Visit[];
+//   currentQueueVisits: Visit[];
 //   patientById: Record<string, Patient>;
 //   assignments: Array<{ visit_id: string; doctor_id: string; role: string }>;
 //   doctorRoster: Array<Pick<Doctor, "id" | "full_name" | "qualification" | "role">>;
 //   currentUserId: string;
 //   vitalTrendVisits: VitalTrendVisit[];
+//   portalRequestCount: number;
+//   hasOldPortalRequest: boolean;
+//   initialPainMapPatientId?: string;
+//   initialPainMapOpen?: boolean;
+//   initialPainMapReturnTo?: string;
 // }) {
 //   const [trendsOpen, setTrendsOpen] = useState(false);
-//   const [painMapOpen, setPainMapOpen] = useState(false);
-//   const queueItems = todayVisits.filter((v) =>
+//   const [painMapOpen, setPainMapOpen] = useState(initialPainMapOpen);
+//   const painMapVisits = useMemo(
+//     () => currentQueueVisits.filter((v) =>
+//       ["queued", "intake", "in_progress", "awaiting_review"].includes(v.status),
+//     ),
+//     [currentQueueVisits],
+//   );
+//   const queueItems = currentQueueVisits.filter((v) =>
 //     ["queued", "in_progress", "intake", "awaiting_review"].includes(v.status),
 //   );
+
+//   useEffect(() => {
+//     if (initialPainMapOpen) setPainMapOpen(true);
+//   }, [initialPainMapOpen]);
 
 //   const assignmentsByVisit = new Map<
 //     string,
@@ -92,20 +124,59 @@
 
 //   const doctorById = new Map(doctorRoster.map((d) => [d.id, d]));
 //   const checkedIn = queueItems.length;
-//   const withDoctor = todayVisits.filter((v) => {
-//     const assignedDoctors = assignmentsByVisit.get(v.id) || [];
-//     return v.status === "in_progress" || assignedDoctors.length > 0 || Boolean(v.doctor_id);
-//   }).length;
+//   const withDoctor = queueItems.filter((v) => v.status === "in_progress").length;
 //   const completedToday = todayVisits.filter((v) => v.status === "completed").length;
-//   const pendingIntake = todayVisits.filter((v) => v.status === "intake").length;
+//   const pendingIntake = queueItems.filter((v) => !hasVisitVitals(v)).length;
+//   const todayMidnight = new Date();
+//   todayMidnight.setHours(0, 0, 0, 0);
+
+//   const [queuePage, setQueuePage] = useState(1);
+//   const queuePageData = getClientPageItems(queueItems, queuePage, 10);
 
 //   return (
 //     <div className="space-y-8">
 //       <DashboardHero name={member.full_name} clinicName={clinic.name} waveEmoji />
 
-//       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+//       {/* Quick-action shortcuts */}
+//       <div className="flex flex-wrap gap-2">
+//         <Link
+//           href="/emr/new"
+//           className="inline-flex items-center gap-2 rounded-xl border border-[#0ea5a4]/25 bg-teal-50 px-4 py-2.5 text-[13px] font-bold text-[#0f8f83] transition hover:bg-teal-100 dark:border-teal-800/40 dark:bg-teal-900/20 dark:text-teal-300 dark:hover:bg-teal-900/40"
+//         >
+//           <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 4v12M4 10h12"/></svg>
+//           New Intake
+//         </Link>
+//         <Link
+//           href="/emr"
+//           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-300 dark:hover:bg-ink-800"
+//         >
+//           <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="9" cy="9" r="5"/><path d="M16 16l-3-3"/></svg>
+//           Find Patient
+//         </Link>
+//         <Link
+//           href="/appointments"
+//           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-300 dark:hover:bg-ink-800"
+//         >
+//           <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M7 2v4M13 2v4M3 8h14"/></svg>
+//           Appointments
+//         </Link>
+//         {portalRequestCount > 0 && (
+//           <Link
+//             href="/patient-portal-requests"
+//             className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-[13px] font-bold text-violet-700 transition hover:bg-violet-100 dark:border-violet-800/40 dark:bg-violet-900/20 dark:text-violet-300"
+//           >
+//             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="10" cy="10" r="8"/><path d="M10 6v4l2 2"/></svg>
+//             Portal Requests
+//             <span className="rounded-full bg-violet-600 px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+//               {portalRequestCount}
+//             </span>
+//           </Link>
+//         )}
+//       </div>
+
+//       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 min-[1200px]:grid-cols-5">
 //         <StatCard
-//           label="Today's Queue"
+//           label="Current Queue"
 //           value={checkedIn}
 //           hint="patients checked in"
 //           icon={<UsersIcon />}
@@ -132,14 +203,22 @@
 //           icon={<ClipboardIcon />}
 //           tone="amber"
 //         />
+//         <StatCard
+//           label="Portal Requests"
+//           value={portalRequestCount}
+//           hint="awaiting doctor assignment"
+//           icon={<GlobeIcon />}
+//           tone={portalRequestCount === 0 ? "slate" : hasOldPortalRequest ? "amber" : "violet"}
+//           href="/patient-portal-requests"
+//         />
 //       </section>
 
 //       <section>
 //         <div className="mb-3 flex items-center justify-between">
 //           <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
-//             Today's Intake Queue
+//             Current Intake Queue
 //           </h2>
-//           <Link href="/emr/intake" className="btn-teal">
+//           <Link href="/emr/new" className="btn-teal">
 //             <PlusIcon />
 //             New EMR
 //           </Link>
@@ -158,6 +237,7 @@
 //               </tr>
 //             </thead>
 //             <tbody>
+
 //               {queueItems.length === 0 ? (
 //                 <tr>
 //                   <td
@@ -168,7 +248,7 @@
 //                   </td>
 //                 </tr>
 //               ) : (
-//                 queueItems.map((v) => {
+//                 queuePageData.pageItems.map((v) => {
 //                   const patient = patientById[v.patient_id];
 //                   if (!patient) return null;
 
@@ -179,15 +259,8 @@
 //                     assigned.length > 0
 //                       ? `Dr. ${assigned[0]!.full_name.split(" ")[0]}`
 //                       : "Unassigned";
-//                   const hasVitals = Boolean(
-//                     v.bp_systolic ||
-//                       v.bp_diastolic ||
-//                       v.pulse ||
-//                       v.temperature_f ||
-//                       v.spo2 ||
-//                       v.weight_kg ||
-//                       v.height_cm,
-//                   );
+//                   const hasVitals = hasVisitVitals(v);
+//                   const carriedOver = carriedOverLabel(v.visit_date, todayMidnight);
 
 //                   return (
 //                     <tr
@@ -209,10 +282,15 @@
 //                             <div className="truncate font-semibold text-[#0f172a] dark:text-ink-100">
 //                               {patient.full_name}
 //                             </div>
-//                             <div className="truncate text-[11px] text-[#64748b] dark:text-ink-500">
-//                               {patient.age != null
-//                                 ? `${patient.age}${patient.sex || ""}`
-//                                 : "-"}
+//                             <div className="flex items-center gap-1.5 text-[11px] text-[#64748b] dark:text-ink-500">
+//                               {patient.age != null || patient.sex ? (
+//                                 <span>{patient.age != null ? `${patient.age}${patient.sex || ""}` : patient.sex}</span>
+//                               ) : null}
+//                               {carriedOver && (
+//                                 <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+//                                   {carriedOver}
+//                                 </span>
+//                               )}
 //                             </div>
 //                           </div>
 //                         </div>
@@ -251,6 +329,13 @@
 //               )}
 //             </tbody>
 //           </table>
+//           <ClientPagination
+//             page={queuePageData.currentPage}
+//             pageSize={10}
+//             totalItems={queueItems.length}
+//             onPageChange={setQueuePage}
+//             label="patients"
+//           />
 //         </div>
 //       </section>
 
@@ -270,9 +355,10 @@
 //       {painMapOpen ? (
 //         <GraphicPainMapModal
 //           clinicId={clinic.id}
-//           currentUserId={currentUserId}
 //           patients={patientById}
-//           visits={todayVisits}
+//           visits={painMapVisits}
+//           initialPatientId={initialPainMapPatientId}
+//           returnTo={initialPainMapReturnTo}
 //           onClose={() => setPainMapOpen(false)}
 //         />
 //       ) : null}
@@ -287,6 +373,8 @@
 //   onOpenVitalTrends: () => void;
 //   onOpenPainMap: () => void;
 // }) {
+//   const router = useRouter();
+
 //   const modules = [
 //     {
 //       icon: "Chart",
@@ -304,29 +392,24 @@
 //       icon: "Vax",
 //       title: "Immunization Registry",
 //       text: "Record and report patient vaccination history with CVX",
+//       onClick: () => router.push("/immunizations"),
 //     },
 //   ];
 
 //   return (
 //     <section>
 //       <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
-//         Quick Actions
+//         Clinical Tools
 //       </h2>
-//       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+//       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 //         {modules.map((m) => (
 //           <button
 //             type="button"
 //             key={m.title}
-//             title={m.onClick ? "Open vital trends" : "Coming soon"}
+//             title={`Open ${m.title}`}
 //             onClick={m.onClick}
-//             disabled={!m.onClick}
-//             className="group relative min-h-[150px] overflow-hidden rounded-[18px] border border-[rgba(15,23,42,0.06)] bg-white p-5 text-left shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-all duration-200 enabled:hover:-translate-y-0.5 enabled:hover:shadow-[0_8px_24px_-10px_rgba(15,23,42,0.16)] disabled:cursor-not-allowed dark:border-ink-800/70 dark:bg-ink-900"
+//             className="group relative min-h-[150px] overflow-hidden rounded-[18px] border border-[rgba(15,23,42,0.06)] bg-white p-5 text-left shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-10px_rgba(15,23,42,0.16)] dark:border-ink-800/70 dark:bg-ink-900"
 //           >
-//             {m.badge ? (
-//               <span className="absolute right-4 top-4 rounded-full bg-[#7c3aed] px-2 py-0.5 text-[10px] font-bold text-white">
-//                 {m.badge}
-//               </span>
-//             ) : null}
 //             <div className="mb-4 inline-flex rounded-full bg-[#ecfdfc] px-3 py-1 text-xs font-bold text-[#0f948f] dark:bg-teal-900/30 dark:text-teal-200">
 //               {m.icon}
 //             </div>
@@ -375,7 +458,11 @@
 //       );
 //   }, [selectedPatient, visits]);
 //   const chart = getChartSeries(activeTab, selectedVisits);
-//   const latestVisit = selectedVisits[selectedVisits.length - 1] || null;
+//   const readingVisits = useMemo(
+//     () => getReadingVisits(activeTab, selectedVisits),
+//     [activeTab, selectedVisits],
+//   );
+//   const latestReadingVisit = readingVisits[readingVisits.length - 1] || null;
 
 //   return (
 //     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
@@ -392,10 +479,12 @@
 //           <button
 //             type="button"
 //             onClick={onClose}
-//             className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
+//             className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
 //             aria-label="Close vital trends"
 //           >
-//             x
+//             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+//               <path d="M5 5l10 10M15 5L5 15" />
+//             </svg>
 //           </button>
 //         </div>
 
@@ -421,10 +510,10 @@
 //               </select>
 //             </label>
 //             <div className="text-xs font-medium text-slate-500 dark:text-ink-500">
-//               {selectedVisits.length} reading
-//               {selectedVisits.length === 1 ? "" : "s"}
-//               {latestVisit
-//                 ? ` | Latest ${formatShortDate(latestVisit.visit_date)}`
+//               {readingVisits.length} reading
+//               {readingVisits.length === 1 ? "" : "s"}
+//               {latestReadingVisit
+//                 ? ` | Latest ${formatShortDate(latestReadingVisit.visit_date)}`
 //                 : ""}
 //             </div>
 //           </div>
@@ -469,30 +558,67 @@
 //   );
 // }
 
+// function getReadingVisits(tab: TrendTab, visits: VitalTrendVisit[]) {
+//   return visits.filter((visit) => {
+//     if (tab === "bp") {
+//       return visit.bp_systolic != null || visit.bp_diastolic != null;
+//     }
+//     if (tab === "spo2") return visit.spo2 != null;
+//     if (tab === "weight") return visit.weight_kg != null;
+//     if (tab === "pulse") return visit.pulse != null;
+//     return visit.temperature_f != null;
+//   });
+// }
+
 // function GraphicPainMapModal({
 //   clinicId,
-//   currentUserId,
 //   patients,
 //   visits,
+//   initialPatientId,
+//   returnTo,
 //   onClose,
 // }: {
 //   clinicId: string;
-//   currentUserId: string;
 //   patients: Record<string, Patient>;
 //   visits: Visit[];
+//   initialPatientId?: string;
+//   returnTo?: string;
 //   onClose: () => void;
 // }) {
-//   const visitOptions = useMemo(
+//   const router = useRouter();
+//   const [contextPatient, setContextPatient] = useState<Patient | null>(null);
+//   const [contextVisits, setContextVisits] = useState<Visit[]>([]);
+//   const [contextLoading, setContextLoading] = useState(false);
+//   const mergedPatients = useMemo(
 //     () =>
-//       visits
-//         .map((visit) => ({ visit, patient: patients[visit.patient_id] }))
+//       contextPatient
+//         ? { ...patients, [contextPatient.id]: contextPatient }
+//         : patients,
+//     [contextPatient, patients],
+//   );
+//   const mergedVisits = useMemo(() => {
+//     if (contextVisits.length === 0) return visits;
+//     const byId = new Map<string, Visit>();
+//     for (const visit of [...visits, ...contextVisits]) {
+//       byId.set(visit.id, visit);
+//     }
+//     return Array.from(byId.values());
+//   }, [contextVisits, visits]);
+//   const visitOptions = useMemo(
+//     () => {
+//       const scopedVisits = initialPatientId
+//         ? mergedVisits.filter((visit) => visit.patient_id === initialPatientId)
+//         : mergedVisits;
+//       return scopedVisits
+//         .map((visit) => ({ visit, patient: mergedPatients[visit.patient_id] }))
 //         .filter((item) => item.patient)
 //         .sort(
 //           (a, b) =>
 //             new Date(b.visit.visit_date).getTime() -
 //             new Date(a.visit.visit_date).getTime(),
-//         ),
-//     [patients, visits],
+//         );
+//     },
+//     [initialPatientId, mergedPatients, mergedVisits],
 //   );
 //   const [selectedVisitId, setSelectedVisitId] = useState(
 //     visitOptions[0]?.visit.id || "",
@@ -502,9 +628,80 @@
 //   const [markers, setMarkers] = useState<PainMarker[]>([]);
 //   const [saving, setSaving] = useState(false);
 //   const [message, setMessage] = useState<string | null>(null);
+//   const [savedMaps, setSavedMaps] = useState<SavedPainMap[]>([]);
+//   const [loadingSavedMaps, setLoadingSavedMaps] = useState(false);
 
 //   const selectedVisit = visitOptions.find((item) => item.visit.id === selectedVisitId);
 //   const selectedPatient = selectedVisit?.patient || null;
+
+//   useEffect(() => {
+//     if (!initialPatientId) return;
+//     if (visitOptions.length > 0) return;
+
+//     const patientId = initialPatientId;
+//     let cancelled = false;
+//     async function loadContext() {
+//       setContextLoading(true);
+//       const res = await fetch(
+//         `/api/pain-maps/context?patientId=${encodeURIComponent(patientId)}`,
+//       );
+//       const result = (await res.json().catch(() => ({}))) as {
+//         patient?: Patient;
+//         visits?: Visit[];
+//         error?: string;
+//       };
+//       if (cancelled) return;
+//       if (res.ok) {
+//         setContextPatient(result.patient || null);
+//         setContextVisits(result.visits || []);
+//         setMessage(null);
+//       } else {
+//         setMessage(result.error || "Could not load patient visits.");
+//       }
+//       setContextLoading(false);
+//     }
+
+//     void loadContext();
+//     return () => {
+//       cancelled = true;
+//     };
+//   }, [initialPatientId, visitOptions.length]);
+
+//   useEffect(() => {
+//     if (!selectedVisitId && visitOptions[0]?.visit.id) {
+//       setSelectedVisitId(visitOptions[0].visit.id);
+//     }
+//   }, [selectedVisitId, visitOptions]);
+
+//   useEffect(() => {
+//     if (!selectedPatient) {
+//       setSavedMaps([]);
+//       return;
+//     }
+
+//     const selectedPatientId = selectedPatient.id;
+//     let cancelled = false;
+//     async function loadSavedMaps() {
+//       setLoadingSavedMaps(true);
+//       const { data } = await supabaseBrowser()
+//         .from("graphic_pain_maps")
+//         .select("id, pain_type, intensity, pain_summary, marked_points, created_at")
+//         .eq("clinic_id", clinicId)
+//         .eq("patient_id", selectedPatientId)
+//         .order("created_at", { ascending: false })
+//         .limit(5);
+
+//       if (!cancelled) {
+//         setSavedMaps((data || []) as SavedPainMap[]);
+//         setLoadingSavedMaps(false);
+//       }
+//     }
+
+//     void loadSavedMaps();
+//     return () => {
+//       cancelled = true;
+//     };
+//   }, [clinicId, selectedPatient]);
 
 //   async function savePainMap() {
 //     setMessage(null);
@@ -518,52 +715,60 @@
 //     }
 
 //     setSaving(true);
-//     const supabase = supabaseBrowser();
-//     const { error } = await supabase.from("graphic_pain_maps").insert({
-//       clinic_id: clinicId,
-//       patient_id: selectedPatient.id,
-//       visit_id: selectedVisit.visit.id,
-//       created_by: currentUserId,
-//       pain_type: painType,
-//       intensity,
-//       pain_locations: markers.map((marker) => marker.location),
-//       marked_points: markers.map(formatMarkedPoint),
-//       pain_summary: buildPainSummary(markers),
-//       markers,
+//     const res = await fetch("/api/pain-maps/create", {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({
+//         patientId: selectedPatient.id,
+//         visitId: selectedVisit.visit.id,
+//         painType,
+//         intensity,
+//         painLocations: markers.map((marker) => marker.location),
+//         markedPoints: markers.map(formatMarkedPoint),
+//         painSummary: buildPainSummary(markers),
+//         markers,
+//       }),
 //     });
+//     const result = (await res.json().catch(() => ({}))) as {
+//       error?: string;
+//       painMap?: SavedPainMap;
+//     };
 //     setSaving(false);
 
-//     if (error) {
-//       setMessage(error.message);
+//     if (!res.ok) {
+//       setMessage(result.error || "Could not save pain map.");
 //       return;
 //     }
 
-//     await supabase
-//       .from("visits")
-//       .update({
-//         pre_visit_summary: null,
-//         pre_visit_summary_generated_at: null,
-//       })
-//       .eq("id", selectedVisit.visit.id);
-
 //     setMessage("Pain map saved to Supabase.");
+//     if (result.painMap) {
+//       setSavedMaps((current) => [result.painMap as SavedPainMap, ...current].slice(0, 5));
+//     }
 //     setMarkers([]);
+//     if (returnTo) {
+//       const nextUrl = new URL(returnTo, window.location.origin);
+//       nextUrl.searchParams.set(
+//         "painMapSummary",
+//         `${markers.length} marker${markers.length === 1 ? "" : "s"} - ${painType} - ${intensity}/10`,
+//       );
+//       router.replace(`${nextUrl.pathname}${nextUrl.search}`);
+//     }
 //   }
 
 //   return (
-//     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
-//       <div className="max-h-[94vh] w-full max-w-5xl overflow-hidden rounded-[18px] border border-slate-700 bg-[#111827] text-slate-100 shadow-2xl">
-//         <div className="flex items-center justify-between border-b border-slate-700 px-5 py-4">
+//     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4 py-6 backdrop-blur-sm">
+//       <div className="max-h-[94vh] w-full max-w-5xl overflow-hidden rounded-[18px] border border-slate-200 bg-white text-slate-900 shadow-2xl">
+//         <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
 //           <div>
 //             <h2 className="text-lg font-bold">Graphic Pain Map</h2>
-//             <p className="mt-1 text-sm text-slate-400">
+//             <p className="mt-1 text-sm text-slate-500">
 //               Click anywhere on the body to mark a pain location. Click a marker to remove it.
 //             </p>
 //           </div>
 //           <button
 //             type="button"
 //             onClick={onClose}
-//             className="rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-800"
+//             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
 //           >
 //             Close
 //           </button>
@@ -572,7 +777,7 @@
 //         <div className="max-h-[calc(94vh-73px)] overflow-y-auto p-5">
 //           <div className="mb-5 grid gap-4 md:grid-cols-[1fr_220px]">
 //             <label className="block">
-//               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+//               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
 //                 Patient visit
 //               </span>
 //               <select
@@ -582,10 +787,12 @@
 //                   setMarkers([]);
 //                   setMessage(null);
 //                 }}
-//                 className="w-full rounded-xl border border-slate-700 bg-[#1f2434] px-3 py-2 text-sm font-semibold text-slate-100 outline-none focus:border-teal-400"
+//                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
 //               >
 //                 {visitOptions.length === 0 ? (
-//                   <option value="">No visits available</option>
+//                   <option value="">
+//                     {contextLoading ? "Loading visits..." : "No visits available"}
+//                   </option>
 //                 ) : null}
 //                 {visitOptions.map(({ visit, patient }) => (
 //                   <option key={visit.id} value={visit.id}>
@@ -597,13 +804,13 @@
 //             </label>
 
 //             <label className="block">
-//               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+//               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
 //                 Pain type
 //               </span>
 //               <select
 //                 value={painType}
 //                 onChange={(e) => setPainType(e.target.value)}
-//                 className="w-full rounded-xl border border-slate-700 bg-[#1f2434] px-3 py-2 text-sm font-semibold text-slate-100 outline-none focus:border-teal-400"
+//                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
 //               >
 //                 <option>Sharp</option>
 //                 <option>Dull</option>
@@ -643,9 +850,9 @@
 //               </div>
 
 //               <label className="mt-6 block">
-//                 <span className="mb-3 block text-sm font-medium text-slate-300">
+//                 <span className="mb-3 block text-sm font-medium text-slate-700">
 //                   Pain Intensity (0-10) -{" "}
-//                   <span className="font-bold text-teal-300">{intensity}</span>
+//                   <span className="font-bold text-teal-600">{intensity}</span>
 //                 </span>
 //                 <input
 //                   type="range"
@@ -660,7 +867,7 @@
 
 //             <aside className="space-y-5">
 //               <div>
-//                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">
+//                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
 //                   Legend
 //                 </h3>
 //                 <LegendItem color="#ef4444" label="Severe (8-10)" />
@@ -669,13 +876,13 @@
 //               </div>
 
 //               <div>
-//                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">
+//                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
 //                   Marked points
 //                 </h3>
 //                 {markers.length === 0 ? (
-//                   <p className="text-sm text-slate-400">No markers yet</p>
+//                   <p className="text-sm text-slate-500">No markers yet</p>
 //                 ) : (
-//                   <ul className="space-y-2 text-sm text-slate-300">
+//                   <ul className="space-y-2 text-sm text-slate-700">
 //                     {markers.map((marker, index) => (
 //                       <li key={marker.id}>
 //                         {index + 1}. {marker.location} - {marker.painType} -{" "}
@@ -690,7 +897,7 @@
 //                 type="button"
 //                 onClick={() => setMarkers([])}
 //                 disabled={markers.length === 0}
-//                 className="w-full rounded-xl border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition enabled:hover:bg-slate-800 disabled:opacity-50"
+//                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition enabled:hover:bg-slate-50 disabled:opacity-50"
 //               >
 //                 Clear All
 //               </button>
@@ -705,10 +912,40 @@
 //               </button>
 
 //               {message ? (
-//                 <p className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300">
+//                 <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
 //                   {message}
 //                 </p>
 //               ) : null}
+
+//               <div>
+//                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+//                   Saved pain maps
+//                 </h3>
+//                 {loadingSavedMaps ? (
+//                   <p className="text-sm text-slate-500">Loading saved maps...</p>
+//                 ) : savedMaps.length === 0 ? (
+//                   <p className="text-sm text-slate-500">No saved pain maps for this patient.</p>
+//                 ) : (
+//                   <ul className="space-y-2">
+//                     {savedMaps.map((map) => (
+//                       <li
+//                         key={map.id}
+//                         className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+//                       >
+//                         <div className="font-bold text-slate-900">
+//                           {formatShortDate(map.created_at)} - {map.pain_type || "Pain"}{" "}
+//                           {map.intensity != null ? `${map.intensity}/10` : ""}
+//                         </div>
+//                         <div className="mt-1 text-xs leading-relaxed text-slate-600">
+//                           {map.pain_summary ||
+//                             map.marked_points?.slice(0, 2).join("; ") ||
+//                             "Pain map saved"}
+//                         </div>
+//                       </li>
+//                     ))}
+//                   </ul>
+//                 )}
+//               </div>
 //             </aside>
 //           </div>
 //         </div>
@@ -738,9 +975,15 @@
 
 //   function handleClick(event: React.MouseEvent<SVGSVGElement>) {
 //     const svg = event.currentTarget;
-//     const rect = svg.getBoundingClientRect();
-//     const x = ((event.clientX - rect.left) / rect.width) * 200;
-//     const y = ((event.clientY - rect.top) / rect.height) * 420;
+//     const screenMatrix = svg.getScreenCTM();
+//     if (!screenMatrix) return;
+
+//     const point = svg.createSVGPoint();
+//     point.x = event.clientX;
+//     point.y = event.clientY;
+//     const svgPoint = point.matrixTransform(screenMatrix.inverse());
+//     const x = svgPoint.x;
+//     const y = svgPoint.y;
 //     const location = getPainLocation(side, x, y);
 //     if (!location) return;
 
@@ -757,12 +1000,13 @@
 
 //   return (
 //     <div>
-//       <div className="mb-2 text-center text-xs font-bold uppercase tracking-wide text-slate-400">
+//       <div className="mb-2 text-center text-xs font-bold uppercase tracking-wide text-slate-500">
 //         {title}
 //       </div>
 //       <svg
 //         viewBox="0 0 200 420"
-//         className="h-[405px] w-full rounded-xl border border-slate-700 bg-[#1f2434]"
+//         preserveAspectRatio="xMidYMid meet"
+//         className="aspect-[10/21] h-auto max-h-[70vh] w-full rounded-xl border border-slate-200 bg-slate-50"
 //         onClick={handleClick}
 //         role="img"
 //         aria-label={`${title} body pain map`}
@@ -798,7 +1042,7 @@
 //   const regions = getPainRegions(side);
 
 //   return (
-//     <g fill="#2d3558" stroke={stroke} strokeWidth="2">
+//     <g fill="#e0f2fe" stroke={stroke} strokeWidth="2">
 //       {regions.map((region) =>
 //         region.shape === "ellipse" ? (
 //           <ellipse
@@ -807,7 +1051,7 @@
 //             cy={region.y + region.height / 2}
 //             rx={region.width / 2}
 //             ry={region.height / 2}
-//             className="cursor-crosshair transition hover:fill-[#33406d]"
+//             className="cursor-crosshair transition hover:fill-[#bae6fd]"
 //           />
 //         ) : (
 //           <rect
@@ -817,7 +1061,7 @@
 //             width={region.width}
 //             height={region.height}
 //             rx="10"
-//             className="cursor-crosshair transition hover:fill-[#33406d]"
+//             className="cursor-crosshair transition hover:fill-[#bae6fd]"
 //           />
 //         ),
 //       )}
@@ -862,10 +1106,10 @@
 //     { key: "neck", label: "Neck pain", shape: "rect", x: 91, y: 72, width: 18, height: 18 },
 //     { key: "left-shoulder", label: "Left Shoulder pain", shape: "ellipse", x: 40, y: 78, width: 42, height: 44 },
 //     { key: "right-shoulder", label: "Right Shoulder pain", shape: "ellipse", x: 118, y: 78, width: 42, height: 44 },
+//     { key: "left-hand", label: "Left Hand pain", shape: "ellipse", x: 18, y: 184, width: 36, height: 46 },
+//     { key: "right-hand", label: "Right Hand pain", shape: "ellipse", x: 146, y: 184, width: 36, height: 46 },
 //     { key: "left-arm", label: "Left Arm pain", shape: "rect", x: 27, y: 92, width: 25, height: 100 },
 //     { key: "right-arm", label: "Right Arm pain", shape: "rect", x: 148, y: 92, width: 25, height: 100 },
-//     { key: "left-hand", label: "Left Hand pain", shape: "ellipse", x: 26, y: 191, width: 26, height: 32 },
-//     { key: "right-hand", label: "Right Hand pain", shape: "ellipse", x: 148, y: 191, width: 26, height: 32 },
 //     { key: "upper-torso", label: upperTorso, shape: "rect", x: 55, y: 90, width: 90, height: 75 },
 //     { key: "lower-torso", label: lowerTorso, shape: "rect", x: 55, y: 155, width: 90, height: 55 },
 //     { key: "pelvis", label: side === "front" ? "Pelvis pain" : "Sacral pain", shape: "rect", x: 60, y: 210, width: 80, height: 42 },
@@ -901,7 +1145,7 @@
 
 // function LegendItem({ color, label }: { color: string; label: string }) {
 //   return (
-//     <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-200">
+//     <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
 //       <span className="h-4 w-4 rounded-full" style={{ backgroundColor: color }} />
 //       {label}
 //     </div>
@@ -1165,6 +1409,29 @@
 //   }).format(new Date(date));
 // }
 
+// function hasVisitVitals(visit: Visit) {
+//   return (
+//     visit.bp_systolic != null ||
+//     visit.bp_diastolic != null ||
+//     visit.pulse != null ||
+//     visit.temperature_f != null ||
+//     visit.spo2 != null ||
+//     visit.weight_kg != null ||
+//     visit.height_cm != null
+//   );
+// }
+
+// function carriedOverLabel(visitDate: string, todayMidnight: Date): string | null {
+//   const date = new Date(visitDate);
+//   date.setHours(0, 0, 0, 0);
+//   const diffDays = Math.floor(
+//     (todayMidnight.getTime() - date.getTime()) / 86_400_000,
+//   );
+//   if (diffDays <= 0) return null;
+//   if (diffDays === 1) return "Since yesterday";
+//   return `${diffDays}d waiting`;
+// }
+
 // function StatusPill({ status }: { status: Visit["status"] }) {
 //   const map: Record<Visit["status"], { cls: string; label: string }> = {
 //     intake: {
@@ -1203,25 +1470,27 @@
 //   );
 // }
 
-
-
-
+"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import {
   CheckCircleIcon,
   ClipboardIcon,
   ClockIcon,
+  GlobeIcon,
   PlusIcon,
   UsersIcon,
 } from "@/components/dashboard/icons";
 import { initials } from "@/lib/dashboard-utils";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Clinic, Doctor, Patient, Visit } from "@/types/db";
+
+const QUEUE_PAGE_SIZE = 10;
 
 type VitalTrendVisit = Pick<
   Visit,
@@ -1243,6 +1512,7 @@ type ChartSeries = {
   color: string;
   points: ChartPoint[];
 };
+type QueueFilter = "today" | "withDoctor" | "reviewed" | "pendingIntake";
 type PainMarker = {
   id: string;
   side: "front" | "back";
@@ -1261,16 +1531,39 @@ type PainRegion = {
   width: number;
   height: number;
 };
+type SavedPainMap = {
+  id: string;
+  pain_type: string | null;
+  intensity: number | null;
+  pain_summary: string | null;
+  marked_points: string[] | null;
+  created_at: string;
+};
+
+const doctorCardTones = ["brand", "sky", "accent", "violet", "amber", "rose"] as const;
+const queueFilterTitles: Record<QueueFilter, string> = {
+  today: "Current Intake Queue",
+  withDoctor: "With Doctor",
+  reviewed: "Reviewed Patients",
+  pendingIntake: "Pending Intake",
+};
 
 export function MaDashboard({
   member,
   clinic,
   todayVisits,
+  awaitingVisits,
   patientById,
   assignments,
   doctorRoster,
   currentUserId,
   vitalTrendVisits,
+  portalRequestCount,
+  hasOldPortalRequest,
+  initialPainMapPatientId = "",
+  initialPainMapVisitId = "",
+  initialPainMapOpen = false,
+  initialPainMapReturnTo = "",
 }: {
   member: Doctor;
   clinic: Clinic;
@@ -1281,12 +1574,34 @@ export function MaDashboard({
   doctorRoster: Array<Pick<Doctor, "id" | "full_name" | "qualification" | "role">>;
   currentUserId: string;
   vitalTrendVisits: VitalTrendVisit[];
+  portalRequestCount: number;
+  hasOldPortalRequest: boolean;
+  initialPainMapPatientId?: string;
+  initialPainMapVisitId?: string;
+  initialPainMapOpen?: boolean;
+  initialPainMapReturnTo?: string;
 }) {
   const [trendsOpen, setTrendsOpen] = useState(false);
-  const [painMapOpen, setPainMapOpen] = useState(false);
-  const queueItems = todayVisits.filter((v) =>
-    ["queued", "in_progress", "intake", "awaiting_review"].includes(v.status),
+  const [painMapOpen, setPainMapOpen] = useState(initialPainMapOpen);
+  const [queuePage, setQueuePage] = useState(1);
+  const [selectedDoctorQueueId, setSelectedDoctorQueueId] = useState<string | null>(null);
+  const [queueFilter, setQueueFilter] = useState<QueueFilter | null>(null);
+  const painMapVisits = useMemo(() => {
+    const byId = new Map<string, Visit>();
+    for (const visit of [...todayVisits, ...awaitingVisits]) {
+      byId.set(visit.id, visit);
+    }
+    return Array.from(byId.values());
+  }, [todayVisits, awaitingVisits]);
+  const queueItems = [...todayVisits, ...awaitingVisits].filter(
+    (visit, index, visits) =>
+      visits.findIndex((item) => item.id === visit.id) === index &&
+      ["queued", "in_progress", "intake", "awaiting_review"].includes(visit.status),
   );
+
+  useEffect(() => {
+    if (initialPainMapOpen) setPainMapOpen(true);
+  }, [initialPainMapOpen]);
 
   const assignmentsByVisit = new Map<
     string,
@@ -1299,58 +1614,240 @@ export function MaDashboard({
   }
 
   const doctorById = new Map(doctorRoster.map((d) => [d.id, d]));
+  const assignedDoctorIdsForVisit = (visit: Visit) => {
+    const assignedDoctorIds = new Set(
+      (assignmentsByVisit.get(visit.id) || []).map((assignment) => assignment.doctor_id),
+    );
+    if (visit.doctor_id) assignedDoctorIds.add(visit.doctor_id);
+    return assignedDoctorIds;
+  };
+  const hasDoctorAssigned = (visit: Visit) => assignedDoctorIdsForVisit(visit).size > 0;
   const checkedIn = queueItems.length;
-  const withDoctor = todayVisits.filter((v) => {
-    const assignedDoctors = assignmentsByVisit.get(v.id) || [];
-    return v.status === "in_progress" || assignedDoctors.length > 0 || Boolean(v.doctor_id);
-  }).length;
+  const withDoctorItems = queueItems.filter(
+    (visit) => visit.status === "in_progress" || hasDoctorAssigned(visit),
+  );
+  const withDoctor = withDoctorItems.length;
+  const reviewedItems = todayVisits.filter((v) => v.status === "completed");
   const completedToday = todayVisits.filter((v) => v.status === "completed").length;
-  const pendingIntake = todayVisits.filter((v) => v.status === "intake").length;
+  const pendingIntakeItems = queueItems.filter((v) => !hasVisitVitals(v));
+  const pendingIntake = pendingIntakeItems.length;
+  const doctorQueueCards = doctorRoster.map((doctor, index) => {
+    const count = queueItems.filter((visit) => assignedDoctorIdsForVisit(visit).has(doctor.id)).length;
+
+    return {
+      doctor,
+      count,
+      tone: doctorCardTones[index % doctorCardTones.length],
+    };
+  });
+  const unassignedQueueCount = queueItems.filter((visit) => !hasDoctorAssigned(visit)).length;
+  const filterRows: Record<QueueFilter, Visit[]> = {
+    today: queueItems,
+    withDoctor: withDoctorItems,
+    reviewed: reviewedItems,
+    pendingIntake: pendingIntakeItems,
+  };
+  const filteredQueueItems = queueFilter
+    ? filterRows[queueFilter].filter((visit) => {
+    if (!selectedDoctorQueueId) return true;
+
+    const assignedDoctorIds = assignedDoctorIdsForVisit(visit);
+    if (selectedDoctorQueueId === "unassigned") {
+      return assignedDoctorIds.size === 0;
+    }
+
+    return assignedDoctorIds.has(selectedDoctorQueueId);
+      })
+    : [];
+  const selectedDoctor = selectedDoctorQueueId
+    ? doctorRoster.find((doctor) => doctor.id === selectedDoctorQueueId)
+    : null;
+  const queueTitle = queueFilter ? queueFilterTitles[queueFilter] : "Current Intake Queue";
+  const intakeQueueTitle = selectedDoctor
+    ? `${queueTitle} - Dr. ${selectedDoctor.full_name.split(" ")[0] || selectedDoctor.full_name}`
+    : selectedDoctorQueueId === "unassigned"
+      ? `${queueTitle} - Unassigned`
+      : queueTitle;
+  const queuePageData = getClientPageItems(filteredQueueItems, queuePage, QUEUE_PAGE_SIZE);
+
+  function selectQueueFilter(nextFilter: QueueFilter) {
+    const resolvedFilter = queueFilter === nextFilter ? null : nextFilter;
+    setQueueFilter(resolvedFilter);
+    setQueuePage(1);
+    if (!resolvedFilter || resolvedFilter === "today") {
+      setSelectedDoctorQueueId(null);
+    }
+  }
 
   return (
     <div className="space-y-8">
       <DashboardHero name={member.full_name} clinicName={clinic.name} waveEmoji />
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 min-[1200px]:grid-cols-5">
+        <button
+          type="button"
+          onClick={() => selectQueueFilter("today")}
+          aria-pressed={queueFilter === "today"}
+          className={`rounded-[18px] text-left transition focus:outline-none focus:ring-4 focus:ring-[#0ea5a4]/20 ${
+            queueFilter === "today" ? "ring-2 ring-[#0ea5a4]/40" : ""
+          }`}
+        >
+          <StatCard
+            label="Current Queue"
+            value={checkedIn}
+            hint="patients checked in"
+            icon={<UsersIcon />}
+            tone="brand"
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => selectQueueFilter("withDoctor")}
+          aria-pressed={queueFilter === "withDoctor"}
+          className={`rounded-[18px] text-left transition focus:outline-none focus:ring-4 focus:ring-[#0ea5a4]/20 ${
+            queueFilter === "withDoctor" ? "ring-2 ring-[#0ea5a4]/40" : ""
+          }`}
+        >
+          <StatCard
+            label="With Doctor"
+            value={withDoctor}
+            hint="assigned or in progress"
+            icon={<ClockIcon />}
+            tone="sky"
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => selectQueueFilter("reviewed")}
+          aria-pressed={queueFilter === "reviewed"}
+          className={`rounded-[18px] text-left transition focus:outline-none focus:ring-4 focus:ring-[#0ea5a4]/20 ${
+            queueFilter === "reviewed" ? "ring-2 ring-[#0ea5a4]/40" : ""
+          }`}
+        >
+          <StatCard
+            label="Reviewed"
+            value={completedToday}
+            hint="completed visits"
+            icon={<CheckCircleIcon />}
+            tone="accent"
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => selectQueueFilter("pendingIntake")}
+          aria-pressed={queueFilter === "pendingIntake"}
+          className={`rounded-[18px] text-left transition focus:outline-none focus:ring-4 focus:ring-[#0ea5a4]/20 ${
+            queueFilter === "pendingIntake" ? "ring-2 ring-[#0ea5a4]/40" : ""
+          }`}
+        >
+          <StatCard
+            label="Pending Intake"
+            value={pendingIntake}
+            hint="vitals not captured"
+            icon={<ClipboardIcon />}
+            tone="amber"
+          />
+        </button>
         <StatCard
-          label="Today's Queue"
-          value={checkedIn}
-          hint="patients checked in"
-          icon={<UsersIcon />}
-          tone="brand"
-        />
-        <StatCard
-          label="With Doctor"
-          value={withDoctor}
-          hint="currently being seen"
-          icon={<ClockIcon />}
-          tone="sky"
-        />
-        <StatCard
-          label="Reviewed"
-          value={completedToday}
-          hint="completed visits"
-          icon={<CheckCircleIcon />}
-          tone="accent"
-        />
-        <StatCard
-          label="Pending Intake"
-          value={pendingIntake}
-          hint="vitals not captured"
-          icon={<ClipboardIcon />}
-          tone="amber"
+          label="Portal Requests"
+          value={portalRequestCount}
+          hint="awaiting doctor assignment"
+          icon={<GlobeIcon />}
+          tone={portalRequestCount === 0 ? "slate" : hasOldPortalRequest ? "amber" : "violet"}
+          href="/patient-portal-requests"
         />
       </section>
 
+      <div className="flex justify-end">
+        <Link href="/emr/new" className="btn-teal">
+          <PlusIcon />
+          New EMR
+        </Link>
+      </div>
+
+      {queueFilter ? (
+        <section>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
+              Doctor-wise Queue
+            </h2>
+            <span className="text-right text-[12px] font-semibold text-[#64748b] dark:text-ink-500">
+              active patients assigned today
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 min-[1200px]:grid-cols-4">
+            {doctorQueueCards.map(({ doctor, count, tone }) => (
+              <button
+                key={doctor.id}
+                type="button"
+                onClick={() => {
+                  setSelectedDoctorQueueId((current) =>
+                    current === doctor.id ? null : doctor.id,
+                  );
+                  setQueuePage(1);
+                }}
+                aria-pressed={selectedDoctorQueueId === doctor.id}
+                className={`rounded-[18px] text-left transition focus:outline-none focus:ring-4 focus:ring-[#0ea5a4]/20 ${
+                  selectedDoctorQueueId === doctor.id ? "ring-2 ring-[#0ea5a4]/40" : ""
+                }`}
+              >
+                <StatCard
+                  label={`Dr. ${doctor.full_name.split(" ")[0] || doctor.full_name}`}
+                  value={count}
+                  hint="patients assigned"
+                  icon={<UsersIcon />}
+                  tone={tone}
+                />
+              </button>
+            ))}
+            {unassignedQueueCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDoctorQueueId((current) =>
+                    current === "unassigned" ? null : "unassigned",
+                  );
+                  setQueuePage(1);
+                }}
+                aria-pressed={selectedDoctorQueueId === "unassigned"}
+                className={`rounded-[18px] text-left transition focus:outline-none focus:ring-4 focus:ring-[#0ea5a4]/20 ${
+                  selectedDoctorQueueId === "unassigned" ? "ring-2 ring-[#0ea5a4]/40" : ""
+                }`}
+              >
+                <StatCard
+                  label="Unassigned"
+                  value={unassignedQueueCount}
+                  hint="waiting for doctor"
+                  icon={<ClockIcon />}
+                  tone="slate"
+                />
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {queueFilter ? (
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
-            Today's Intake Queue
-          </h2>
-          <Link href="/emr/new" className="btn-teal">
-            <PlusIcon />
-            New EMR
-          </Link>
+          <div className="flex items-center gap-3">
+            <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
+              {intakeQueueTitle}
+            </h2>
+            {selectedDoctorQueueId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDoctorQueueId(null);
+                  setQueuePage(1);
+                }}
+                className="text-[12px] font-extrabold text-[#0f8f83] transition hover:text-[#0b766f]"
+              >
+                Show all
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-[18px] border border-[rgba(15,23,42,0.06)] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05),0_8px_24px_-12px_rgba(15,23,42,0.10)] dark:border-ink-800/70 dark:bg-ink-900">
@@ -1366,7 +1863,7 @@ export function MaDashboard({
               </tr>
             </thead>
             <tbody>
-              {queueItems.length === 0 ? (
+              {filteredQueueItems.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -1376,7 +1873,7 @@ export function MaDashboard({
                   </td>
                 </tr>
               ) : (
-                queueItems.map((v) => {
+                queuePageData.pageItems.map((v) => {
                   const patient = patientById[v.patient_id];
                   if (!patient) return null;
 
@@ -1387,15 +1884,12 @@ export function MaDashboard({
                     assigned.length > 0
                       ? `Dr. ${assigned[0]!.full_name.split(" ")[0]}`
                       : "Unassigned";
-                  const hasVitals = Boolean(
-                    v.bp_systolic ||
-                      v.bp_diastolic ||
-                      v.pulse ||
-                      v.temperature_f ||
-                      v.spo2 ||
-                      v.weight_kg ||
-                      v.height_cm,
-                  );
+                  const hasVitals = hasVisitVitals(v);
+                  const actionHref =
+                    v.status === "completed"
+                      ? `/emr/${patient.id}?source=dashboard&section=completedPatients`
+                      : `/emr/${patient.id}/visits/${v.id}/intake`;
+                  const actionLabel = v.status === "completed" ? "View" : "Intake";
 
                   return (
                     <tr
@@ -1447,10 +1941,10 @@ export function MaDashboard({
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <Link
-                          href={`/emr/${patient.id}/visits/${v.id}/intake`}
+                          href={actionHref}
                           className="inline-flex items-center rounded-full border border-[rgba(15,23,42,0.08)] bg-white px-3 py-1 text-[12px] font-semibold text-[#0ea5a4] transition hover:border-[#0ea5a4]/40 hover:bg-[#ecfdfc] dark:border-ink-700 dark:bg-ink-900 dark:hover:bg-ink-800"
                         >
-                          Intake
+                          {actionLabel}
                         </Link>
                       </td>
                     </tr>
@@ -1459,8 +1953,16 @@ export function MaDashboard({
               )}
             </tbody>
           </table>
+          <ClientPagination
+            page={queuePageData.currentPage}
+            pageSize={QUEUE_PAGE_SIZE}
+            totalItems={filteredQueueItems.length}
+            onPageChange={setQueuePage}
+            label="patients"
+          />
         </div>
       </section>
+      ) : null}
 
       <QuickActions
         onOpenVitalTrends={() => setTrendsOpen(true)}
@@ -1478,13 +1980,27 @@ export function MaDashboard({
       {painMapOpen ? (
         <GraphicPainMapModal
           clinicId={clinic.id}
-          currentUserId={currentUserId}
           patients={patientById}
-          visits={todayVisits}
+          visits={painMapVisits}
+          initialPatientId={initialPainMapPatientId}
+          initialVisitId={initialPainMapVisitId}
+          returnTo={initialPainMapReturnTo}
           onClose={() => setPainMapOpen(false)}
         />
       ) : null}
     </div>
+  );
+}
+
+function hasVisitVitals(visit: Visit) {
+  return (
+    visit.bp_systolic != null ||
+    visit.bp_diastolic != null ||
+    visit.pulse != null ||
+    visit.temperature_f != null ||
+    visit.spo2 != null ||
+    visit.weight_kg != null ||
+    visit.height_cm != null
   );
 }
 
@@ -1580,7 +2096,11 @@ function VitalTrendsModal({
       );
   }, [selectedPatient, visits]);
   const chart = getChartSeries(activeTab, selectedVisits);
-  const latestVisit = selectedVisits[selectedVisits.length - 1] || null;
+  const readingVisits = useMemo(
+    () => getReadingVisits(activeTab, selectedVisits),
+    [activeTab, selectedVisits],
+  );
+  const latestReadingVisit = readingVisits[readingVisits.length - 1] || null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-sm">
@@ -1626,10 +2146,10 @@ function VitalTrendsModal({
               </select>
             </label>
             <div className="text-xs font-medium text-slate-500 dark:text-ink-500">
-              {selectedVisits.length} reading
-              {selectedVisits.length === 1 ? "" : "s"}
-              {latestVisit
-                ? ` | Latest ${formatShortDate(latestVisit.visit_date)}`
+              {readingVisits.length} reading
+              {readingVisits.length === 1 ? "" : "s"}
+              {latestReadingVisit
+                ? ` | Latest ${formatShortDate(latestReadingVisit.visit_date)}`
                 : ""}
             </div>
           </div>
@@ -1674,42 +2194,154 @@ function VitalTrendsModal({
   );
 }
 
+function getReadingVisits(tab: TrendTab, visits: VitalTrendVisit[]) {
+  return visits.filter((visit) => {
+    if (tab === "bp") {
+      return visit.bp_systolic != null || visit.bp_diastolic != null;
+    }
+    if (tab === "spo2") return visit.spo2 != null;
+    if (tab === "weight") return visit.weight_kg != null;
+    if (tab === "pulse") return visit.pulse != null;
+    return visit.temperature_f != null;
+  });
+}
+
 function GraphicPainMapModal({
   clinicId,
-  currentUserId,
   patients,
   visits,
+  initialPatientId,
+  initialVisitId,
+  returnTo,
   onClose,
 }: {
   clinicId: string;
-  currentUserId: string;
   patients: Record<string, Patient>;
   visits: Visit[];
+  initialPatientId?: string;
+  initialVisitId?: string;
+  returnTo?: string;
   onClose: () => void;
 }) {
-  const visitOptions = useMemo(
+  const router = useRouter();
+  const [contextPatient, setContextPatient] = useState<Patient | null>(null);
+  const [contextVisits, setContextVisits] = useState<Visit[]>([]);
+  const [contextLoading, setContextLoading] = useState(false);
+  const mergedPatients = useMemo(
     () =>
-      visits
-        .map((visit) => ({ visit, patient: patients[visit.patient_id] }))
+      contextPatient
+        ? { ...patients, [contextPatient.id]: contextPatient }
+        : patients,
+    [contextPatient, patients],
+  );
+  const mergedVisits = useMemo(() => {
+    if (contextVisits.length === 0) return visits;
+    const byId = new Map<string, Visit>();
+    for (const visit of [...visits, ...contextVisits]) {
+      byId.set(visit.id, visit);
+    }
+    return Array.from(byId.values());
+  }, [contextVisits, visits]);
+  const visitOptions = useMemo(
+    () => {
+      const scopedVisits = initialPatientId
+        ? mergedVisits.filter((visit) => visit.patient_id === initialPatientId)
+        : mergedVisits;
+      return scopedVisits
+        .map((visit) => ({ visit, patient: mergedPatients[visit.patient_id] }))
         .filter((item) => item.patient)
         .sort(
           (a, b) =>
             new Date(b.visit.visit_date).getTime() -
             new Date(a.visit.visit_date).getTime(),
-        ),
-    [patients, visits],
+        );
+    },
+    [initialPatientId, mergedPatients, mergedVisits],
   );
-  const [selectedVisitId, setSelectedVisitId] = useState(
-    visitOptions[0]?.visit.id || "",
-  );
+  const [selectedVisitId, setSelectedVisitId] = useState(initialVisitId || visitOptions[0]?.visit.id || "");
   const [intensity, setIntensity] = useState(3);
   const [painType, setPainType] = useState("Sharp");
   const [markers, setMarkers] = useState<PainMarker[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [savedMaps, setSavedMaps] = useState<SavedPainMap[]>([]);
+  const [loadingSavedMaps, setLoadingSavedMaps] = useState(false);
 
   const selectedVisit = visitOptions.find((item) => item.visit.id === selectedVisitId);
   const selectedPatient = selectedVisit?.patient || null;
+
+  useEffect(() => {
+    if (!initialPatientId) return;
+    if (visitOptions.length > 0) return;
+
+    const patientId = initialPatientId;
+    let cancelled = false;
+    async function loadContext() {
+      setContextLoading(true);
+      const res = await fetch(
+        `/api/pain-maps/context?patientId=${encodeURIComponent(patientId)}`,
+      );
+      const result = (await res.json().catch(() => ({}))) as {
+        patient?: Patient;
+        visits?: Visit[];
+        error?: string;
+      };
+      if (cancelled) return;
+      if (res.ok) {
+        setContextPatient(result.patient || null);
+        setContextVisits(result.visits || []);
+        setMessage(null);
+      } else {
+        setMessage(result.error || "Could not load patient visits.");
+      }
+      setContextLoading(false);
+    }
+
+    void loadContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialPatientId, visitOptions.length]);
+
+  useEffect(() => {
+    if (initialVisitId && visitOptions.some((item) => item.visit.id === initialVisitId)) {
+      setSelectedVisitId(initialVisitId);
+      return;
+    }
+    if (!selectedVisitId && visitOptions[0]?.visit.id) {
+      setSelectedVisitId(visitOptions[0].visit.id);
+    }
+  }, [initialVisitId, selectedVisitId, visitOptions]);
+
+  useEffect(() => {
+    if (!selectedPatient) {
+      setSavedMaps([]);
+      return;
+    }
+
+    const selectedPatientId = selectedPatient.id;
+    let cancelled = false;
+    async function loadSavedMaps() {
+      setLoadingSavedMaps(true);
+      const { data } = await supabaseBrowser()
+        .from("graphic_pain_maps")
+        .select("id, pain_type, intensity, pain_summary, marked_points, created_at")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", selectedPatientId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (!cancelled) {
+        setSavedMaps((data || []) as SavedPainMap[]);
+        setLoadingSavedMaps(false);
+      }
+    }
+
+    void loadSavedMaps();
+    return () => {
+      cancelled = true;
+    };
+  }, [clinicId, selectedPatient]);
 
   async function savePainMap() {
     setMessage(null);
@@ -1723,33 +2355,30 @@ function GraphicPainMapModal({
     }
 
     setSaving(true);
-    const supabase = supabaseBrowser();
-    const { error } = await supabase.from("graphic_pain_maps").insert({
-      clinic_id: clinicId,
-      patient_id: selectedPatient.id,
-      visit_id: selectedVisit.visit.id,
-      created_by: currentUserId,
-      pain_type: painType,
-      intensity,
-      pain_locations: markers.map((marker) => marker.location),
-      marked_points: markers.map(formatMarkedPoint),
-      pain_summary: buildPainSummary(markers),
-      markers,
+    const res = await fetch("/api/pain-maps/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        patientId: selectedPatient.id,
+        visitId: selectedVisit.visit.id,
+        painType,
+        intensity,
+        painLocations: markers.map((marker) => marker.location),
+        markedPoints: markers.map(formatMarkedPoint),
+        painSummary: buildPainSummary(markers),
+        markers,
+      }),
     });
+    const result = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      painMap?: SavedPainMap;
+    };
     setSaving(false);
 
-    if (error) {
-      setMessage(error.message);
+    if (!res.ok) {
+      setMessage(result.error || "Could not save pain map.");
       return;
     }
-
-    await supabase
-      .from("visits")
-      .update({
-        pre_visit_summary: null,
-        pre_visit_summary_generated_at: null,
-      })
-      .eq("id", selectedVisit.visit.id);
 
     void fetch("/api/pre-visit-summary", {
       method: "POST",
@@ -1761,7 +2390,18 @@ function GraphicPainMapModal({
     });
 
     setMessage("Pain map saved to Supabase.");
+    if (result.painMap) {
+      setSavedMaps((current) => [result.painMap as SavedPainMap, ...current].slice(0, 5));
+    }
     setMarkers([]);
+    if (returnTo) {
+      const nextUrl = new URL(returnTo, window.location.origin);
+      nextUrl.searchParams.set(
+        "painMapSummary",
+        `${markers.length} marker${markers.length === 1 ? "" : "s"} - ${painType} - ${intensity}/10`,
+      );
+      router.replace(`${nextUrl.pathname}${nextUrl.search}`);
+    }
   }
 
   return (
@@ -1799,7 +2439,9 @@ function GraphicPainMapModal({
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
               >
                 {visitOptions.length === 0 ? (
-                  <option value="">No visits available</option>
+                  <option value="">
+                    {contextLoading ? "Loading visits..." : "No visits available"}
+                  </option>
                 ) : null}
                 {visitOptions.map(({ visit, patient }) => (
                   <option key={visit.id} value={visit.id}>
@@ -1923,6 +2565,36 @@ function GraphicPainMapModal({
                   {message}
                 </p>
               ) : null}
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+                  Saved pain maps
+                </h3>
+                {loadingSavedMaps ? (
+                  <p className="text-sm text-slate-500">Loading saved maps...</p>
+                ) : savedMaps.length === 0 ? (
+                  <p className="text-sm text-slate-500">No saved pain maps for this patient.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {savedMaps.map((map) => (
+                      <li
+                        key={map.id}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                      >
+                        <div className="font-bold text-slate-900">
+                          {formatShortDate(map.created_at)} - {map.pain_type || "Pain"}{" "}
+                          {map.intensity != null ? `${map.intensity}/10` : ""}
+                        </div>
+                        <div className="mt-1 text-xs leading-relaxed text-slate-600">
+                          {map.pain_summary ||
+                            map.marked_points?.slice(0, 2).join("; ") ||
+                            "Pain map saved"}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </aside>
           </div>
         </div>
@@ -1952,9 +2624,15 @@ function BodyMap({
 
   function handleClick(event: React.MouseEvent<SVGSVGElement>) {
     const svg = event.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 200;
-    const y = ((event.clientY - rect.top) / rect.height) * 420;
+    const screenMatrix = svg.getScreenCTM();
+    if (!screenMatrix) return;
+
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const svgPoint = point.matrixTransform(screenMatrix.inverse());
+    const x = svgPoint.x;
+    const y = svgPoint.y;
     const location = getPainLocation(side, x, y);
     if (!location) return;
 
@@ -1976,7 +2654,8 @@ function BodyMap({
       </div>
       <svg
         viewBox="0 0 200 420"
-        className="h-[405px] w-full rounded-xl border border-slate-200 bg-slate-50"
+        preserveAspectRatio="xMidYMid meet"
+        className="aspect-[10/21] h-auto max-h-[70vh] w-full rounded-xl border border-slate-200 bg-slate-50"
         onClick={handleClick}
         role="img"
         aria-label={`${title} body pain map`}
@@ -2076,10 +2755,10 @@ function getPainRegions(side: "front" | "back"): PainRegion[] {
     { key: "neck", label: "Neck pain", shape: "rect", x: 91, y: 72, width: 18, height: 18 },
     { key: "left-shoulder", label: "Left Shoulder pain", shape: "ellipse", x: 40, y: 78, width: 42, height: 44 },
     { key: "right-shoulder", label: "Right Shoulder pain", shape: "ellipse", x: 118, y: 78, width: 42, height: 44 },
+    { key: "left-hand", label: "Left Hand pain", shape: "ellipse", x: 18, y: 184, width: 36, height: 46 },
+    { key: "right-hand", label: "Right Hand pain", shape: "ellipse", x: 146, y: 184, width: 36, height: 46 },
     { key: "left-arm", label: "Left Arm pain", shape: "rect", x: 27, y: 92, width: 25, height: 100 },
     { key: "right-arm", label: "Right Arm pain", shape: "rect", x: 148, y: 92, width: 25, height: 100 },
-    { key: "left-hand", label: "Left Hand pain", shape: "ellipse", x: 26, y: 191, width: 26, height: 32 },
-    { key: "right-hand", label: "Right Hand pain", shape: "ellipse", x: 148, y: 191, width: 26, height: 32 },
     { key: "upper-torso", label: upperTorso, shape: "rect", x: 55, y: 90, width: 90, height: 75 },
     { key: "lower-torso", label: lowerTorso, shape: "rect", x: 55, y: 155, width: 90, height: 55 },
     { key: "pelvis", label: side === "front" ? "Pelvis pain" : "Sacral pain", shape: "rect", x: 60, y: 210, width: 80, height: 42 },

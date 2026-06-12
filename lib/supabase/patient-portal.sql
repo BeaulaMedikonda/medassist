@@ -1,6 +1,18 @@
 -- Patient Portal setup for MedAssist.
 -- Run this in the Supabase SQL editor after deploying the patient portal pages.
-
+--
+-- Current workflow:
+-- 1. Patient selects a clinic, enters a 10 digit mobile number, and verifies OTP.
+-- 2. Patient fills personal details.
+-- 3. Details are saved to patient_portal_intake_submissions with clinic_id + phone.
+-- 4. Medical Assistant reviews that submission and assigns a doctor.
+-- 5. The app creates/updates patients and marks the submission assigned.
+--
+-- The old patient_portal_registration_requests table is intentionally removed.
+-- New OTP submissions use patient_portal_intake_submissions.
+ 
+drop table if exists public.patient_portal_registration_requests cascade;
+ 
 create table if not exists public.patient_portal_accounts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -11,15 +23,15 @@ create table if not exists public.patient_portal_accounts (
   unique (user_id),
   unique (patient_id)
 );
-
+ 
 create index if not exists patient_portal_accounts_user_id_idx
   on public.patient_portal_accounts(user_id);
-
+ 
 create index if not exists patient_portal_accounts_patient_id_idx
   on public.patient_portal_accounts(patient_id);
-
+ 
 alter table public.patient_portal_accounts enable row level security;
-
+ 
 do $$
 begin
   if not exists (
@@ -34,16 +46,15 @@ begin
       using (user_id = auth.uid());
   end if;
 end $$;
-
+ 
 -- Link an existing Supabase Auth user to an existing EMR patient:
 -- insert into public.patient_portal_accounts (user_id, patient_id, clinic_id)
 -- values ('AUTH_USER_UUID', 'PATIENT_UUID', 'CLINIC_UUID');
-
+ 
 create table if not exists public.patient_portal_intake_submissions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete cascade,
   patient_id uuid references public.patients(id) on delete cascade,
-  registration_request_id uuid,
   clinic_id uuid references public.clinics(id) on delete cascade,
   first_name text,
   last_name text,
@@ -80,11 +91,10 @@ create table if not exists public.patient_portal_intake_submissions (
   created_visit_id uuid references public.visits(id),
   created_at timestamptz not null default now()
 );
-
+ 
 alter table public.patient_portal_intake_submissions
   add column if not exists user_id uuid references auth.users(id) on delete cascade,
   alter column patient_id drop not null,
-  add column if not exists registration_request_id uuid,
   add column if not exists first_name text,
   add column if not exists last_name text,
   add column if not exists birthdate date,
@@ -107,52 +117,55 @@ alter table public.patient_portal_intake_submissions
   add column if not exists assigned_doctor_id uuid references public.doctors(id),
   add column if not exists created_patient_id uuid references public.patients(id),
   add column if not exists created_visit_id uuid references public.visits(id);
-
-create table if not exists public.patient_portal_registration_requests (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete cascade,
-  clinic_id uuid references public.clinics(id) on delete cascade,
-  full_name text not null,
-  phone text not null,
-  email text not null,
-  address text,
-  status text not null default 'pending',
-  reviewed_by uuid references public.doctors(id),
-  reviewed_at timestamptz,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists patient_portal_registration_user_id_idx
-  on public.patient_portal_registration_requests(user_id);
-
-create index if not exists patient_portal_registration_status_idx
-  on public.patient_portal_registration_requests(status);
-
-alter table public.patient_portal_registration_requests enable row level security;
-
-do $$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'public'
-      and tablename = 'patient_portal_registration_requests'
-      and policyname = 'new patients can read own registration request'
-  ) then
-    create policy "new patients can read own registration request"
-      on public.patient_portal_registration_requests
-      for select
-      using (user_id = auth.uid());
-  end if;
-end $$;
-
+ 
 create index if not exists patient_portal_intake_patient_id_idx
   on public.patient_portal_intake_submissions(patient_id);
-
+ 
 create index if not exists patient_portal_intake_status_idx
   on public.patient_portal_intake_submissions(status);
-
+ 
+create index if not exists patient_portal_intake_clinic_phone_idx
+  on public.patient_portal_intake_submissions(clinic_id, phone);
+ 
+create index if not exists patient_portal_intake_clinic_status_idx
+  on public.patient_portal_intake_submissions(clinic_id, status);
+ 
+-- Avoid duplicate waiting requests for the same mobile number inside the same clinic.
+-- Same phone number can still be used in a different clinic.
+create unique index if not exists patient_portal_intake_unique_open_clinic_phone_idx
+  on public.patient_portal_intake_submissions(clinic_id, phone)
+  where status = 'submitted' and clinic_id is not null and phone is not null;
+ 
+create unique index if not exists patient_portal_intake_unique_open_no_clinic_phone_idx
+  on public.patient_portal_intake_submissions(phone)
+  where status = 'submitted' and clinic_id is null and phone is not null;
+ 
+do $$
+begin
+  update public.patient_portal_intake_submissions
+  set phone = right(regexp_replace(phone, '\D', '', 'g'), 10)
+  where phone is not null
+    and phone <> right(regexp_replace(phone, '\D', '', 'g'), 10)
+    and length(regexp_replace(phone, '\D', '', 'g')) >= 10;
+ 
+  update public.patient_portal_intake_submissions
+  set phone = null
+  where phone is not null
+    and length(regexp_replace(phone, '\D', '', 'g')) < 10;
+ 
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'patient_portal_intake_phone_10_digits'
+  ) then
+    alter table public.patient_portal_intake_submissions
+      add constraint patient_portal_intake_phone_10_digits
+      check (phone is null or phone ~ '^[0-9]{10}$');
+  end if;
+end $$;
+ 
 alter table public.patient_portal_intake_submissions enable row level security;
-
+ 
 do $$
 begin
   if not exists (
@@ -174,7 +187,7 @@ begin
         )
       );
   end if;
-
+ 
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'
@@ -195,11 +208,18 @@ begin
       );
   end if;
 end $$;
+ 
+-- Pain map columns on intake submissions (run once)
+alter table public.patient_portal_intake_submissions
+  add column if not exists pain_markers jsonb,
+  add column if not exists pain_intensity integer,
+  add column if not exists pain_type text,
+  add column if not exists pain_summary text;
 
 -- Optional patient read policies.
 -- Only enable RLS on existing EMR tables after confirming your staff/admin
 -- policies already allow doctors, MAs, and admins to continue using the app.
-
+ 
 do $$
 begin
   if not exists (
@@ -220,7 +240,7 @@ begin
         )
       );
   end if;
-
+ 
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'
@@ -239,7 +259,7 @@ begin
         )
       );
   end if;
-
+ 
   if not exists (
     select 1 from pg_policies
     where schemaname = 'public'
@@ -259,3 +279,5 @@ begin
       );
   end if;
 end $$;
+ 
+ 

@@ -9,9 +9,11 @@ import { EmptyState } from "@/components/ui/Empty";
 export function VisitTimeline({
   visits,
   patientId,
+  hideNewVisitActions = false,
 }: {
   visits: Visit[];
   patientId: string;
+  hideNewVisitActions?: boolean;
 }) {
   if (visits.length === 0) {
     return (
@@ -28,22 +30,28 @@ export function VisitTimeline({
           </svg>
         }
         title="No visits yet"
-        description="Start by recording or manually entering today's consultation."
+        description={
+          hideNewVisitActions
+            ? "No completed visits are visible for this patient."
+            : "Start by recording or manually entering today's consultation."
+        }
         action={
-          <div className="flex gap-2">
-            <Link
-              href={`/emr/${patientId}/visits/new?mode=manual`}
-              className="btn-secondary"
-            >
-              Manual entry
-            </Link>
-            <Link
-              href={`/emr/${patientId}/visits/new?mode=record`}
-              className="btn-primary"
-            >
-              Start recording
-            </Link>
-          </div>
+          hideNewVisitActions ? null : (
+            <div className="flex gap-2">
+              <Link
+                href={`/emr/${patientId}/visits/new?mode=manual`}
+                className="btn-secondary"
+              >
+                Manual entry
+              </Link>
+              <Link
+                href={`/emr/${patientId}/visits/new?mode=record`}
+                className="btn-primary"
+              >
+                Start recording
+              </Link>
+            </div>
+          )
         }
       />
     );

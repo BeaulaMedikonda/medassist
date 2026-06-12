@@ -10,6 +10,10 @@ import type { Immunization, Patient, Visit } from "@/types/db";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const SUMMARY_COOLDOWN_MS = 60_000;
+const IN_FLIGHT_EXPIRY_MS = 90_000;
+const inFlightSummaries = new Set<string>();
+
 export async function POST(req: Request) {
   try {
     const sb = await supabaseServer();
@@ -37,6 +41,22 @@ export async function POST(req: Request) {
       return featureDisabledResponse("Pre-visit summary");
     }
 
+    const generatedAt = v.pre_visit_summary_generated_at
+      ? new Date(v.pre_visit_summary_generated_at).getTime()
+      : 0;
+    const summaryIsRecent =
+      Boolean(v.pre_visit_summary) &&
+      generatedAt > 0 &&
+      Date.now() - generatedAt < SUMMARY_COOLDOWN_MS;
+
+    if (summaryIsRecent) {
+      return NextResponse.json({
+        ok: true,
+        cached: true,
+        summary: v.pre_visit_summary,
+      });
+    }
+
     // Skip if a summary already exists and the caller didn't force a refresh.
     if (!body.force && v.pre_visit_summary && v.pre_visit_summary.length > 0) {
       return NextResponse.json({
@@ -46,12 +66,27 @@ export async function POST(req: Request) {
       });
     }
 
+    if (inFlightSummaries.has(visitId)) {
+      return NextResponse.json({
+        ok: true,
+        inProgress: true,
+        summary: v.pre_visit_summary || null,
+      });
+    }
+
+    inFlightSummaries.add(visitId);
+    const inFlightExpiry = setTimeout(() => {
+      inFlightSummaries.delete(visitId);
+    }, IN_FLIGHT_EXPIRY_MS);
+
     const { data: patient } = await sb
       .from("patients")
       .select("*")
       .eq("id", v.patient_id)
       .maybeSingle();
     if (!patient) {
+      clearTimeout(inFlightExpiry);
+      inFlightSummaries.delete(visitId);
       return NextResponse.json({ error: "Patient not found" }, { status: 404 });
     }
 
@@ -116,14 +151,19 @@ export async function POST(req: Request) {
       .update(update as never)
       .eq("id", visitId);
     if (error) {
+      clearTimeout(inFlightExpiry);
+      inFlightSummaries.delete(visitId);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    clearTimeout(inFlightExpiry);
+    inFlightSummaries.delete(visitId);
 
     return NextResponse.json({
       ok: true,
       cached: false,
       summary,
-      model: serverEnv.anthropicDefaultModel,
+      model: serverEnv.anthropicSummaryModel,
       raw_meta: typeof raw === "object" && raw && "id" in (raw as object) ? { id: (raw as { id: string }).id } : null,
     });
   } catch (err: unknown) {

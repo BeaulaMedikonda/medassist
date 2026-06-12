@@ -72,6 +72,13 @@ export async function POST(req: Request) {
   }
 
   if (referredToDoctorId) {
+    if (referredToDoctorId === member.id) {
+      return NextResponse.json(
+        { error: "You cannot refer a patient to yourself" },
+        { status: 400 },
+      );
+    }
+
     const { data: referredDoctor } = await admin
       .from("doctors")
       .select("id, clinic_id, role")

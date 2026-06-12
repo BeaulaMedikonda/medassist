@@ -1,9 +1,11 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { publicEnv } from "@/lib/env";
+import { hasSupabasePublicEnv, publicEnv } from "@/lib/env";
+import { PATIENT_DEMO_SESSION_COOKIE } from "@/lib/patient-session";
  
 const PUBLIC_PATHS = [
   "/login",
+  "/reset-password",
   "/patient/clinics",
   "/patient/login",
   "/patient/register",
@@ -18,13 +20,29 @@ const PUBLIC_PATHS = [
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));
-
+ 
   if (isPublic) {
     return NextResponse.next({
       request: { headers: request.headers },
     });
   }
-
+ 
+  const isPatientPortalPath = path === "/patient" || path.startsWith("/patient/");
+  const isPatientApiPath = path.startsWith("/api/patient/");
+  if ((isPatientPortalPath || isPatientApiPath) && request.cookies.has(PATIENT_DEMO_SESSION_COOKIE)) {
+    return NextResponse.next({
+      request: { headers: request.headers },
+    });
+  }
+ 
+  if (!hasSupabasePublicEnv) {
+    const url = request.nextUrl.clone();
+    url.pathname = isPatientPortalPath ? "/patient/login" : "/login";
+    url.searchParams.set("next", path);
+    url.searchParams.set("error", "supabase-not-configured");
+    return NextResponse.redirect(url);
+  }
+ 
   let response = NextResponse.next({
     request: { headers: request.headers },
   });
@@ -47,7 +65,6 @@ export async function middleware(request: NextRequest) {
  
   if (!user) {
     const url = request.nextUrl.clone();
-    const isPatientPortalPath = path === "/patient" || path.startsWith("/patient/");
     url.pathname = isPatientPortalPath ? "/patient/login" : "/login";
     url.searchParams.set("next", path);
     return NextResponse.redirect(url);
@@ -58,8 +75,10 @@ export async function middleware(request: NextRequest) {
  
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
+ 
+ 
  
  

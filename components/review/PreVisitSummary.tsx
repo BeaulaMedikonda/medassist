@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Immunization } from "@/types/db";
 
@@ -45,14 +45,6 @@ export function PreVisitSummary({
       setBusy(false);
     }
   }
-
-  // Auto-generate the first time the doctor lands on the review screen if missing.
-  useEffect(() => {
-    if (!summary && !busy) {
-      void generate(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <section className="card border-brand-200 bg-gradient-to-br from-brand-50/70 to-white p-4 dark:border-brand-900/40 dark:from-brand-900/20 dark:to-ink-900 sm:p-5">

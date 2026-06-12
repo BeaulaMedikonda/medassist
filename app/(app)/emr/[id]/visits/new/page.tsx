@@ -14,12 +14,17 @@ export default async function NewVisitPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ mode?: string; vid?: string }>;
+  searchParams: Promise<{ mode?: string; vid?: string; source?: string; section?: string }>;
 }) {
   const { member, clinic } = await requireMember();
   const supabase = await supabaseServer();
   const admin = supabaseAdmin();
   const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
+  const dashboardBackSection = normalizeDashboardSection(resolvedSearchParams.section);
+  const isReferralSource = resolvedSearchParams.source === "referral";
+  const backHref = dashboardBackSection
+    ? `/emr/${id}${isReferralSource ? "?source=referral&" : "?"}section=${dashboardBackSection}`
+    : `/emr/${id}`;
   const db = member.role === "doctor" ? admin : supabase;
 
   const { data: patient } = await db
@@ -29,6 +34,9 @@ export default async function NewVisitPage({
     .eq("clinic_id", clinic.id)
     .maybeSingle();
   if (!patient) notFound();
+  const backLabel = dashboardBackSection
+    ? dashboardSectionLabel(dashboardBackSection)
+    : (patient as Patient).full_name;
 
   const doctorScope =
     member.role === "doctor"
@@ -73,7 +81,7 @@ export default async function NewVisitPage({
   return (
     <div>
       <Link
-        href={`/emr/${id}`}
+        href={backHref}
         className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900"
       >
         <svg viewBox="0 0 20 20" className="h-3 w-3">
@@ -86,7 +94,7 @@ export default async function NewVisitPage({
             strokeLinejoin="round"
           />
         </svg>
-        Back to {(patient as Patient).full_name}
+        Back to {backLabel}
       </Link>
 
       <h1 className="text-2xl font-bold text-slate-900">
@@ -108,4 +116,34 @@ export default async function NewVisitPage({
       </div>
     </div>
   );
+}
+
+type DashboardBackSection =
+  | "todayIntake"
+  | "completedPatients"
+  | "sentReferrals"
+  | "receivedReferrals";
+
+function normalizeDashboardSection(value: string | null | undefined): DashboardBackSection | null {
+  if (
+    value === "todayIntake" ||
+    value === "completedPatients" ||
+    value === "sentReferrals" ||
+    value === "receivedReferrals"
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function dashboardSectionLabel(section: DashboardBackSection) {
+  const labels: Record<DashboardBackSection, string> = {
+    todayIntake: "Today's Queue",
+    completedPatients: "Completed Patients",
+    sentReferrals: "Sent Referrals",
+    receivedReferrals: "Referral Received",
+  };
+
+  return labels[section];
 }

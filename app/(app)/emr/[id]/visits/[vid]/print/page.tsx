@@ -100,6 +100,41 @@ export default async function PrintPage({
       record.date_given === v.visit_date.slice(0, 10),
   );
   const allergies = ((allergyRows || []) as PatientAllergy[]) || [];
+  const allergyLine = [
+    p.known_allergies,
+    ...allergies.map((allergy) => {
+      const details = [
+        allergy.reaction ? `reaction: ${allergy.reaction}` : null,
+        allergy.severity ? `severity: ${allergy.severity}` : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      return details ? `${allergy.allergen} (${details})` : allergy.allergen;
+    }),
+  ]
+    .filter(Boolean)
+    .join("; ");
+  const patientMedicalLine = [
+    p.blood_group ? `Blood group ${p.blood_group}` : null,
+    p.height_cm ? `Height ${p.height_cm} cm` : null,
+    p.chronic_conditions ? `Chronic conditions: ${p.chronic_conditions}` : null,
+    p.emergency_contact ? `Emergency contact: ${p.emergency_contact}` : null,
+  ]
+    .filter(Boolean)
+    .join("  /  ");
+  const diagnosisLine = [
+    v.confirmed_diagnosis || v.provisional_diagnosis,
+    formatIcdCodes(v),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const investigationsLine = [
+    v.investigations_ordered,
+    formatLoincDetails(v),
+  ]
+    .filter(Boolean)
+    .join("\n");
  
   const includeNotes = serverEnv.pdfIncludeDoctorNotesByDefault;
  
@@ -326,20 +361,23 @@ export default async function PrintPage({
                 {vitalsLine ? (
                   <PrintRow label="Vitals" value={vitalsLine} />
                 ) : null}
+                <PrintRow label="Patient details" value={patientMedicalLine} />
+                <PrintRow label="Allergies" value={allergyLine} />
                 <PrintRow label="Complaints" value={v.chief_complaints} />
                 <PrintRow label="History" value={v.history_present_illness} />
+                <PrintRow label="Past history" value={v.past_history} />
                 <PrintRow
                   label="On Examination"
                   value={v.examination_findings}
                 />
                 <PrintRow
                   label="Diagnosis"
-                  value={v.confirmed_diagnosis || v.provisional_diagnosis}
+                  value={diagnosisLine}
                   bold
                 />
                 <PrintRow
                   label="Investigations"
-                  value={v.investigations_ordered}
+                  value={investigationsLine}
                 />
  
                 {/* ── Prescription ───────────────────────────────────── */}
@@ -530,15 +568,18 @@ export default async function PrintPage({
             {vitalsLine ? (
               <PrintRow label="Vitals" value={vitalsLine} />
             ) : null}
+            <PrintRow label="Patient details" value={patientMedicalLine} />
+            <PrintRow label="Allergies" value={allergyLine} />
             <PrintRow label="Complaints" value={v.chief_complaints} />
             <PrintRow label="History" value={v.history_present_illness} />
+            <PrintRow label="Past history" value={v.past_history} />
             <PrintRow label="On Examination" value={v.examination_findings} />
             <PrintRow
               label="Diagnosis"
-              value={v.confirmed_diagnosis || v.provisional_diagnosis}
+              value={diagnosisLine}
               bold
             />
-            <PrintRow label="Investigations" value={v.investigations_ordered} />
+            <PrintRow label="Investigations" value={investigationsLine} />
  
             {/* ── Prescription ──────────────────────────────────────────── */}
             {meds.length > 0 ? (
@@ -701,4 +742,30 @@ function medLine(m: Medicine): string {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+function formatIcdCodes(v: Visit): string | null {
+  const codes = v.icd_codes || [];
+  if (codes.length === 0) return null;
+
+  return codes
+    .map((code) => {
+      const detail = (v.icd_code_details || []).find(
+        (item) => item.code.trim().toUpperCase() === code.trim().toUpperCase(),
+      );
+      return detail?.name ? `${code} - ${detail.name}` : code;
+    })
+    .join(", ");
+}
+
+function formatLoincDetails(v: Visit): string | null {
+  const details = v.loinc_code_details || [];
+  if (details.length === 0) return null;
+
+  return details
+    .map((detail) => {
+      const testName = detail.test_name || detail.loinc_name || detail.loinc_code || "Lab test";
+      return detail.ucum_name ? `${testName} (${detail.ucum_name})` : testName;
+    })
+    .join("\n");
 }

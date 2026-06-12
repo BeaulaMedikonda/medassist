@@ -12,14 +12,40 @@ export const dynamic = "force-dynamic";
 
 export default async function PatientPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ source?: string; section?: string }>;
 }) {
   const { member, clinic } = await requireMember();
   const supabase = await supabaseServer();
   const admin = supabaseAdmin();
 
   const { id } = await params;
+  const resolvedSearchParams = await searchParams;
+  const dashboardBackSection = normalizeDashboardSection(resolvedSearchParams?.section);
+  const referralBackSection =
+    dashboardBackSection === "receivedReferrals"
+      ? "receivedReferrals"
+      : "sentReferrals";
+  const isReferralSource = resolvedSearchParams?.source === "referral";
+  const isDoctorCompletedPatientView =
+    member.role === "doctor" && dashboardBackSection === "completedPatients";
+  const hideRecordingActions =
+    isDoctorCompletedPatientView ||
+    (isReferralSource && referralBackSection !== "receivedReferrals");
+  const showReferralConversationAction =
+    isReferralSource && referralBackSection === "receivedReferrals";
+  const recordingActionLabel = showReferralConversationAction
+    ? "Start Conversation"
+    : "Start recording";
+  const newVisitHref = showReferralConversationAction
+    ? `/emr/${id}/visits/new?mode=record&source=referral&section=receivedReferrals`
+    : `/emr/${id}/visits/new?mode=record`;
+  const backHref = dashboardBackSection ? `/dashboard?section=${dashboardBackSection}` : "/emr";
+  const backLabel = dashboardBackSection
+    ? dashboardSectionLabel(dashboardBackSection)
+    : "All patients";
 
   const { data: patient } = await supabase
     .from("patients")
@@ -110,7 +136,7 @@ export default async function PatientPage({
   return (
     <div className="pb-24">
       <Link
-        href="/emr"
+        href={backHref}
         className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-ink-500 dark:hover:text-ink-100"
       >
         <svg viewBox="0 0 20 20" className="h-3 w-3">
@@ -123,7 +149,7 @@ export default async function PatientPage({
             strokeLinejoin="round"
           />
         </svg>
-        All patients
+        {backLabel}
       </Link>
 
       <header className="card overflow-hidden p-6 sm:p-8">
@@ -207,7 +233,7 @@ export default async function PatientPage({
           </p>
         </div>
 
-        <div className="premium-panel overflow-hidden">
+        <div className="premium-panel overflow-x-auto">
           <table className="premium-table">
             <thead>
               <tr>
@@ -274,35 +300,43 @@ export default async function PatientPage({
             </p>
           </div>
 
-          <Link
-            href={`/emr/${p.id}/visits/new?mode=record`}
-            className="btn-secondary hidden sm:inline-flex"
-          >
-            <svg viewBox="0 0 20 20" className="h-4 w-4">
-              <path
-                d="M10 3a3 3 0 00-3 3v4a3 3 0 006 0V6a3 3 0 00-3-3zm-5 7a5 5 0 0010 0h2a7 7 0 11-14 0h2z"
-                fill="currentColor"
-              />
-            </svg>
-            Start recording
-          </Link>
+          {!hideRecordingActions ? (
+            <Link
+              href={newVisitHref}
+              className={showReferralConversationAction ? "btn-teal" : "btn-secondary hidden sm:inline-flex"}
+            >
+              <svg viewBox="0 0 20 20" className="h-4 w-4">
+                <path
+                  d="M10 3a3 3 0 00-3 3v4a3 3 0 006 0V6a3 3 0 00-3-3zm-5 7a5 5 0 0010 0h2a7 7 0 11-14 0h2z"
+                  fill="currentColor"
+                />
+              </svg>
+              {recordingActionLabel}
+            </Link>
+          ) : null}
         </div>
 
-        <VisitTimeline visits={v} patientId={p.id} />
+        <VisitTimeline
+          visits={v}
+          patientId={p.id}
+          hideNewVisitActions={isDoctorCompletedPatientView}
+        />
       </section>
 
-      <Link
-        href={`/emr/${p.id}/visits/new?mode=record`}
-        className="fixed bottom-6 right-6 flex h-14 items-center gap-2 rounded-full bg-brand-600 px-5 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 sm:hidden"
-      >
-        <svg viewBox="0 0 20 20" className="h-5 w-5">
-          <path
-            d="M10 3a3 3 0 00-3 3v4a3 3 0 006 0V6a3 3 0 00-3-3zm-5 7a5 5 0 0010 0h2a7 7 0 11-14 0h2z"
-            fill="currentColor"
-          />
-        </svg>
-        New visit
-      </Link>
+      {!hideRecordingActions && !showReferralConversationAction ? (
+        <Link
+          href={newVisitHref}
+          className="fixed bottom-6 right-6 flex h-14 items-center gap-2 rounded-full bg-brand-600 px-5 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 sm:hidden"
+        >
+          <svg viewBox="0 0 20 20" className="h-5 w-5">
+            <path
+              d="M10 3a3 3 0 00-3 3v4a3 3 0 006 0V6a3 3 0 00-3-3zm-5 7a5 5 0 0010 0h2a7 7 0 11-14 0h2z"
+              fill="currentColor"
+            />
+          </svg>
+          New visit
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -313,4 +347,34 @@ function normalizeDoctorName(value: string | null | undefined) {
     .replace(/\bdr\.?\b/g, "")
     .replace(/[^a-z0-9]/g, "")
     .trim();
+}
+
+type DashboardBackSection =
+  | "todayIntake"
+  | "completedPatients"
+  | "sentReferrals"
+  | "receivedReferrals";
+
+function normalizeDashboardSection(value: string | null | undefined): DashboardBackSection | null {
+  if (
+    value === "todayIntake" ||
+    value === "completedPatients" ||
+    value === "sentReferrals" ||
+    value === "receivedReferrals"
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function dashboardSectionLabel(section: DashboardBackSection) {
+  const labels: Record<DashboardBackSection, string> = {
+    todayIntake: "Today's Queue",
+    completedPatients: "Completed Patients",
+    sentReferrals: "Sent Referrals",
+    receivedReferrals: "Referral Received",
+  };
+
+  return labels[section];
 }

@@ -10,6 +10,7 @@ const navSections = [
       { href: "/patient/profile", label: "Personal Details", icon: <ProfileIcon /> },
       { href: "/patient/visits", label: "My Visits", icon: <VisitsIcon /> },
       { href: "/patient/appointments", label: "Appointments", icon: <CalendarIcon /> },
+      { href: "/patient/immunizations", label: "Immunizations", icon: <ImmunizationsIcon /> },
     ],
   },
   {
@@ -47,7 +48,7 @@ export function PatientPortalNav() {
                 >
                   <span
                     className={`flex h-6 w-6 shrink-0 items-center justify-center ${
-                      active ? "text-[#ff8b22]" : "text-[#7fb3ff]"
+                      active ? "text-[#22d3ee]" : "text-[#7fb3ff]"
                     }`}
                   >
                     {item.icon}
@@ -113,6 +114,18 @@ function VitalsIcon() {
       <path d="M10 19V5" />
       <path d="M16 19v-7" />
       <path d="M22 19H2" />
+    </svg>
+  );
+}
+
+function ImmunizationsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 3L5 17" />
+      <path d="M12 4l4 4" />
+      <path d="M5 10l4 4" />
+      <path d="M3 21l4-4" />
+      <circle cx="17" cy="7" r="2" />
     </svg>
   );
 }

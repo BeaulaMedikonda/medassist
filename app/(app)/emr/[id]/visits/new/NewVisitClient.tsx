@@ -138,13 +138,6 @@ export function NewVisitClient({
         throw new Error(j?.error || `Extraction failed (${xRes.status})`);
       }
 
-      // Best-effort: refresh pre-visit summary now that we have a recording.
-      void fetch("/api/pre-visit-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitId, force: true }),
-      });
-
       setBusy("done");
       push({ title: "Ready for review", variant: "success" });
       router.replace(`/emr/${patient.id}/visits/${visitId}/review${window.location.hash}`);

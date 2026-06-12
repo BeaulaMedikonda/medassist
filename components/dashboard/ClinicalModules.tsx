@@ -127,6 +127,21 @@ export function ClinicalModules({
     [patientSummaries, selectedPatientId],
   );
   const latestSummary = selectedSummaries[0] || null;
+  const currentDoctor = useMemo(
+    () => referralDoctors.find((doctor) => doctor.id === currentUserId) || null,
+    [referralDoctors, currentUserId],
+  );
+  const referringDoctorName = currentDoctor?.full_name.trim().toLowerCase() || "";
+  const referredToDoctors = useMemo(
+    () =>
+      referralDoctors.filter(
+        (doctor) =>
+          doctor.id !== currentUserId &&
+          doctor.id !== referringDoctorId &&
+          doctor.full_name.trim().toLowerCase() !== referringDoctorName,
+      ),
+    [currentUserId, referralDoctors, referringDoctorId, referringDoctorName],
+  );
   const activeVoiceHref = voiceToTextHref && voiceToTextHref !== "/emr" ? voiceToTextHref : null;
 
   async function copySummary() {
@@ -150,6 +165,13 @@ export function ClinicalModules({
 
     if (!referralPatientId || !referringDoctorId || !referredToDoctorId || !referredName || !specialty || !reason.trim()) {
       setReferralError("Please complete all required fields.");
+      return;
+    }
+    if (
+      referringDoctorId === referredToDoctorId ||
+      referredToName.trim().toLowerCase() === referringDoctorName
+    ) {
+      setReferralError("Referring and referred doctors must be different.");
       return;
     }
 
@@ -242,6 +264,7 @@ export function ClinicalModules({
                 setReferralOpen(true);
                 setReferralError(null);
                 setReferralSaved(false);
+                setReferringDoctorId(currentUserId);
                 setReferredToDoctorId("");
                 setReferredToName("");
               }}
@@ -286,10 +309,10 @@ export function ClinicalModules({
 
             <div className="space-y-3 px-5 py-5">
               <p className="text-sm font-medium leading-relaxed text-slate-600">
-                No active patient is waiting for voice charting. Select an existing patient or create a new EMR to start a visit.
+                No active patient is waiting for voice charting. Select an existing patient to start a visit.
               </p>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3">
                 <Link
                   href="/emr"
                   onClick={() => setVoiceStartOpen(false)}
@@ -300,19 +323,6 @@ export function ClinicalModules({
                   </div>
                   <div className="mt-1 text-[12px] font-medium text-slate-500">
                     Find an existing EMR and start a visit.
-                  </div>
-                </Link>
-
-                <Link
-                  href="/emr/new"
-                  onClick={() => setVoiceStartOpen(false)}
-                  className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-4 text-left transition hover:border-cyan-400 hover:bg-cyan-100"
-                >
-                  <div className="text-sm font-extrabold text-cyan-900">
-                    New EMR
-                  </div>
-                  <div className="mt-1 text-[12px] font-medium text-cyan-800/80">
-                    Register a patient and create a visit.
                   </div>
                 </Link>
               </div>
@@ -374,14 +384,13 @@ export function ClinicalModules({
                 </span>
                 <select
                   value={referringDoctorId}
-                  onChange={(event) => setReferringDoctorId(event.target.value)}
-                  className="input-base h-11"
+                  onChange={() => undefined}
+                  disabled
+                  className="input-base h-11 bg-slate-50 text-slate-600"
                 >
-                  {referralDoctors.map((doctor) => (
-                    <option key={doctor.id} value={doctor.id}>
-                      {doctor.full_name}
-                    </option>
-                  ))}
+                  <option value={currentUserId}>
+                    {currentDoctor?.full_name || "Current doctor"}
+                  </option>
                 </select>
               </label>
 
@@ -393,14 +402,14 @@ export function ClinicalModules({
                   value={referredToDoctorId}
                   onChange={(event) => {
                     const doctorId = event.target.value;
-                    const doctor = referralDoctors.find((item) => item.id === doctorId);
+                    const doctor = referredToDoctors.find((item) => item.id === doctorId);
                     setReferredToDoctorId(doctorId);
                     setReferredToName(doctor?.full_name || "");
                   }}
                   className="input-base h-11"
                 >
                   <option value="">Select doctor...</option>
-                  {referralDoctors.map((doctor) => (
+                  {referredToDoctors.map((doctor) => (
                     <option key={doctor.id} value={doctor.id}>
                       {doctor.full_name}
                     </option>

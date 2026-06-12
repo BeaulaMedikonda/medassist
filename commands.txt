@@ -1,0 +1,66 @@
+MedAssist common commands
+=========================
+
+Run project
+-----------
+cd C:\Users\yamin\Downloads\ProjectDoctor\ProjectDoctor\MedAssist
+npm install
+npm run dev
+
+Open:
+http://localhost:3000
+
+If port 3000 is busy:
+npm run dev -- -p 3001
+
+Open:
+http://localhost:3001
+
+
+Check project
+-------------
+npm run typecheck
+npm run lint
+
+
+FHIR validator
+--------------
+Start Docker validator:
+npm run fhir:validator:up
+
+Run strict FHIR validation:
+npm run fhir:validate:strict
+
+View validator logs:
+npm run fhir:validator:logs
+
+Stop Docker validator:
+npm run fhir:validator:down
+
+Direct Docker commands:
+docker compose up -d --build fhir-validator
+docker compose logs -f fhir-validator
+docker compose ps
+docker compose down
+
+Required env for app API validation:
+FHIR_VALIDATOR_URL=http://localhost:8080
+FHIR_VALIDATOR_REQUEST_TIMEOUT_MS=150000
+
+
+Git push to medassist branch
+----------------------------
+git status
+git add .
+git commit -m "Update FHIR validation UI and add app provider console"
+git push gitlab medassist
+
+Optional GitHub push:
+git push origin medassist
+
+
+Useful git checks
+-----------------
+git branch
+git remote -v
+git status
