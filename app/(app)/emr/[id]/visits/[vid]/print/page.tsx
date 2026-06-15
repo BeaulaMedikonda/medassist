@@ -265,7 +265,7 @@ export default async function PrintPage({
             >
               View EMR
             </Link>
-            <Link href={`/emr/${p.id}`} className="btn-ghost">
+            <Link href="/dashboard" className="btn-ghost">
               Back
             </Link>
             <PrintTriggerButton />
@@ -347,7 +347,7 @@ export default async function PrintPage({
                   </div>
                   {p.age != null ? (
                     <div>
-                      <span className="text-slate-500">Age / Sex: </span>
+                      <span className="text-slate-500">Age / Gender: </span>
                       <span>{p.age} / {p.sex || "—"}</span>
                     </div>
                   ) : null}
@@ -539,7 +539,7 @@ export default async function PrintPage({
               <div>
                 {p.age != null ? (
                   <>
-                    <span className="text-slate-500">Age/Sex: </span>
+                    <span className="text-slate-500">Age/Gender: </span>
                     <span>
                       {p.age} / {p.sex || "—"}
                     </span>

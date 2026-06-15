@@ -1,12 +1,12 @@
 "use client";
-
+ 
 import { useEffect, useState } from "react";
 import type { Doctor } from "@/types/db";
 import { TextInput, TextArea } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-
+ 
 export function SettingsForm({
   doctor,
   email,
@@ -24,7 +24,7 @@ export function SettingsForm({
   const [letterheadPreview, setLetterheadPreview] = useState<string | null>(null);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [letterheadFile, setLetterheadFile] = useState<File | null>(null);
-
+ 
   const [form, setForm] = useState({
     full_name: doctor.full_name || "",
     qualification: doctor.qualification || "",
@@ -34,7 +34,7 @@ export function SettingsForm({
     clinic_address: doctor.clinic_address || "",
     clinic_phone: doctor.clinic_phone || "",
   });
-
+ 
   useEffect(() => {
     let ignore = false;
     async function load() {
@@ -57,26 +57,26 @@ export function SettingsForm({
       ignore = true;
     };
   }, [doctor.id, doctor.signature_url, doctor.letterhead_url]);
-
+ 
   function update<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
-
+ 
   async function uploadAsset(file: File, kind: "signature" | "letterhead") {
     const supabase = supabaseBrowser();
     const ext = file.name.split(".").pop() || "png";
-    const path = `${doctor.id}/${kind}-${Date.now()}.${ext}`;
+    const ownerId = doctor.auth_user_id || doctor.id;
+    const path = `${ownerId}/${kind}-${Date.now()}.${ext}`;
     const { error } = await supabase.storage
       .from("doctor-assets")
       .upload(path, file, { cacheControl: "3600", upsert: true });
     if (error) throw error;
     return path;
   }
-
+ 
   async function save() {
     setBusy(true);
     try {
-      const supabase = supabaseBrowser();
       const updates: Partial<Doctor> = {
         full_name: form.full_name.trim(),
         qualification: form.qualification.trim() || null,
@@ -90,12 +90,14 @@ export function SettingsForm({
         updates.signature_url = await uploadAsset(signatureFile, "signature");
       if (letterheadFile)
         updates.letterhead_url = await uploadAsset(letterheadFile, "letterhead");
-
-      const { error } = await supabase
-        .from("doctors")
-        .update(updates)
-        .eq("id", doctor.id);
-      if (error) throw error;
+ 
+      const res = await fetch("/api/settings/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: doctor.id, updates }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Could not save");
       push({ title: "Saved", variant: "success" });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Could not save";
@@ -104,7 +106,7 @@ export function SettingsForm({
       setBusy(false);
     }
   }
-
+ 
   return (
     <div className="premium-panel p-6 sm:p-8">
       <div className="mb-6">
@@ -113,7 +115,7 @@ export function SettingsForm({
           Account & Prescription Identity
         </h1>
       </div>
-
+ 
       <div className="mb-5 grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 dark:bg-ink-900/40 dark:text-ink-500 sm:grid-cols-2">
         <div>
           Signed in as <span className="font-medium text-slate-700 dark:text-ink-300">{email}</span>{" "}
@@ -131,7 +133,7 @@ export function SettingsForm({
           <span className="font-mono text-slate-700 dark:text-ink-300">{inviteCode}</span>
         </div>
       </div>
-
+ 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TextInput
           label="Full name"
@@ -175,7 +177,7 @@ export function SettingsForm({
           onChange={(e) => update("clinic_address", e.target.value)}
         />
       </div>
-
+ 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <AssetField
           label="Signature"
@@ -192,7 +194,7 @@ export function SettingsForm({
         />
         )}  
       </div>
-
+ 
       <div className="mt-8 flex justify-end">
         <button onClick={save} disabled={busy} className="btn-primary">
           {busy ? <Spinner /> : null}
@@ -202,7 +204,7 @@ export function SettingsForm({
     </div>
   );
 }
-
+ 
 function AssetField({
   label,
   previewUrl,
@@ -241,3 +243,6 @@ function AssetField({
     </div>
   );
 }
+ 
+ 
+ 

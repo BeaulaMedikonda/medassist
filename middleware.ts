@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
  
   if (!hasSupabasePublicEnv) {
     const url = request.nextUrl.clone();
-    url.pathname = isPatientPortalPath ? "/patient/login" : "/login";
+    url.pathname = "/login";
     url.searchParams.set("next", path);
     url.searchParams.set("error", "supabase-not-configured");
     return NextResponse.redirect(url);
@@ -65,7 +65,7 @@ export async function middleware(request: NextRequest) {
  
   if (!user) {
     const url = request.nextUrl.clone();
-    url.pathname = isPatientPortalPath ? "/patient/login" : "/login";
+    url.pathname = "/login";
     url.searchParams.set("next", path);
     return NextResponse.redirect(url);
   }

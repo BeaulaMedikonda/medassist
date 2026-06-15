@@ -11,7 +11,7 @@ export default async function PatientIntakePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/patient/login");
+  if (!user) redirect("/login?next=/patient/intake");
 
   return (
     <main className="min-h-screen bg-[#f7fbfa] px-4 py-8 text-slate-950 sm:px-6">

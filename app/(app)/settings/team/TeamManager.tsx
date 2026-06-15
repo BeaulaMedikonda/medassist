@@ -73,6 +73,8 @@ export function TeamManager({
         ok?: boolean;
         error?: string;
         member?: Member;
+        reused_existing_auth_user?: boolean;
+        password_updated?: boolean;
       };
       if (!res.ok || !j.ok || !j.member) {
         throw new Error(j.error || `Failed (${res.status})`);
@@ -87,7 +89,9 @@ export function TeamManager({
 
       // Show credentials persistently for the admin to copy
       window.alert(
-        `Account created.\n\nEmail: ${form.email}\nTemp password: ${form.password}\n\nShare these with the team member. They can change the password after signing in.`,
+        j.reused_existing_auth_user && !j.password_updated
+          ? `Staff role added.\n\nEmail: ${form.email}\n\nThis email already had a login account, so the existing password was kept. Use Forgot password if they do not remember it.`
+          : `Account created.\n\nEmail: ${form.email}\nTemp password: ${form.password}\n\nShare these with the team member. They can change the password after signing in.`,
       );
 
       setForm({

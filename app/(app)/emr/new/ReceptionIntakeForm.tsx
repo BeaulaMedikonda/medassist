@@ -623,6 +623,7 @@ import { TextInput, TextArea, SelectInput } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { isoLocalDate } from "@/lib/utils";
 
 type DoctorOption = {
   id: string;
@@ -709,7 +710,7 @@ export function ReceptionIntakeForm({
   // Doctor assignments
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [apptDate, setApptDate] = useState<string>(
-    new Date().toISOString().slice(0, 10),
+    isoLocalDate(),
   );
 
   const unassignedDoctors = doctors.filter(
@@ -1073,7 +1074,7 @@ export function ReceptionIntakeForm({
                     value={apptDate}
                     onChange={(e) => setApptDate(e.target.value)}
                     className="ml-3 inline-flex rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200"
-                    min={new Date().toISOString().slice(0, 10)}
+                    min={isoLocalDate()}
                   />
                   <p className="mt-1 text-[11px] text-slate-500 dark:text-ink-500">
                     Pick a time below for each doctor who needs an appointment booked. Leave time blank to just route to their queue.

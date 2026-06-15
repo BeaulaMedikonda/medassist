@@ -58,7 +58,7 @@ export default async function SuperAdminClinicPatientsPage({
           headers={[
             "EMR",
             "Patient",
-            "Age / Sex",
+            "Age / Gender",
             "Contact",
             "Assigned Doctor",
             "Visits",

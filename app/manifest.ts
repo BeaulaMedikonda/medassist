@@ -1,7 +1,7 @@
-export const dynamic = "force-static";
+import type { MetadataRoute } from "next";
 
-export function GET() {
-  const body = JSON.stringify({
+export default function manifest(): MetadataRoute.Manifest {
+  return {
     name: "MedAssist",
     short_name: "MedAssist",
     description: "Medical scribe for Indian doctors",
@@ -10,8 +10,5 @@ export function GET() {
     background_color: "#f8fafc",
     theme_color: "#059669",
     icons: [],
-  });
-  return new Response(body, {
-    headers: { "Content-Type": "application/manifest+json" },
-  });
+  };
 }

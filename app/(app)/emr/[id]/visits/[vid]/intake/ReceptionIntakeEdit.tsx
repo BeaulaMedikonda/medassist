@@ -229,7 +229,7 @@
 //                 placeholder="Auto from birthdate"
 //               />
 //               <SelectInput
-//                 label="Sex"
+//                 label="Gender"
 //                 value={patientInfo.sex}
 //                 onChange={(e) => updatePatientInfo("sex", e.target.value)}
 //               >
@@ -756,7 +756,7 @@ export function ReceptionIntakeEdit({
                 placeholder="Auto from birthdate"
               />
               <SelectInput
-                label="Sex"
+                label="Gender"
                 value={patientInfo.sex}
                 onChange={(e) => updatePatientInfo("sex", e.target.value)}
               >

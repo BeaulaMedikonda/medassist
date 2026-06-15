@@ -64,7 +64,7 @@ export function icd10Display(
   return ICD10_DISPLAY[normalized] || diagnosisText || normalized;
 }
 
-// Sex (M/F/O) → FHIR administrative-gender code
+// Gender value (M/F/O) -> FHIR administrative-gender code
 export function fhirGender(sex: "M" | "F" | "O" | null | undefined): string {
   if (sex === "M") return "male";
   if (sex === "F") return "female";

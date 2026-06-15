@@ -195,6 +195,31 @@ export async function POST(req: Request) {
 
       authUserId = existingUser.id;
 
+      if (password) {
+        if (password.length < 8) {
+          return NextResponse.json(
+            { error: "Password must be at least 8 characters" },
+            { status: 400 },
+          );
+        }
+
+        const { error: updatePasswordErr } =
+          await admin.auth.admin.updateUserById(authUserId, {
+            password,
+            user_metadata: {
+              ...(existingUser.user_metadata || {}),
+              full_name,
+            },
+          });
+
+        if (updatePasswordErr) {
+          return NextResponse.json(
+            { error: updatePasswordErr.message },
+            { status: 500 },
+          );
+        }
+      }
+
     } else {
 
       // New email: password is required to create Auth user.
@@ -275,7 +300,7 @@ export async function POST(req: Request) {
 
       .from("doctors")
 
-      .select("id")
+      .select("id, auth_user_id, email, full_name, role, clinic_id, clinic_name")
 
       .eq("clinic_id", targetClinicId)
 
@@ -306,21 +331,33 @@ export async function POST(req: Request) {
     }
  
     if (existingSameStaff) {
+      const { data: repairedMember, error: repairErr } = await admin
+        .from("doctors")
+        .update({
+          auth_user_id: authUserId,
+          email,
+          clinic_id: targetClinicId,
+          clinic_name: clinicName,
+        } as never)
+        .eq("id", (existingSameStaff as { id: string }).id)
+        .select("id, auth_user_id, email, full_name, role, clinic_id, clinic_name")
+        .single();
 
-      return NextResponse.json(
+      if (repairErr) {
+        if (createdNewAuthUser) {
+          await admin.auth.admin.deleteUser(authUserId).catch(() => {});
+        }
 
-        {
+        return NextResponse.json({ error: repairErr.message }, { status: 500 });
+      }
 
-          error:
-
-            "This staff member already exists in this clinic with the same name, email, and role.",
-
-        },
-
-        { status: 409 },
-
-      );
-
+      return NextResponse.json({
+        ok: true,
+        member: repairedMember,
+        reused_existing_auth_user: !createdNewAuthUser,
+        password_updated: Boolean(existingUser && password),
+        already_existed: true,
+      });
     }
  
     // 3. Insert staff row into doctors table.
@@ -386,6 +423,8 @@ export async function POST(req: Request) {
       member: insertedMember,
 
       reused_existing_auth_user: !createdNewAuthUser,
+
+      password_updated: Boolean(existingUser && password),
 
     });
 

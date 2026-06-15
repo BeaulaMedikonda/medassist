@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { supabaseBrowser } from "@/lib/supabase/browser";
 
 export function PatientSignOutButton({
   label = "Sign out",
@@ -15,7 +16,8 @@ export function PatientSignOutButton({
     document.cookie = "patient_demo_session=; path=/; max-age=0; samesite=lax";
     document.cookie = "patient_selected_clinic_id=; path=/; max-age=0; samesite=lax";
     document.cookie = "patient_selected_clinic_name=; path=/; max-age=0; samesite=lax";
-    router.replace("/patient/login");
+    await supabaseBrowser().auth.signOut();
+    router.replace("/login?next=/patient/profile");
     router.refresh();
   }
 

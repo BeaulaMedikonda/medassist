@@ -123,7 +123,7 @@ Output schema:
 export function buildUserMessage(args: {
   patientName: string;
   patientAge: number | null;
-  patientSex: string | null;
+  patientGender: string | null;
   knownAllergies: string | null;
   chronicConditions: string | null;
   previousPrescription: unknown | null;
@@ -143,7 +143,7 @@ export function buildUserMessage(args: {
   const {
     patientName,
     patientAge,
-    patientSex,
+    patientGender,
     knownAllergies,
     chronicConditions,
     previousPrescription,
@@ -181,7 +181,7 @@ export function buildUserMessage(args: {
       ? `Intake vitals (recorded by MA before consultation - preserve unless re-stated in conversation):\n${intakeVitalsLines.join(", ")}`
       : "Intake vitals: none recorded.";
 
-  return `Patient: ${patientName}, ${patientAge ?? "?"}${patientSex ?? ""}
+  return `Patient: ${patientName}, ${patientAge ?? "?"}${patientGender ?? ""}
 Known allergies: ${knownAllergies || "none recorded"}
 Chronic conditions: ${chronicConditions || "none recorded"}
 

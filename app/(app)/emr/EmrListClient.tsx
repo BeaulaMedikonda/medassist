@@ -22,11 +22,13 @@ type Props = {
   clinicName: string;
   initialQuery: string;
   initialFilter: PatientFilter;
+  initialDate: string;
   patients: Patient[];
   latestVisit: Record<string, LatestVisit>;
   latestVitalsVisit: Record<string, LatestVisit>;
   patientVisits: Record<string, PatientVisitItem[]>;
   patientSummaries: Record<string, PatientSummary[]>;
+  portalPatientIds: string[];
   referralDoctors: ReferralDoctor[];
   error: string | null;
   counts: {
@@ -137,6 +139,10 @@ function conditionText(patient: Patient) {
   return patient.chronic_conditions?.trim() || "-";
 }
 
+function patientSourceLabel(patient: Patient, portalPatientIdSet: Set<string>) {
+  return portalPatientIdSet.has(patient.id) ? "Patient Portal" : "MA";
+}
+
 function getInitial(patient: Patient) {
   return patient.full_name?.trim()?.charAt(0)?.toUpperCase() || "P";
 }
@@ -203,11 +209,13 @@ export function EmrListClient({
   clinicName,
   initialQuery,
   initialFilter,
+  initialDate,
   patients,
   latestVisit,
   latestVitalsVisit,
   patientVisits,
   patientSummaries,
+  portalPatientIds,
   referralDoctors,
   error,
   counts,
@@ -215,6 +223,7 @@ export function EmrListClient({
   const router = useRouter();
 
   const [query, setQuery] = useState(initialQuery);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
   const [page, setPage] = useState(1);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "summary" | "visits" | "labs">(
@@ -246,7 +255,7 @@ export function EmrListClient({
     [currentUserId, referralDoctors, referringDoctorId, referringDoctorName],
   );
 
-  function buildUrl(nextFilter: PatientFilter, nextQuery = query) {
+  function buildUrl(nextFilter: PatientFilter, nextQuery = query, nextDate = selectedDate) {
     const params = new URLSearchParams();
 
     if (nextQuery.trim()) {
@@ -257,8 +266,31 @@ export function EmrListClient({
       params.set("filter", nextFilter);
     }
 
+    if (nextDate) {
+      params.set("date", nextDate);
+    }
+
     const search = params.toString();
     return search ? `/emr?${search}` : "/emr";
+  }
+
+  function onDateChange(value: string) {
+    setSelectedDate(value);
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("q", query.trim());
+    if (initialFilter !== "all") params.set("filter", initialFilter);
+    if (value) params.set("date", value);
+    const search = params.toString();
+    router.push(search ? `/emr?${search}` : "/emr");
+  }
+
+  function clearDate() {
+    setSelectedDate("");
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("q", query.trim());
+    if (initialFilter !== "all") params.set("filter", initialFilter);
+    const search = params.toString();
+    router.push(search ? `/emr?${search}` : "/emr");
   }
 
   function onSearch(event: FormEvent<HTMLFormElement>) {
@@ -346,7 +378,7 @@ export function EmrListClient({
     count: number;
   }> = [
     { key: "all", label: "All Patients", count: counts.all },
-    { key: "today", label: "Visited Today", count: counts.today },
+    { key: "today", label: "Visited Date", count: counts.today },
     { key: "chronic", label: "Chronic Conditions", count: counts.chronic },
   ];
   const visiblePatients = useMemo(
@@ -357,6 +389,7 @@ export function EmrListClient({
     [patients, query],
   );
   const pageData = getClientPageItems(visiblePatients, page, PATIENTS_PAGE_SIZE);
+  const portalPatientIdSet = useMemo(() => new Set(portalPatientIds), [portalPatientIds]);
 
   useEffect(() => {
     setPage(1);
@@ -403,6 +436,24 @@ export function EmrListClient({
             ))}
           </div>
 
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => onDateChange(e.target.value)}
+              className="input-base h-11 w-[150px] text-[13px]"
+            />
+            {selectedDate ? (
+              <button
+                type="button"
+                onClick={clearDate}
+                className="h-11 rounded-lg px-3 text-[12px] font-bold text-slate-500 ring-1 ring-black/[0.08] hover:bg-slate-50 hover:text-slate-700"
+              >
+                Clear Date
+              </button>
+            ) : null}
+          </div>
+
           <form onSubmit={onSearch} className="flex w-full gap-2 lg:w-[420px]">
             <input
               type="search"
@@ -429,7 +480,8 @@ export function EmrListClient({
               <tr>
                 <th>Name</th>
                 <th>EMR ID</th>
-                <th>Age/Sex</th>
+                <th>Source</th>
+                <th>Age/Gender</th>
                 <th>Blood</th>
                 <th>Condition</th>
                 <th>Last Visit</th>
@@ -441,7 +493,7 @@ export function EmrListClient({
               {visiblePatients.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="py-16 text-center text-sm font-semibold text-[#64748b]"
                   >
                     No patients found.
@@ -450,6 +502,7 @@ export function EmrListClient({
               ) : (
                 pageData.pageItems.map((patient) => {
                   const latest = latestVisit[patient.id];
+                  const sourceLabel = patientSourceLabel(patient, portalPatientIdSet);
 
                   return (
                     <tr
@@ -475,6 +528,18 @@ export function EmrListClient({
 
                       <td className="align-top font-mono text-[12px] text-[#64748b]">
                         {patient.emr_number || "-"}
+                      </td>
+
+                      <td className="align-top">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${
+                            sourceLabel === "Patient Portal"
+                              ? "bg-cyan-50 text-cyan-700 ring-cyan-200"
+                              : "bg-slate-50 text-slate-600 ring-slate-200"
+                          }`}
+                        >
+                          {sourceLabel}
+                        </span>
                       </td>
 
                       <td className="align-top text-[#334155]">
@@ -663,7 +728,7 @@ export function EmrListClient({
                   <div>
                     <p className="text-[12px] font-medium text-slate-500">Total Visits</p>
                     <p className="mt-1 font-extrabold text-slate-900">
-                      {latestVisit[selectedPatient.id] ? "1" : "0"}
+                      {patientVisits[selectedPatient.id]?.length ?? 0}
                     </p>
                   </div>
                 </div>
@@ -702,16 +767,6 @@ export function EmrListClient({
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      router.push(`/emr/${selectedPatient.id}/visits/new?mode=record`)
-                    }
-                    className="premium-action"
-                  >
-                    Start Voice
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => setQuickAction("vitals")}
                     className="premium-action"
                   >
@@ -734,13 +789,6 @@ export function EmrListClient({
                     📌 Care Plan
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={openReferral}
-                    className="premium-action"
-                  >
-                    🔗 Refer
-                  </button>
                 </div>
               </div>
             </div>

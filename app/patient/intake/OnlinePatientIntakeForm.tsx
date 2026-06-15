@@ -203,7 +203,7 @@ export function OnlinePatientIntakeForm({ initialEmail }: { initialEmail: string
         variant: "success",
       });
       await supabaseBrowser().auth.signOut();
-      router.replace("/patient/login");
+      router.replace("/login?next=/patient/profile");
       router.refresh();
     } catch (err: unknown) {
       push({
@@ -224,7 +224,7 @@ export function OnlinePatientIntakeForm({ initialEmail }: { initialEmail: string
         <Field required label="Full Name" value={form.full_name} onChange={(value) => update("full_name", value)} onBlur={() => touch("full_name")} placeholder="Auto from first and last name" span error={fieldError("full_name")} />
         <Field label="Birthdate" type="date" value={form.birthdate} onChange={(value) => update("birthdate", value)} onBlur={() => touch("birthdate")} error={fieldError("birthdate")} />
         <Field label="Age" value={form.age || computedAge} onChange={(value) => update("age", value)} placeholder="Auto from birthdate" />
-        <Select label="Sex" value={form.sex} onChange={(value) => update("sex", value)} options={SEX_OPTIONS} />
+        <Select label="Gender" value={form.sex} onChange={(value) => update("sex", value)} options={SEX_OPTIONS} />
         <Select label="Blood Group" value={form.blood_group} onChange={(value) => update("blood_group", value)} options={BLOOD_GROUP_OPTIONS} />
         <Field label="Height (cm)" value={form.height_cm} onChange={(value) => update("height_cm", value)} placeholder="e.g. 165" />
       </Section>

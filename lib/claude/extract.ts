@@ -42,7 +42,7 @@ export async function extractEmrFromVisit(args: {
   const userMessage = buildUserMessage({
     patientName: patient.full_name,
     patientAge: patient.age,
-    patientSex: patient.sex,
+    patientGender: patient.sex,
     knownAllergies: patient.known_allergies,
     chronicConditions: patient.chronic_conditions,
     previousPrescription: previousVisit?.prescription || null,

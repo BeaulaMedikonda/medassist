@@ -223,7 +223,7 @@ export function DoctorQuickIntakeForm({ currentUserId }: { currentUserId: string
                 onChange={(e) => setForm((f) => ({ ...f, age: e.target.value }))}
               />
               <SelectInput
-                label="Sex"
+                label="Gender"
                 value={form.sex}
                 onChange={(e) => setForm((f) => ({ ...f, sex: e.target.value }))}
               >

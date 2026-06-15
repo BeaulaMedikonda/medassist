@@ -54,7 +54,7 @@ import {
   type UcumUnitRow,
 } from "@/lib/codes/standard-search";
 
-import { formatDate, initials, cn } from "@/lib/utils";
+import { formatDate, initials, cn, isoLocalDate } from "@/lib/utils";
 
 
 
@@ -111,6 +111,11 @@ type LoincDetailDraft = {
   ucum_name: string;
 };
 
+type ReferralDoctor = {
+  id: string;
+  full_name: string;
+};
+
 
 
 type ImmunizationFormState = {
@@ -141,7 +146,7 @@ function emptyImmunizationForm(visitDate: string): ImmunizationFormState {
 
     cvx_code: "",
 
-    date_given: visitDate.slice(0, 10) || new Date().toISOString().slice(0, 10),
+    date_given: visitDate.slice(0, 10) || isoLocalDate(),
 
     dose: "",
 
@@ -403,7 +408,11 @@ export function ReviewScreen({
 
   currentUserId,
 
+  currentUserName,
+
   currentUserRole,
+
+  referralDoctors,
 
 }: {
 
@@ -419,7 +428,11 @@ export function ReviewScreen({
 
   currentUserId: string;
 
+  currentUserName: string;
+
   currentUserRole: StaffRole;
+
+  referralDoctors: ReferralDoctor[];
 
 }) {
 
@@ -498,6 +511,28 @@ export function ReviewScreen({
   const [reextracting, setReextracting] = useState(false);
 
   const [saving, setSaving] = useState(false);
+
+  const currentDoctorName =
+    referralDoctors.find((doctor) => doctor.id === currentUserId)?.full_name ||
+    currentUserName ||
+    "Current doctor";
+  const referringDoctorName = currentDoctorName.trim().toLowerCase();
+  const referredToDoctors = useMemo(
+    () =>
+      referralDoctors.filter(
+        (doctor) =>
+          doctor.id !== currentUserId &&
+          doctor.full_name.trim().toLowerCase() !== referringDoctorName,
+      ),
+    [currentUserId, referralDoctors, referringDoctorName],
+  );
+  const [referralDoctorId, setReferralDoctorId] = useState("");
+  const [referralDoctorName, setReferralDoctorName] = useState("");
+  const [referralSpecialty, setReferralSpecialty] = useState("Cardiology");
+  const [referralReason, setReferralReason] = useState("");
+  const [referralBusy, setReferralBusy] = useState(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
+  const [referralSaved, setReferralSaved] = useState(false);
 
 
 
@@ -837,6 +872,8 @@ export function ReviewScreen({
       if (opts.goPrint) {
 
         window.open(`/emr/${patient.id}/visits/${visit.id}/print`, "_blank");
+        window.location.assign("/dashboard");
+        return;
 
       }
 
@@ -856,6 +893,47 @@ export function ReviewScreen({
 
     }
 
+  }
+
+  async function sendReferral() {
+    setReferralError(null);
+    setReferralSaved(false);
+
+    const referredDoctor = referredToDoctors.find((doctor) => doctor.id === referralDoctorId);
+    const referredName = referredDoctor?.full_name || referralDoctorName.trim();
+
+    if (!referralDoctorId || !referredName || !referralSpecialty || !referralReason.trim()) {
+      setReferralError("Choose a doctor and add the referral reason.");
+      return;
+    }
+
+    setReferralBusy(true);
+    const res = await fetch("/api/referrals/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        patientId: patient.id,
+        visitId: visit.id,
+        referredToDoctorId: referralDoctorId,
+        referredToName: referredName,
+        specialty: referralSpecialty,
+        reason: referralReason.trim(),
+      }),
+    });
+    const result = (await res.json().catch(() => ({}))) as { error?: string };
+    setReferralBusy(false);
+
+    if (!res.ok) {
+      setReferralError(result.error || "Could not send referral.");
+      return;
+    }
+
+    setReferralSaved(true);
+    setReferralDoctorId("");
+    setReferralDoctorName("");
+    setReferralReason("");
+    push({ title: "Referral sent", variant: "success" });
+    router.refresh();
   }
 
 
@@ -1217,6 +1295,32 @@ export function ReviewScreen({
         </div>
 
 
+        <ReferralSection
+          currentDoctorName={currentDoctorName}
+          doctors={referredToDoctors}
+          doctorId={referralDoctorId}
+          specialty={referralSpecialty}
+          reason={referralReason}
+          busy={referralBusy}
+          error={referralError}
+          saved={referralSaved}
+          onDoctorChange={(doctorId) => {
+            const doctor = referredToDoctors.find((item) => item.id === doctorId);
+            setReferralDoctorId(doctorId);
+            setReferralDoctorName(doctor?.full_name || "");
+            setReferralSaved(false);
+          }}
+          onSpecialtyChange={(value) => {
+            setReferralSpecialty(value);
+            setReferralSaved(false);
+          }}
+          onReasonChange={(value) => {
+            setReferralReason(value);
+            setReferralSaved(false);
+          }}
+          onSend={sendReferral}
+        />
+
 
         {visit.transcript_text || (visit.transcript_speakers && visit.transcript_speakers.length > 0) ? (
 
@@ -1265,6 +1369,147 @@ export function ReviewScreen({
 
 
 // -------- subcomponents --------
+
+function ReferralSection({
+  currentDoctorName,
+  doctors,
+  doctorId,
+  specialty,
+  reason,
+  busy,
+  error,
+  saved,
+  onDoctorChange,
+  onSpecialtyChange,
+  onReasonChange,
+  onSend,
+}: {
+  currentDoctorName: string;
+  doctors: ReferralDoctor[];
+  doctorId: string;
+  specialty: string;
+  reason: string;
+  busy: boolean;
+  error: string | null;
+  saved: boolean;
+  onDoctorChange: (doctorId: string) => void;
+  onSpecialtyChange: (value: string) => void;
+  onReasonChange: (value: string) => void;
+  onSend: () => void;
+}) {
+  return (
+    <section className="card p-5">
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-teal-600">
+            Referral
+          </p>
+          <h2 className="mt-1 text-base font-extrabold text-slate-900 dark:text-ink-100">
+            Refer after clinical review
+          </h2>
+          <p className="mt-1 text-xs font-medium text-slate-500 dark:text-ink-400">
+            Optional. Send this patient to another doctor before completing the visit.
+          </p>
+        </div>
+        {saved ? (
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+            Referral sent
+          </span>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <label className="block">
+          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            Referring doctor
+          </span>
+          <input className="input-base h-11 bg-slate-50 text-slate-600" value={currentDoctorName} disabled />
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            Refer to
+          </span>
+          <select
+            value={doctorId}
+            onChange={(event) => onDoctorChange(event.target.value)}
+            disabled={doctors.length === 0}
+            className="input-base h-11 disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="">{doctors.length === 0 ? "No other doctors available" : "Select doctor"}</option>
+            {doctors.map((doctor) => (
+              <option key={doctor.id} value={doctor.id}>
+                {doctor.full_name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            Specialty
+          </span>
+          <select
+            value={specialty}
+            onChange={(event) => onSpecialtyChange(event.target.value)}
+            className="input-base h-11"
+          >
+            {[
+              "Cardiology",
+              "Dermatology",
+              "Endocrinology",
+              "ENT",
+              "Gastroenterology",
+              "Neurology",
+              "Obstetrics & Gynecology",
+              "Ophthalmology",
+              "Orthopedics",
+              "Pediatrics",
+              "Psychiatry",
+              "Pulmonology",
+              "Radiology",
+              "Urology",
+            ].map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block lg:col-span-3">
+          <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            Reason for referral
+          </span>
+          <textarea
+            value={reason}
+            onChange={(event) => onReasonChange(event.target.value)}
+            className="input-base min-h-[92px] resize-y"
+            placeholder="Reason, relevant findings, and what you want the referred doctor to review."
+          />
+        </label>
+      </div>
+
+      {error ? (
+        <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={onSend}
+          disabled={busy || doctors.length === 0}
+          className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {busy ? <Spinner /> : null}
+          {busy ? "Sending..." : "Send referral"}
+        </button>
+      </div>
+    </section>
+  );
+}
 
 
 

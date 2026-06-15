@@ -90,7 +90,7 @@ export async function requirePatient(): Promise<PatientSession> {
     data: { user },
   } = await supabase.auth.getUser();
  
-  if (!user) redirect("/patient/login");
+  if (!user) redirect("/login?next=/patient/profile");
  
   const admin = supabaseAdmin();
   const selectedClinicId = cookieStore.get(PATIENT_SELECTED_CLINIC_COOKIE)?.value || null;

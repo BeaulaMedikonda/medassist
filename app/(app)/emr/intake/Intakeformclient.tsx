@@ -619,13 +619,84 @@ export function IntakeFormClient({
       </Link>
  
       <section className="mb-4">
-        <h1 className="text-[20px] font-extrabold tracking-tight text-slate-900">
+        <h1 className="text-[20px] font-extrabold tracking-tight text-slate-900 dark:text-white">
           New Patient Intake
         </h1>
-        <p className="mt-1 text-[12px] text-slate-500">
+        <p className="mt-1 text-[12px] text-slate-500 dark:text-ink-300">
           Capture identity, vitals, and routing details for this visit.
         </p>
       </section>
+
+      <div className="relative mb-5">
+        {pickedPatient ? (
+          <div>
+            <Label optional>Search existing patient</Label>
+            <div className="rounded-xl border border-[#0ea5a4]/30 bg-[#ecfdfc] px-3 py-2 dark:border-brand-500/40 dark:bg-brand-900/25">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-[12px] font-extrabold text-slate-900 dark:text-white">
+                    {pickedPatient.full_name}
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-ink-300">
+                    {pickedPatient.emr_number}
+                    {pickedPatient.phone ? ` - ${pickedPatient.phone}` : ""}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearPickedPatient}
+                  className="text-[11px] font-extrabold text-[#0f8f83] hover:underline"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <TextField
+              label="Search existing patient"
+              optional
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Name, phone, or EMR ID"
+            />
+            {searchResults.length > 0 ? (
+              <ul className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-xl border border-slate-200 bg-white shadow-soft dark:border-ink-700 dark:bg-ink-900">
+                {searchResults.map((patient) => (
+                  <li key={patient.id}>
+                    <button
+                      type="button"
+                      onClick={() => pickPatient(patient)}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-ink-800"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-extrabold text-slate-900 dark:text-white">
+                          {patient.full_name}
+                        </span>
+                        <span className="block truncate text-[11px] text-slate-500 dark:text-ink-300">
+                          {patient.emr_number}
+                          {patient.phone ? ` - ${patient.phone}` : ""}
+                        </span>
+                      </span>
+                      {patient.age != null || patient.sex ? (
+                        <span className="shrink-0 text-[11px] text-slate-400 dark:text-ink-400">
+                          {[patient.age, patient.sex].filter(Boolean).join(" / ")}
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {searching ? (
+              <span className="absolute right-3 top-8 text-[11px] text-slate-400 dark:text-ink-400">
+                searching...
+              </span>
+            ) : null}
+          </>
+        )}
+      </div>
  
       <div className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Step active onClick={() => scrollToSection("patient-section")}>
@@ -652,83 +723,13 @@ export function IntakeFormClient({
         ) : null}
  
         <div id="patient-section" className="card scroll-mt-6 p-5 xl:col-span-2">
-          <h2 className="mb-4 text-[13px] font-extrabold text-slate-900">
+          <h2 className="mb-4 text-[13px] font-extrabold text-slate-900 dark:text-white">
             1 - Patient
           </h2>
  
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <FormSection title="Basic Information" className="lg:col-span-2">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="relative sm:col-span-2">
-                  {pickedPatient ? (
-                    <div>
-                      <Label optional>Search existing patient</Label>
-                      <div className="rounded-xl border border-[#0ea5a4]/30 bg-[#ecfdfc] px-3 py-2">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-[12px] font-extrabold text-slate-900">
-                              {pickedPatient.full_name}
-                            </div>
-                            <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                              {pickedPatient.emr_number}
-                              {pickedPatient.phone ? ` - ${pickedPatient.phone}` : ""}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={clearPickedPatient}
-                            className="text-[11px] font-extrabold text-[#0f8f83] hover:underline"
-                          >
-                            Change
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <TextField
-                        label="Search existing patient"
-                        optional
-                        value={searchTerm}
-                        onChange={setSearchTerm}
-                        placeholder="Name, phone, or EMR ID"
-                      />
-                      {searchResults.length > 0 ? (
-                        <ul className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-xl border border-slate-200 bg-white shadow-soft">
-                          {searchResults.map((patient) => (
-                            <li key={patient.id}>
-                              <button
-                                type="button"
-                                onClick={() => pickPatient(patient)}
-                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
-                              >
-                                <span className="min-w-0">
-                                  <span className="block truncate font-extrabold text-slate-900">
-                                    {patient.full_name}
-                                  </span>
-                                  <span className="block truncate text-[11px] text-slate-500">
-                                    {patient.emr_number}
-                                    {patient.phone ? ` - ${patient.phone}` : ""}
-                                  </span>
-                                </span>
-                                {patient.age != null || patient.sex ? (
-                                  <span className="shrink-0 text-[11px] text-slate-400">
-                                    {[patient.age, patient.sex].filter(Boolean).join(" / ")}
-                                  </span>
-                                ) : null}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {searching ? (
-                        <span className="absolute right-3 top-8 text-[11px] text-slate-400">
-                          searching...
-                        </span>
-                      ) : null}
-                    </>
-                  )}
-                </div>
                 <TextField
                   label="First Name"
                   optional
@@ -767,7 +768,7 @@ export function IntakeFormClient({
                   placeholder="Auto from birthdate"
                 />
                 <SelectField
-                  label="Sex"
+                  label="Gender"
                   optional
                   value={patientForm.sex}
                   onChange={(value) => updatePatient("sex", value)}
@@ -909,8 +910,8 @@ export function IntakeFormClient({
         </div>
  
         <div id="vitals-section" className="card h-fit scroll-mt-6 p-5">
-          <h2 className="mb-3 text-[13px] font-extrabold text-slate-900">
-            2 - Vitals <span className="font-bold text-slate-500">(optional)</span>
+          <h2 className="mb-3 text-[13px] font-extrabold text-slate-900 dark:text-white">
+            2 - Vitals <span className="font-bold text-slate-500 dark:text-ink-300">(optional)</span>
           </h2>
  
           <div className="space-y-3">
@@ -942,15 +943,15 @@ export function IntakeFormClient({
         </div>
  
         <div id="doctors-section" className="card h-fit scroll-mt-6 p-5">
-          <h2 className="mb-1 text-[13px] font-extrabold text-slate-900">
+          <h2 className="mb-1 text-[13px] font-extrabold text-slate-900 dark:text-white">
             3 - Assign Doctors
           </h2>
  
-          <p className="mb-3 text-[11px] text-slate-500">
+          <p className="mb-3 text-[11px] text-slate-500 dark:text-ink-300">
             Check the doctors to assign this patient to.
           </p>
  
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-slate-200 dark:divide-ink-700">
             {doctors.length === 0 ? (
               <div className="py-3 text-[12px] font-semibold text-rose-600">
                 No doctors found for this clinic.
@@ -969,10 +970,10 @@ export function IntakeFormClient({
                   />
  
                   <span>
-                    <span className="font-extrabold text-slate-900">
+                    <span className="font-extrabold text-slate-900 dark:text-white">
                       Dr. {doctor.full_name}
                     </span>{" "}
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-500 dark:text-ink-300">
                       {doctor.qualification || "Doctor"}
                     </span>
                   </span>
@@ -1003,31 +1004,31 @@ export function IntakeFormClient({
         </div>
  
         <div className="card xl:col-span-2 p-5">
-          <h2 className="mb-3 text-[13px] font-extrabold text-slate-900">
+          <h2 className="mb-3 text-[13px] font-extrabold text-slate-900 dark:text-white">
             Optional Tools
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Link
               href={immunizationHref}
               onClick={openImmunization}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-[#0ea5a4]/50 hover:bg-[#ecfdfc]"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-[#0ea5a4]/50 hover:bg-[#ecfdfc] dark:border-ink-700 dark:bg-ink-900 dark:hover:border-brand-400/60 dark:hover:bg-ink-800"
             >
-              <span className="block text-[13px] font-extrabold text-slate-900">
+              <span className="block text-[13px] font-extrabold text-slate-900 dark:text-white">
                 Immunization
               </span>
-              <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+              <span className="mt-1 block text-[11px] font-semibold text-slate-500 dark:text-ink-300">
                 {immunizationSummary || (pickedPatient ? "Immunization Registry" : "Save patient first")}
               </span>
             </Link>
             <Link
               href={painMapHref}
               onClick={openPainMap}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-[#0ea5a4]/50 hover:bg-[#ecfdfc]"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-[#0ea5a4]/50 hover:bg-[#ecfdfc] dark:border-ink-700 dark:bg-ink-900 dark:hover:border-brand-400/60 dark:hover:bg-ink-800"
             >
-              <span className="block text-[13px] font-extrabold text-slate-900">
+              <span className="block text-[13px] font-extrabold text-slate-900 dark:text-white">
                 Graphic Pain Map
               </span>
-              <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+              <span className="mt-1 block text-[11px] font-semibold text-slate-500 dark:text-ink-300">
                 {painMapSummary || (pickedPatient ? "MA Dashboard" : "Save patient first")}
               </span>
             </Link>
@@ -1065,10 +1066,10 @@ function Step({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-xl border py-2.5 text-center text-[12px] font-extrabold transition hover:border-[#0ea5a4] hover:bg-[#ecfdfc] focus:outline-none focus:ring-2 focus:ring-[#0ea5a4]/30 ${
+      className={`rounded-xl border py-2.5 text-center text-[12px] font-extrabold transition hover:border-[#0ea5a4] hover:bg-[#ecfdfc] focus:outline-none focus:ring-2 focus:ring-[#0ea5a4]/30 dark:hover:border-brand-400 dark:hover:bg-ink-800 ${
         active
-          ? "border-[#0ea5a4] bg-[#ecfdfc] text-[#0f172a]"
-          : "border-[rgba(15,23,42,0.08)] bg-white text-[#334155]"
+          ? "border-[#0ea5a4] bg-[#ecfdfc] text-[#0f172a] dark:border-brand-400 dark:bg-brand-400 dark:text-ink-950"
+          : "border-[rgba(15,23,42,0.08)] bg-white text-[#334155] dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200 dark:hover:text-white"
       }`}
     >
       {children}
@@ -1086,8 +1087,8 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className={`rounded-2xl border border-slate-100 bg-slate-50/45 p-3.5 ${className}`}>
-      <h3 className="mb-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
+    <section className={`rounded-2xl border border-slate-100 bg-slate-50/45 p-3.5 dark:border-ink-700/70 dark:bg-ink-900/70 ${className}`}>
+      <h3 className="mb-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500 dark:text-ink-200">
         {title}
       </h3>
       {children}
@@ -1104,7 +1105,7 @@ function Label({
   required?: boolean;
 }) {
   return (
-    <label className="mb-1 block text-[11px] font-bold text-slate-700">
+    <label className="mb-1 block text-[11px] font-bold text-slate-700 dark:text-ink-200">
       {children}
       {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
     </label>

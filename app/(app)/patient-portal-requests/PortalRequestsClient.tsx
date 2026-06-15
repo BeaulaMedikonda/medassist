@@ -373,10 +373,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import { BodyPainDiagram, type PainMarker } from "@/components/patient/BodyPainDiagram";
+import { isoLocalDate } from "@/lib/utils";
  
 type DoctorRow = {
   id: string;
@@ -386,12 +386,47 @@ type DoctorRow = {
  
 type HistoryRow = {
   id: string;
+  clinic_id: string | null;
   full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  email: string | null;
+  birthdate: string | null;
+  age: number | null;
+  sex: string | null;
+  blood_group: string | null;
+  height_cm: number | null;
+  emergency_contact: string | null;
+  address: string | null;
   chief_complaint: string | null;
+  known_allergies: string | null;
+  chronic_conditions: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+  abha_id: string | null;
+  abha_address: string | null;
+  bp_systolic: number | null;
+  bp_diastolic: number | null;
+  pulse: number | null;
+  temperature_f: number | null;
+  spo2: number | null;
+  weight_kg: number | null;
+  pain_markers: PainMarker[] | null;
+  pain_intensity: number | null;
+  pain_type: string | null;
+  pain_summary: string | null;
+  status: string;
   created_at: string;
   reviewed_at: string | null;
   assigned_doctor_id: string | null;
   created_patient_id: string | null;
+  visit_id: string | null;
+  visit_status: string | null;
+  visit_date: string | null;
+  visit_completed_at: string | null;
 };
  
 type SubmissionRow = {
@@ -455,6 +490,8 @@ export function PortalRequestsClient({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [confirmingReject, setConfirmingReject] = useState<string | null>(null);
+  const [historyDetail, setHistoryDetail] = useState<HistoryRow | null>(null);
+  const [historyDate, setHistoryDate] = useState(() => isoLocalDate());
  
   const selected = queue.find((s) => s.id === selectedId) ?? null;
   const selectedDraft = selected ? (drafts[selected.id] ?? selected) : null;
@@ -462,6 +499,9 @@ export function PortalRequestsClient({
   const delayedCount = queue.filter((submission) => waitingTime(submission.created_at).status === "delayed").length;
   const assignedTodayCount = historySubmissions.filter((row) => isToday(row.reviewed_at)).length;
   const oldestWaiting = queue[0] ? waitingTime(queue[0].created_at).shortLabel : "-";
+  const filteredHistorySubmissions = historyDate
+    ? historySubmissions.filter((row) => dateInputValue(row.reviewed_at || row.created_at) === historyDate)
+    : historySubmissions;
 
   useEffect(() => {
     if (activeTab !== "pending") return;
@@ -639,9 +679,47 @@ export function PortalRequestsClient({
           assignedToday={assignedTodayCount}
           oldestWaiting={oldestWaiting}
         />
+        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
+              History date
+            </p>
+            <p className="mt-0.5 text-xs font-semibold text-slate-500">
+              Filter by the date the request was assigned to EMR.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={historyDate}
+              onChange={(event) => setHistoryDate(event.target.value)}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-[#0ea5a4] focus:ring-4 focus:ring-[#0ea5a4]/10"
+            />
+            <button
+              type="button"
+              onClick={() => setHistoryDate(isoLocalDate())}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-600 transition hover:border-teal-300 hover:bg-teal-50 hover:text-[#0c8a89]"
+            >
+              Today
+            </button>
+            {historyDate ? (
+              <button
+                type="button"
+                onClick={() => setHistoryDate("")}
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-500 transition hover:bg-slate-50"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
         {historySubmissions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-sm font-semibold text-slate-400">
             No patients have been assigned through the portal yet.
+          </div>
+        ) : filteredHistorySubmissions.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-sm font-semibold text-slate-400">
+            No portal history found for {formatDateFromInput(historyDate)}.
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -653,14 +731,27 @@ export function PortalRequestsClient({
                   <th className="px-5 py-3.5">Submitted</th>
                   <th className="px-5 py-3.5">Assigned</th>
                   <th className="px-5 py-3.5">Doctor</th>
-                  <th className="px-5 py-3.5 text-right">EMR</th>
+                  <th className="px-5 py-3.5 text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {historySubmissions.map((row) => {
+                {filteredHistorySubmissions.map((row) => {
                   const doctor = doctors.find((d) => d.id === row.assigned_doctor_id);
                   return (
-                    <tr key={row.id} className="hover:bg-slate-50/60 transition">
+                    <tr
+                      key={row.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setHistoryDetail(row)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setHistoryDetail(row);
+                        }
+                      }}
+                      className="cursor-pointer transition hover:bg-slate-50/60 focus:bg-slate-50/80 focus:outline-none"
+                      title="Open portal request details"
+                    >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#22c7bd] to-[#2563eb] text-xs font-extrabold text-white">
@@ -686,16 +777,7 @@ export function PortalRequestsClient({
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        {row.created_patient_id ? (
-                          <Link
-                            href={`/emr/${row.created_patient_id}`}
-                            className="inline-flex h-7 items-center rounded-lg bg-teal-50 px-3 text-xs font-extrabold text-[#0ea5a4] transition hover:bg-teal-100"
-                          >
-                            View EMR →
-                          </Link>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
+                        <HistoryStatusBadge row={row} />
                       </td>
                     </tr>
                   );
@@ -704,6 +786,13 @@ export function PortalRequestsClient({
             </table>
           </div>
         )}
+        {historyDetail ? (
+          <HistoryDetailModal
+            row={historyDetail}
+            doctor={doctors.find((d) => d.id === historyDetail.assigned_doctor_id) ?? null}
+            onClose={() => setHistoryDetail(null)}
+          />
+        ) : null}
       </div>
     );
   }
@@ -1177,6 +1266,24 @@ function UrgencyBadge({ status }: { status: "new" | "waiting" | "delayed" }) {
   );
 }
 
+function HistoryStatusBadge({ row }: { row: HistoryRow }) {
+  const visitLabel = compactVisitStatusText(row.visit_status);
+
+  if (!row.created_patient_id) {
+    return (
+      <span className="inline-flex h-7 items-center rounded-lg bg-slate-100 px-3 text-xs font-extrabold text-slate-500">
+        Not linked
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex h-7 items-center rounded-lg bg-emerald-50 px-3 text-xs font-extrabold text-emerald-700">
+      EMR{visitLabel ? ` · ${visitLabel}` : ""}
+    </span>
+  );
+}
+
 function VitalsRow({ submission }: { submission: SubmissionRow }) {
   const chips = [
     submission.bp_systolic && submission.bp_diastolic
@@ -1217,6 +1324,141 @@ function VitalsRow({ submission }: { submission: SubmissionRow }) {
  
 // ── Sub-components ───────────────────────────────────────────────────────────
  
+function HistoryDetailModal({
+  row,
+  doctor,
+  onClose,
+}: {
+  row: HistoryRow;
+  doctor: DoctorRow | null;
+  onClose: () => void;
+}) {
+  const visitLabel = visitStatusLabel(row.visit_status);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
+      <div className="flex max-h-[min(860px,calc(100dvh-32px))] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#22c7bd] to-[#2563eb] text-sm font-extrabold text-white">
+              {initials(row.full_name || "P")}
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-xl font-extrabold tracking-tight text-slate-950">
+                {row.full_name || "Unnamed patient"}
+              </h2>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Submitted {formatDateTime(row.created_at)}
+                {row.reviewed_at ? ` · Assigned ${formatDate(row.reviewed_at)}` : ""}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close details"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/70 px-6 py-5">
+          <div className="mb-4 flex flex-wrap gap-2">
+            <span className="inline-flex h-7 items-center rounded-lg bg-emerald-50 px-3 text-xs font-extrabold text-emerald-700">
+              {row.created_patient_id ? "Moved to EMR" : "Not linked"}
+            </span>
+            {visitLabel ? (
+              <span className={`inline-flex h-7 items-center rounded-lg px-3 text-xs font-extrabold ${visitLabel.className}`}>
+                {visitLabel.label}
+              </span>
+            ) : null}
+            {doctor ? (
+              <span className="inline-flex h-7 items-center rounded-lg bg-sky-50 px-3 text-xs font-extrabold text-sky-700">
+                Dr. {doctor.full_name}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <DetailPanel title="Contact">
+              <Detail label="Phone" value={row.phone} />
+              <Detail label="Email" value={row.email} />
+              <Detail label="Emergency" value={row.emergency_contact} />
+            </DetailPanel>
+            <DetailPanel title="Profile">
+              <Detail label="Age / Sex" value={[row.age != null ? row.age : null, row.sex].filter(Boolean).join(" / ")} />
+              <Detail label="Blood Group" value={row.blood_group} />
+              <Detail label="Height" value={row.height_cm ? `${row.height_cm} cm` : null} />
+            </DetailPanel>
+            <DetailPanel title="Clinical">
+              <Detail label="Allergies" value={row.known_allergies} />
+              <Detail label="Conditions" value={row.chronic_conditions} />
+              <VitalsRow submission={row} />
+            </DetailPanel>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <SummaryBox title="Chief Complaint" value={row.chief_complaint || "—"} />
+            <SummaryBox title="Address" value={formatAddress(row)} />
+            <SummaryBox title="ABHA" value={row.abha_id || row.abha_address || "—"} mono />
+            <SummaryBox
+              title="Visit Outcome"
+              value={[
+                row.visit_status ? visitStatusText(row.visit_status) : "No linked visit found",
+                row.visit_completed_at ? `completed ${formatDate(row.visit_completed_at)}` : null,
+              ].filter(Boolean).join(" · ")}
+            />
+          </div>
+
+          {row.pain_markers && row.pain_markers.length > 0 ? (
+            <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <div className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
+                  Pain Map
+                </div>
+                {row.pain_type ? (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-extrabold text-slate-500">
+                    {row.pain_type}
+                  </span>
+                ) : null}
+                {row.pain_intensity != null ? (
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-extrabold text-orange-700">
+                    {row.pain_intensity}/10
+                  </span>
+                ) : null}
+              </div>
+              {row.pain_summary ? (
+                <p className="mb-3 text-sm font-semibold leading-6 text-slate-700">{row.pain_summary}</p>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                {row.pain_markers.map((marker, index) => (
+                  <span key={marker.id} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[9px] text-white">
+                      {index + 1}
+                    </span>
+                    {marker.location} ({marker.side}) · {marker.intensity}/10
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex shrink-0 justify-end border-t border-slate-100 bg-white px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-[#0f8f83] px-5 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#0c7f76]"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Detail({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
     <div className="rounded-xl bg-white px-3 py-2">
@@ -1264,12 +1506,59 @@ function SummaryBox({
  
 // ── Helpers ──────────────────────────────────────────────────────────────────
  
+function visitStatusText(status: string) {
+  const normalized = status.replace(/_/g, " ");
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function compactVisitStatusText(status: string | null | undefined) {
+  if (!status) return "";
+  if (status === "completed") return "Completed";
+  if (status === "awaiting_review") return "Review";
+  if (status === "in_progress") return "In progress";
+  return visitStatusText(status);
+}
+
+function visitStatusLabel(status: string | null | undefined) {
+  if (!status) return null;
+  if (status === "completed") {
+    return {
+      label: "Visit completed",
+      className: "bg-emerald-100 text-emerald-800",
+    };
+  }
+  if (status === "cancelled") {
+    return {
+      label: "Visit cancelled",
+      className: "bg-rose-100 text-rose-700",
+    };
+  }
+  return {
+    label: `Visit ${visitStatusText(status).toLowerCase()}`,
+    className: "bg-sky-50 text-sky-700",
+  };
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
+}
+
+function dateInputValue(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateFromInput(value: string) {
+  if (!value) return "the selected date";
+  return formatDate(`${value}T00:00:00`);
 }
  
 function waitingTime(createdAt: string): {
@@ -1581,3 +1870,4 @@ function ColField({ label, value }: { label: string; value: string | number | nu
 }
  
  
+

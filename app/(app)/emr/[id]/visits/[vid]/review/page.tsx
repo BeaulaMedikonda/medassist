@@ -3,7 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireMember } from "@/lib/auth";
 import { getDoctorAssignedScope } from "@/lib/doctor-access";
-import type { Immunization, Patient, Visit } from "@/types/db";
+import type { Doctor, Immunization, Patient, Visit } from "@/types/db";
 import { ReviewScreen } from "./ReviewScreen";
 
 export const dynamic = "force-dynamic";
@@ -69,13 +69,21 @@ export default async function ReviewPage({
   const { data: prevVisitRows } = await prevVisitQuery;
   const previousVisit = ((prevVisitRows || []) as Visit[])[0] || null;
 
-  const { data: immunizationRows } = await db
-    .from("immunizations")
-    .select("*")
-    .eq("patient_id", id)
-    .eq("clinic_id", clinic.id)
-    .order("date_given", { ascending: false })
-    .limit(6);
+  const [{ data: immunizationRows }, { data: doctorRows }] = await Promise.all([
+    db
+      .from("immunizations")
+      .select("*")
+      .eq("patient_id", id)
+      .eq("clinic_id", clinic.id)
+      .order("date_given", { ascending: false })
+      .limit(6),
+    admin
+      .from("doctors")
+      .select("id, full_name")
+      .eq("clinic_id", clinic.id)
+      .eq("role", "doctor")
+      .order("full_name"),
+  ]);
 
   return (
     <ReviewScreen
@@ -85,7 +93,9 @@ export default async function ReviewPage({
       immunizations={(immunizationRows || []) as Immunization[]}
       clinicId={clinic.id}
       currentUserId={member.id}
+      currentUserName={member.full_name}
       currentUserRole={member.role}
+      referralDoctors={(doctorRows || []) as Array<Pick<Doctor, "id" | "full_name">>}
     />
   );
 }

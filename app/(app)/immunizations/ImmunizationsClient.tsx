@@ -106,7 +106,7 @@ export function ImmunizationsClient({
   const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(initialError || "");
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(Boolean(initialPatientId));
 
   const currentForm = { ...emptyForm, ...form };
 

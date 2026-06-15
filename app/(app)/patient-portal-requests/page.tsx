@@ -64,6 +64,19 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { PortalRequestsClient } from "./PortalRequestsClient";
  
 export const dynamic = "force-dynamic";
+
+type PortalHistoryRow = {
+  created_patient_id: string | null;
+  [key: string]: unknown;
+};
+
+type LinkedVisitRow = {
+  id: string;
+  patient_id: string;
+  status: string;
+  visit_date: string;
+  completed_at: string | null;
+};
  
 export default async function PatientPortalRequestsPage() {
   const { member, clinic } = await requireMember();
@@ -90,7 +103,7 @@ export default async function PatientPortalRequestsPage() {
       .order("full_name", { ascending: true }),
     supabase
       .from("patient_portal_intake_submissions")
-      .select("id, full_name, chief_complaint, created_at, reviewed_at, assigned_doctor_id, created_patient_id")
+      .select("id, clinic_id, full_name, first_name, last_name, phone, email, birthdate, age, sex, blood_group, height_cm, emergency_contact, address, city, state, postal_code, country, chief_complaint, known_allergies, chronic_conditions, abha_id, abha_address, bp_systolic, bp_diastolic, pulse, temperature_f, spo2, weight_kg, pain_markers, pain_intensity, pain_type, pain_summary, status, created_at, reviewed_at, assigned_doctor_id, created_patient_id")
       .eq("status", "assigned")
       .eq("clinic_id", clinic.id)
       .order("reviewed_at", { ascending: false })
@@ -99,6 +112,39 @@ export default async function PatientPortalRequestsPage() {
   const visibleSubmissions = ((submissions || []) as Array<{ clinic_id: string | null }>).filter(
     (submission) => !submission.clinic_id || submission.clinic_id === clinic.id,
   );
+  const historyRows = (history || []) as PortalHistoryRow[];
+  const linkedPatientIds = Array.from(
+    new Set(
+      historyRows
+        .map((row) => row.created_patient_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const { data: linkedVisits } = linkedPatientIds.length > 0
+    ? await supabase
+        .from("visits")
+        .select("id, patient_id, status, visit_date, completed_at")
+        .eq("clinic_id", clinic.id)
+        .in("patient_id", linkedPatientIds)
+        .order("visit_date", { ascending: false })
+    : { data: [] };
+  const latestVisitByPatient = new Map<string, LinkedVisitRow>();
+
+  for (const visit of (linkedVisits || []) as LinkedVisitRow[]) {
+    if (!latestVisitByPatient.has(visit.patient_id)) {
+      latestVisitByPatient.set(visit.patient_id, visit);
+    }
+  }
+  const historyWithVisit = historyRows.map((row) => {
+    const linkedVisit = row.created_patient_id ? latestVisitByPatient.get(row.created_patient_id) : null;
+    return {
+      ...row,
+      visit_id: linkedVisit?.id ?? null,
+      visit_status: linkedVisit?.status ?? null,
+      visit_date: linkedVisit?.visit_date ?? null,
+      visit_completed_at: linkedVisit?.completed_at ?? null,
+    };
+  });
  
   return (
     <div>
@@ -116,7 +162,7 @@ export default async function PatientPortalRequestsPage() {
       <PortalRequestsClient
         submissions={visibleSubmissions as never}
         doctors={(doctors || []) as never}
-        historySubmissions={(history || []) as never}
+        historySubmissions={historyWithVisit as never}
       />
     </div>
   );

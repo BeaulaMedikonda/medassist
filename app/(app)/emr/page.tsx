@@ -1,7 +1,9 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireMember } from "@/lib/auth";
 import { getDoctorAssignedScope } from "@/lib/doctor-access";
+import { isoLocalDate } from "@/lib/utils";
 import { EmrListClient } from "./EmrListClient";
 import type { LoincCodeDetail, Patient, Prescription } from "@/types/db";
  
@@ -50,10 +52,10 @@ export type PatientVisitItem = {
 export default async function EmrListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; filter?: string }>;
+  searchParams: Promise<{ q?: string; filter?: string; date?: string }>;
 }) {
   noStore();
- 
+
   const [authContext, supabase, resolvedSearchParams] = await Promise.all([
     requireMember(),
     supabaseServer(),
@@ -61,14 +63,22 @@ export default async function EmrListPage({
   ]);
   const { member, clinic } = authContext;
   const q = (resolvedSearchParams.q || "").trim();
- 
+  const dateParam = resolvedSearchParams.date || isoLocalDate();
+
   const filter: PatientFilter =
     resolvedSearchParams.filter === "today" ||
     resolvedSearchParams.filter === "visited" ||
     resolvedSearchParams.filter === "chronic"
       ? resolvedSearchParams.filter
       : "all";
- 
+
+  const filterDate = dateParam
+    ? new Date(`${dateParam}T00:00:00`)
+    : new Date();
+  filterDate.setHours(0, 0, 0, 0);
+  const filterDateEnd = new Date(filterDate);
+  filterDateEnd.setHours(23, 59, 59, 999);
+
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
  
@@ -98,11 +108,13 @@ export default async function EmrListPage({
         clinicName={clinic.name}
         initialQuery={q}
         initialFilter={filter}
+        initialDate={dateParam}
         patients={[]}
         latestVisit={{}}
         latestVitalsVisit={{}}
         patientVisits={{}}
         patientSummaries={{}}
+        portalPatientIds={[]}
         referralDoctors={referralDoctors}
         error={null}
         counts={{
@@ -141,8 +153,14 @@ export default async function EmrListPage({
     patientQuery = patientQuery.or(searchFields.map((field) => `${field}.ilike.%${q}%`).join(","));
   }
  
-  if (filter === "today") {
-    patientQuery = patientQuery.gte("last_visit_at", todayStart.toISOString());
+  if (dateParam) {
+    patientQuery = patientQuery
+      .gte("last_visit_at", filterDate.toISOString())
+      .lte("last_visit_at", filterDateEnd.toISOString());
+  } else if (filter === "today") {
+    patientQuery = patientQuery
+      .gte("last_visit_at", todayStart.toISOString())
+      .lte("last_visit_at", new Date(todayStart.getTime() + 86399999).toISOString());
   } else if (filter === "visited") {
     patientQuery = patientQuery.not("last_visit_at", "is", null);
   } else if (filter === "chronic") {
@@ -159,7 +177,8 @@ export default async function EmrListPage({
     .from("patients")
     .select("*", { count: "exact", head: true })
     .eq("clinic_id", clinic.id)
-    .gte("last_visit_at", todayStart.toISOString());
+    .gte("last_visit_at", filterDate.toISOString())
+    .lte("last_visit_at", filterDateEnd.toISOString());
   let visitedCountQuery = supabase
     .from("patients")
     .select("*", { count: "exact", head: true })
@@ -193,8 +212,10 @@ export default async function EmrListPage({
   const latestVitalsVisit: Record<string, LatestVisit> = {};
   const patientVisits: Record<string, PatientVisitItem[]> = {};
   const patientSummaries: Record<string, PatientSummary[]> = {};
+  const portalPatientIds = new Set<string>();
  
   if (patientIds.length > 0) {
+    const admin = supabaseAdmin();
     let latestVisitQuery = supabase
       .from("visits")
       .select("id, patient_id, confirmed_diagnosis, provisional_diagnosis, visit_date, status, bp_systolic, bp_diastolic, pulse, temperature_f, spo2, weight_kg, chief_complaints, investigations_ordered, loinc_code_details, prescription, advice, follow_up_date, follow_up_notes")
@@ -208,10 +229,37 @@ export default async function EmrListPage({
       .not("pre_visit_summary", "is", null)
       .order("visit_date", { ascending: false });
  
-    const [{ data: visits }, { data: summaryVisits }] = await Promise.all([
+    const [
+      { data: visits },
+      { data: summaryVisits },
+      { data: portalAccounts },
+      { data: portalSubmissions },
+    ] = await Promise.all([
       latestVisitQuery,
       summaryQuery,
+      admin
+        .from("patient_portal_accounts")
+        .select("patient_id")
+        .eq("clinic_id", clinic.id)
+        .in("patient_id", patientIds),
+      admin
+        .from("patient_portal_intake_submissions")
+        .select("patient_id, created_patient_id")
+        .eq("clinic_id", clinic.id)
+        .or(`patient_id.in.(${patientIds.join(",")}),created_patient_id.in.(${patientIds.join(",")})`),
     ]);
+
+    for (const account of (portalAccounts || []) as Array<{ patient_id: string | null }>) {
+      if (account.patient_id) portalPatientIds.add(account.patient_id);
+    }
+
+    for (const submission of (portalSubmissions || []) as Array<{
+      patient_id: string | null;
+      created_patient_id: string | null;
+    }>) {
+      if (submission.patient_id) portalPatientIds.add(submission.patient_id);
+      if (submission.created_patient_id) portalPatientIds.add(submission.created_patient_id);
+    }
  
     if (visits) {
       for (const v of visits as Array<{
@@ -309,11 +357,13 @@ export default async function EmrListPage({
       clinicName={clinic.name}
       initialQuery={q}
       initialFilter={filter}
+      initialDate={dateParam}
       patients={(patients || []) as Patient[]}
       latestVisit={latestVisit}
       latestVitalsVisit={latestVitalsVisit}
       patientVisits={patientVisits}
       patientSummaries={patientSummaries}
+      portalPatientIds={Array.from(portalPatientIds)}
       referralDoctors={referralDoctors}
       error={error?.message || null}
       counts={{

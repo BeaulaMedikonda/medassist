@@ -163,7 +163,7 @@ function getCurrentWeekDays() {
       label: date.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase(),
       day: date.getDate(),
       date,
-      key: date.toISOString().slice(0, 10),
+      key: dateInputValue(date),
     };
   });
 }
@@ -201,6 +201,15 @@ function getPatient(patientId: string | null, patients: PatientRow[]) {
   return patients.find((patient) => patient.id === patientId) || null;
 }
 
+function patientMeta(patient: PatientRow) {
+  return [
+    patient.emr_number ? `EMR ${patient.emr_number}` : null,
+    patient.phone || null,
+  ]
+    .filter(Boolean)
+    .join(" - ") || "No EMR or phone recorded";
+}
+
 function prettyText(value: string | null | undefined) {
   if (!value) return "—";
 
@@ -227,6 +236,19 @@ function statusBadgeClass(status: string) {
   }
 
   return "bg-slate-50 text-slate-700 ring-slate-200";
+}
+
+function appointmentDayValue(appointment: AppointmentRow) {
+  return dateInputValue(new Date(appointment.scheduled_at));
+}
+
+function isActiveAppointmentStatus(status: string) {
+  return status !== "completed" && status !== "cancelled" && status !== "no_show";
+}
+
+function isRecallAppointment(appointment: AppointmentRow) {
+  const notes = appointment.notes?.toLowerCase() || "";
+  return appointment.type === "follow_up" || notes.includes("recall") || notes.includes("follow");
 }
 
 function statToneClass(tone: "booked" | "waiting" | "done" | "open") {
@@ -265,7 +287,8 @@ export function AppointmentsClient({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const [patientId, setPatientId] = useState(patients[0]?.id || "");
+  const [patientId, setPatientId] = useState("");
+  const [patientSearch, setPatientSearch] = useState("");
   const [doctorId, setDoctorId] = useState(doctors[0]?.id || "");
   const [date, setDate] = useState(todayInputValue());
   const [timeSlot, setTimeSlot] = useState("09:00");
@@ -340,6 +363,53 @@ export function AppointmentsClient({
       !isPastSlot(date, slot.value) &&
       !isSlotBooked(appointments, date, slot.value, doctorId),
   );
+  const selectedPatient = patients.find((patient) => patient.id === patientId) || null;
+  const patientSearchTerm = patientSearch.trim().toLowerCase();
+  const patientSearchResults = useMemo(() => {
+    if (patientSearchTerm.length < 2) return [];
+
+    return patients
+      .filter((patient) => {
+        const searchable = [
+          patient.full_name,
+          patient.emr_number,
+          patient.phone,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return searchable.includes(patientSearchTerm);
+      })
+      .slice(0, 8);
+  }, [patientSearchTerm, patients]);
+  const recallAppointments = useMemo(
+    () =>
+      appointments
+        .filter((appointment) => {
+          const scheduled = new Date(appointment.scheduled_at);
+          const doctorMatches =
+            selectedDoctorId === "all" || appointment.doctor_id === selectedDoctorId;
+          return (
+            doctorMatches &&
+            scheduled >= todayStart &&
+            isActiveAppointmentStatus(appointment.status) &&
+            isRecallAppointment(appointment)
+          );
+        })
+        .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()),
+    [appointments, selectedDoctorId, todayStart],
+  );
+  const waitlistAppointments = useMemo(
+    () =>
+      selectedDayAppointments
+        .filter((appointment) => appointment.status === "scheduled" || appointment.status === "checked_in")
+        .sort((a, b) => {
+          if (a.status === "checked_in" && b.status !== "checked_in") return -1;
+          if (a.status !== "checked_in" && b.status === "checked_in") return 1;
+          return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+        }),
+    [selectedDayAppointments],
+  );
 
   useEffect(() => {
     setTodayPage(1);
@@ -382,7 +452,8 @@ export function AppointmentsClient({
     }
 
     setFormError(null);
-    setPatientId(patients[0]?.id || "");
+    setPatientId("");
+    setPatientSearch("");
     setDoctorId(nextDoctorId);
     setDate(selectedDate);
     setTimeSlot(nextSlot);
@@ -992,18 +1063,69 @@ export function AppointmentsClient({
                   <label className="mb-1 block text-[12px] font-extrabold text-slate-500">
                     Patient
                   </label>
-                  <select
-                    value={patientId}
-                    onChange={(event) => setPatientId(event.target.value)}
-                    className="h-11 w-full rounded border border-slate-300 bg-white px-3 text-[14px] outline-none focus:border-[#0f8f83]"
-                  >
-                    <option value="">Select patient</option>
-                    {patients.map((patient) => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.full_name} · {patient.emr_number}
-                      </option>
-                    ))}
-                  </select>
+                  {selectedPatient ? (
+                    <div className="flex items-center justify-between gap-3 rounded border border-[#0f8f83] bg-teal-50 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="truncate text-[14px] font-extrabold text-slate-900">
+                          {selectedPatient.full_name}
+                        </p>
+                        <p className="mt-0.5 truncate text-[12px] font-semibold text-slate-500">
+                          {patientMeta(selectedPatient)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPatientId("");
+                          setPatientSearch("");
+                        }}
+                        className="shrink-0 rounded-full border border-teal-200 bg-white px-3 py-1 text-[11px] font-extrabold text-[#0f8f83] hover:bg-teal-100"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        value={patientSearch}
+                        onChange={(event) => setPatientSearch(event.target.value)}
+                        placeholder="Search by name, phone, or EMR"
+                        className="h-11 w-full rounded border border-slate-300 bg-white px-3 text-[14px] outline-none placeholder:text-slate-400 focus:border-[#0f8f83]"
+                      />
+                      <div className="mt-2 overflow-hidden rounded border border-slate-200 bg-white">
+                        {patientSearchTerm.length < 2 ? (
+                          <p className="px-3 py-3 text-[12px] font-semibold text-slate-400">
+                            Type at least 2 characters to search patients.
+                          </p>
+                        ) : patientSearchResults.length === 0 ? (
+                          <p className="px-3 py-3 text-[12px] font-semibold text-slate-400">
+                            No patient found.
+                          </p>
+                        ) : (
+                          <div className="max-h-56 overflow-y-auto">
+                            {patientSearchResults.map((patient) => (
+                              <button
+                                key={patient.id}
+                                type="button"
+                                onClick={() => {
+                                  setPatientId(patient.id);
+                                  setPatientSearch("");
+                                }}
+                                className="block w-full border-b border-slate-100 px-3 py-2.5 text-left last:border-b-0 hover:bg-teal-50"
+                              >
+                                <p className="truncate text-[14px] font-extrabold text-slate-900">
+                                  {patient.full_name}
+                                </p>
+                                <p className="mt-0.5 truncate text-[12px] font-semibold text-slate-500">
+                                  {patientMeta(patient)}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1160,14 +1282,58 @@ export function AppointmentsClient({
                   </thead>
 
                   <tbody>
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-4 py-12 text-center text-sm font-extrabold text-slate-500"
-                      >
-                        No records yet.
-                      </td>
-                    </tr>
+                    {recallAppointments.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-4 py-12 text-center text-sm font-extrabold text-slate-500"
+                        >
+                          No records yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      recallAppointments.map((appointment) => {
+                        const patient = getPatient(appointment.patient_id, patients);
+                        return (
+                          <tr key={appointment.id} className="border-t border-slate-100">
+                            <td className="px-4 py-3">
+                              <div className="font-extrabold text-slate-900">
+                                {patient?.full_name || "Unknown patient"}
+                              </div>
+                              <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                                {patient ? patientMeta(patient) : "No patient details"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              {appointment.notes?.trim() || prettyText(appointment.type)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-slate-700">
+                              {formatDate(appointment.scheduled_at)}
+                              <span className="ml-1 text-slate-400">
+                                {formatTime(appointment.scheduled_at)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-extrabold ring-1 ${statusBadgeClass(appointment.status)}`}>
+                                {prettyText(appointment.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDate(appointmentDayValue(appointment));
+                                  setShowRecallModal(false);
+                                }}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:border-teal-300 hover:bg-teal-50 hover:text-[#0f8f83]"
+                              >
+                                View Day
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1207,14 +1373,56 @@ export function AppointmentsClient({
                   </thead>
 
                   <tbody>
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-4 py-12 text-center text-sm font-extrabold text-slate-500"
-                      >
-                        No records yet.
-                      </td>
-                    </tr>
+                    {waitlistAppointments.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-4 py-12 text-center text-sm font-extrabold text-slate-500"
+                        >
+                          No records yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      waitlistAppointments.map((appointment) => {
+                        const patient = getPatient(appointment.patient_id, patients);
+                        return (
+                          <tr key={appointment.id} className="border-t border-slate-100">
+                            <td className="px-4 py-3">
+                              <div className="font-extrabold text-slate-900">
+                                {patient?.full_name || "Unknown patient"}
+                              </div>
+                              <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                                {patient ? patientMeta(patient) : "No patient details"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              {getDoctorName(appointment.doctor_id, doctors)}
+                            </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              <div>{prettyText(appointment.type)}</div>
+                              <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                                {prettyText(appointment.status)}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-slate-700">
+                              {formatDate(appointment.created_at)}
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDate(appointmentDayValue(appointment));
+                                  setShowWaitlistModal(false);
+                                }}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:border-teal-300 hover:bg-teal-50 hover:text-[#0f8f83]"
+                              >
+                                View Slot
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

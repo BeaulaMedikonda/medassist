@@ -1576,6 +1576,8 @@ function InviteStaffModal({
         ok?: boolean;
         error?: string;
         member?: RosterMember;
+        reused_existing_auth_user?: boolean;
+        password_updated?: boolean;
       };
  
       if (!res.ok || !json.ok || !json.member) {
@@ -1589,7 +1591,9 @@ function InviteStaffModal({
       });
  
       window.alert(
-        `Staff account created.\n\nEmail: ${form.email}\nTemp password: ${form.password}\n\nShare these credentials with the staff member.`,
+        json.reused_existing_auth_user && !json.password_updated
+          ? `Staff role added.\n\nEmail: ${form.email}\n\nThis email already had a login account, so the existing password was kept. Use Forgot password if they do not remember it.`
+          : `Staff account created.\n\nEmail: ${form.email}\nTemp password: ${form.password}\n\nShare these credentials with the staff member.`,
       );
       onCreated(json.member);
     } catch (err) {

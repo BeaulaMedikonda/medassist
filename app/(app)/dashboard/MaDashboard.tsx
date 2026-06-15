@@ -1771,7 +1771,7 @@ export function MaDashboard({
             <h2 className="flex items-center gap-2 text-base font-semibold text-[#0f172a] dark:text-ink-100">
               Doctor-wise Queue
             </h2>
-            <span className="text-right text-[12px] font-semibold text-[#64748b] dark:text-ink-500">
+            <span className="text-right text-[12px] font-semibold text-[#64748b] dark:text-ink-300">
               active patients assigned today
             </span>
           </div>
@@ -1853,7 +1853,7 @@ export function MaDashboard({
         <div className="overflow-hidden rounded-[18px] border border-[rgba(15,23,42,0.06)] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05),0_8px_24px_-12px_rgba(15,23,42,0.10)] dark:border-ink-800/70 dark:bg-ink-900">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[rgba(15,23,42,0.06)] bg-[#f7f9fc] text-[11px] font-bold uppercase tracking-wider text-[#64748b] dark:border-ink-800 dark:bg-ink-900/60 dark:text-ink-500">
+              <tr className="border-b border-[rgba(15,23,42,0.06)] bg-[#f7f9fc] text-[11px] font-bold uppercase tracking-wider text-[#64748b] dark:border-ink-700 dark:bg-ink-900/60 dark:text-ink-300">
                 <th className="px-5 py-3.5">Patient</th>
                 <th className="px-5 py-3.5">EMR ID</th>
                 <th className="px-5 py-3.5">Vitals</th>
@@ -1867,7 +1867,7 @@ export function MaDashboard({
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-5 py-16 text-center text-sm font-medium text-[#64748b] dark:text-ink-500"
+                    className="px-5 py-16 text-center text-sm font-medium text-[#64748b] dark:text-ink-300"
                   >
                     No records yet.
                   </td>
@@ -1894,7 +1894,7 @@ export function MaDashboard({
                   return (
                     <tr
                       key={v.id}
-                      className="border-b border-[rgba(15,23,42,0.04)] transition-colors last:border-0 hover:bg-[#f7f9fc] dark:border-ink-800/60 dark:hover:bg-ink-800/40"
+                      className="border-b border-[rgba(15,23,42,0.04)] transition-colors last:border-0 hover:bg-[#f7f9fc] dark:border-ink-700/70 dark:hover:bg-ink-800/55"
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
@@ -1911,7 +1911,7 @@ export function MaDashboard({
                             <div className="truncate font-semibold text-[#0f172a] dark:text-ink-100">
                               {patient.full_name}
                             </div>
-                            <div className="truncate text-[11px] text-[#64748b] dark:text-ink-500">
+                            <div className="truncate text-[11px] text-[#64748b] dark:text-ink-300">
                               {patient.age != null
                                 ? `${patient.age}${patient.sex || ""}`
                                 : "-"}
@@ -1919,7 +1919,7 @@ export function MaDashboard({
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 font-mono text-[12px] text-[#64748b] dark:text-ink-400">
+                      <td className="px-5 py-3.5 font-mono text-[12px] text-[#64748b] dark:text-ink-300">
                         {patient.emr_number}
                       </td>
                       <td className="px-5 py-3.5">
@@ -2054,7 +2054,7 @@ function QuickActions({
             <h3 className="text-[15px] font-semibold text-[#0f172a] dark:text-ink-100">
               {m.title}
             </h3>
-            <p className="mt-2 text-[13px] leading-relaxed text-[#64748b] dark:text-ink-500">
+            <p className="mt-2 text-[13px] leading-relaxed text-[#64748b] dark:text-ink-300">
               {m.text}
             </p>
           </button>
@@ -2110,7 +2110,7 @@ function VitalTrendsModal({
             <h2 className="text-base font-bold text-slate-900 dark:text-ink-100">
               Graphical Vital Trends
             </h2>
-            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-ink-500">
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-ink-300">
               Last 30 days from saved intake visits
             </p>
           </div>
@@ -2127,7 +2127,7 @@ function VitalTrendsModal({
         <div className="max-h-[calc(92vh-73px)] overflow-y-auto px-5 py-5">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-ink-500">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-ink-300">
                 Patient
               </span>
               <select
@@ -2145,7 +2145,7 @@ function VitalTrendsModal({
                 ))}
               </select>
             </label>
-            <div className="text-xs font-medium text-slate-500 dark:text-ink-500">
+            <div className="text-xs font-medium text-slate-500 dark:text-ink-300">
               {readingVisits.length} reading
               {readingVisits.length === 1 ? "" : "s"}
               {latestReadingVisit
@@ -2169,7 +2169,7 @@ function VitalTrendsModal({
                 className={`shrink-0 border-b-2 px-3 py-2 text-sm font-semibold transition ${
                   activeTab === key
                     ? "border-[#0ea5a4] text-[#0f948f]"
-                    : "border-transparent text-slate-500 hover:text-slate-800 dark:text-ink-500 dark:hover:text-ink-200"
+                    : "border-transparent text-slate-500 hover:text-slate-800 dark:text-ink-300 dark:hover:text-ink-100"
                 }`}
               >
                 {label}
@@ -2178,7 +2178,7 @@ function VitalTrendsModal({
           </div>
 
           {chart.series.every((s) => s.points.length === 0) ? (
-            <div className="rounded-xl border border-dashed border-slate-300 px-4 py-16 text-center text-sm font-medium text-slate-500 dark:border-ink-700 dark:text-ink-500">
+            <div className="rounded-xl border border-dashed border-slate-300 px-4 py-16 text-center text-sm font-medium text-slate-500 dark:border-ink-700 dark:text-ink-300">
               No saved {chart.title.toLowerCase()} readings for this patient yet.
             </div>
           ) : (
@@ -3044,7 +3044,7 @@ function TrendChart({
           </span>
         ))}
       </div>
-      <p className="mt-3 text-xs font-medium text-slate-500 dark:text-ink-500">
+      <p className="mt-3 text-xs font-medium text-slate-500 dark:text-ink-300">
         {chart.normal}
       </p>
     </div>

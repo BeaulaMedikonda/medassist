@@ -543,7 +543,7 @@ export function ClinicalModules({
                     <SummaryDetail label="Patient" value={selectedPatient.full_name} />
                     <SummaryDetail label="EMR ID" value={selectedPatient.emr_number} />
                     <SummaryDetail
-                      label="Age / Sex"
+                      label="Age / Gender"
                       value={[
                         selectedPatient.age != null ? `${selectedPatient.age}y` : null,
                         selectedPatient.sex,

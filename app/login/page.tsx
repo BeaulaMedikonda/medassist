@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, type Ref } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { Spinner } from "@/components/ui/Spinner";
@@ -103,6 +103,7 @@ function LoginInner() {
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [clinicChoices, setClinicChoices] = useState<ClinicChoice[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
@@ -633,12 +634,22 @@ function LoginInner() {
                   <AuthField
                     label="Password"
                     name={isProviderLogin ? "super_admin_password" : "password"}
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     minLength={6}
                     autoComplete={isProviderLogin ? "new-password" : mode === "signin" ? "current-password" : "new-password"}
                     value={password}
                     onChange={setPassword}
                     placeholder="At least 6 characters"
+                    rightElement={
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((value) => !value)}
+                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                      </button>
+                    }
                   />
                   {mode === "signin" ? (
                     <div className="mt-2 text-right">
@@ -738,6 +749,7 @@ function AuthField({
   minLength,
   inputRef,
   error,
+  rightElement,
 }: {
   label: string;
   name: string;
@@ -749,31 +761,56 @@ function AuthField({
   minLength?: number;
   inputRef?: Ref<HTMLInputElement>;
   error?: string;
+  rightElement?: ReactNode;
 }) {
   return (
     <div>
       <label className="mb-1.5 block text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
         {label}
       </label>
-      <input
-        name={name}
-        type={type}
-        required
-        ref={inputRef}
-        minLength={minLength}
-        autoComplete={autoComplete}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`input-base h-11 rounded-xl px-4 text-[14px] ${
-          error ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/20" : ""
-        }`}
-        aria-invalid={Boolean(error)}
-      />
+      <div className="relative">
+        <input
+          name={name}
+          type={type}
+          required
+          ref={inputRef}
+          minLength={minLength}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`input-base h-11 rounded-xl px-4 text-[14px] ${
+            rightElement ? "pr-12" : ""
+          } ${error ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/20" : ""}`}
+          aria-invalid={Boolean(error)}
+        />
+        {rightElement ? (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+            {rightElement}
+          </div>
+        ) : null}
+      </div>
       {error ? (
         <p className="mt-1.5 text-[12px] font-semibold text-rose-600">{error}</p>
       ) : null}
     </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5z" />
+      <circle cx="10" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.6 5.2A8 8 0 0110 5c4.8 0 7.5 5 7.5 5a12.6 12.6 0 01-2.1 2.7M11.8 11.8A2.5 2.5 0 018.2 8.2M2.5 2.5l15 15M5.9 5.9C3.7 7.3 2.5 10 2.5 10s2.7 5 7.5 5a8 8 0 003.1-.6" />
+    </svg>
   );
 }
 
