@@ -6,13 +6,17 @@ function required(name: string, value: string | undefined): string {
   }
   return value;
 }
+
+function env(name: string, fallback = ""): string {
+  return (process.env[name] || fallback).trim();
+}
  
 export const publicEnv = {
-  appName:       process.env.NEXT_PUBLIC_APP_NAME    || "MedAssist",
-  appUrl:        process.env.NEXT_PUBLIC_APP_URL     || "http://localhost:3000",
-  defaultLocale: process.env.NEXT_PUBLIC_DEFAULT_LOCALE || "en-IN",
-  supabaseUrl:      process.env.NEXT_PUBLIC_SUPABASE_URL      || "",
-  supabaseAnonKey:  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+  appName:       env("NEXT_PUBLIC_APP_NAME", "MedAssist"),
+  appUrl:        env("NEXT_PUBLIC_APP_URL", "http://localhost:3000"),
+  defaultLocale: env("NEXT_PUBLIC_DEFAULT_LOCALE", "en-IN"),
+  supabaseUrl:      env("NEXT_PUBLIC_SUPABASE_URL"),
+  supabaseAnonKey:  env("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
 };
  
 export const hasSupabasePublicEnv =
@@ -24,10 +28,10 @@ export function requireSupabasePublicEnv() {
 }
  
 export const serverEnv = {
-  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
-  supabaseAudioBucket:    process.env.SUPABASE_AUDIO_BUCKET     || "visit-audio",
-  supabasePdfBucket:      process.env.SUPABASE_PDF_BUCKET       || "prescriptions",
-  supabaseAssetsBucket:   process.env.SUPABASE_ASSETS_BUCKET    || "doctor-assets",
+  supabaseServiceRoleKey: env("SUPABASE_SERVICE_ROLE_KEY"),
+  supabaseAudioBucket:    env("SUPABASE_AUDIO_BUCKET", "visit-audio"),
+  supabasePdfBucket:      env("SUPABASE_PDF_BUCKET", "prescriptions"),
+  supabaseAssetsBucket:   env("SUPABASE_ASSETS_BUCKET", "doctor-assets"),
  
   emrPrefix:    process.env.EMR_NUMBER_PREFIX || "HD",
   emrClinicCode: process.env.EMR_CLINIC_CODE  || "AC1",

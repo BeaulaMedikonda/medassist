@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabase/browser";
+import { clearMalformedSupabaseAuthStorage, supabaseBrowser } from "@/lib/supabase/browser";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 
@@ -140,6 +140,7 @@ function LoginInner() {
       return;
     }
 
+    clearMalformedSupabaseAuthStorage();
     const supabase = supabaseBrowser();
     let cancelled = false;
 
@@ -194,6 +195,7 @@ function LoginInner() {
     }
 
     setBusy(true);
+    clearMalformedSupabaseAuthStorage();
     const supabase = supabaseBrowser();
     const targetEmail = cleanEmail(email);
 
@@ -341,6 +343,7 @@ function LoginInner() {
         return;
       }
 
+      clearMalformedSupabaseAuthStorage();
       const supabase = supabaseBrowser();
       const callbackUrl = new URL("/auth/callback", window.location.origin);
       callbackUrl.searchParams.set("next", "/reset-password");
