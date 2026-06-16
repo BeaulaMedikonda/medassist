@@ -10,13 +10,17 @@ function required(name: string, value: string | undefined): string {
 function env(name: string, fallback = ""): string {
   return (process.env[name] || fallback).trim();
 }
+
+const fallbackSupabaseUrl = "https://efusjcxddrkmyjfyudap.supabase.co";
+const fallbackSupabaseAnonKey =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmdXNqY3hkZHJrbXlqZnl1ZGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4Nzc5NTgsImV4cCI6MjA5NTQ1Mzk1OH0.rCzm-kE4fqGZ-Q7KlKgIofX8W7En-jzU2vdDsHbmlAk";
  
 export const publicEnv = {
   appName:       env("NEXT_PUBLIC_APP_NAME", "MedAssist"),
   appUrl:        env("NEXT_PUBLIC_APP_URL", "http://localhost:3000"),
   defaultLocale: env("NEXT_PUBLIC_DEFAULT_LOCALE", "en-IN"),
-  supabaseUrl:      env("NEXT_PUBLIC_SUPABASE_URL"),
-  supabaseAnonKey:  env("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+  supabaseUrl:      env("NEXT_PUBLIC_SUPABASE_URL", fallbackSupabaseUrl),
+  supabaseAnonKey:  env("NEXT_PUBLIC_SUPABASE_ANON_KEY", fallbackSupabaseAnonKey),
 };
  
 export const hasSupabasePublicEnv =
