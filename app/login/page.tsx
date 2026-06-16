@@ -219,11 +219,6 @@ function LoginInner() {
 
         const workspaces = await loadWorkspaces(role as Exclude<Role, "provider">);
         if (workspaces.length === 0) {
-          if (role === "admin") {
-            push({ title: "Set up your clinic", variant: "info" });
-            router.replace("/onboarding");
-            return;
-          }
           push({
             title: "No matching role found",
             description: `This account is not linked as ${roleLabel[roleToStaffRole[role]]}.`,
