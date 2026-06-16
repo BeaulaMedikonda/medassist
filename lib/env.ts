@@ -11,6 +11,11 @@ function env(name: string, fallback = ""): string {
   return (process.env[name] || fallback).trim();
 }
 
+function supabaseJwtEnv(name: string, fallback = ""): string {
+  const value = env(name, fallback);
+  return value.split(/\s+|SUPABASE_[A-Z0-9_]+=|NEXT_PUBLIC_[A-Z0-9_]+=/)[0] || value;
+}
+
 const fallbackSupabaseUrl = "https://efusjcxddrkmyjfyudap.supabase.co";
 const fallbackSupabaseAnonKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmdXNqY3hkZHJrbXlqZnl1ZGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4Nzc5NTgsImV4cCI6MjA5NTQ1Mzk1OH0.rCzm-kE4fqGZ-Q7KlKgIofX8W7En-jzU2vdDsHbmlAk";
@@ -20,7 +25,7 @@ export const publicEnv = {
   appUrl:        env("NEXT_PUBLIC_APP_URL", "http://localhost:3000"),
   defaultLocale: env("NEXT_PUBLIC_DEFAULT_LOCALE", "en-IN"),
   supabaseUrl:      env("NEXT_PUBLIC_SUPABASE_URL", fallbackSupabaseUrl),
-  supabaseAnonKey:  env("NEXT_PUBLIC_SUPABASE_ANON_KEY", fallbackSupabaseAnonKey),
+  supabaseAnonKey:  supabaseJwtEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", fallbackSupabaseAnonKey),
 };
  
 export const hasSupabasePublicEnv =
@@ -32,7 +37,7 @@ export function requireSupabasePublicEnv() {
 }
  
 export const serverEnv = {
-  supabaseServiceRoleKey: env("SUPABASE_SERVICE_ROLE_KEY"),
+  supabaseServiceRoleKey: supabaseJwtEnv("SUPABASE_SERVICE_ROLE_KEY"),
   supabaseAudioBucket:    env("SUPABASE_AUDIO_BUCKET", "visit-audio"),
   supabasePdfBucket:      env("SUPABASE_PDF_BUCKET", "prescriptions"),
   supabaseAssetsBucket:   env("SUPABASE_ASSETS_BUCKET", "doctor-assets"),

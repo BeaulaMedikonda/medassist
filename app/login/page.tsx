@@ -38,6 +38,13 @@ function isValidEmail(value: string) {
   return EMAIL_RE.test(cleanEmail(value));
 }
 
+function safeAuthMessage(err: unknown, fallback = "Please check your credentials and try again.") {
+  const message = err instanceof Error ? err.message : "";
+  return /header|token|jwt|apikey|authorization|supabase|service_role|access_token/i.test(message)
+    ? fallback
+    : message || fallback;
+}
+
 // ─── Features shown on the left panel ────────────────────────────────────────
 
 const FEATURES = [
@@ -265,7 +272,7 @@ function LoginInner() {
         }
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Login failed";
+      const message = safeAuthMessage(err);
       push({
         title: mode === "signin" ? "Could not sign in" : "Could not create account",
         description: message,
