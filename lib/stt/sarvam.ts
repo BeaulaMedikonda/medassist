@@ -23,6 +23,7 @@ import type { SpeakerTurn } from "@/types/db";
 //   metadata). We try each and merge the one that has a `transcript` field.
 
 const BASE = "https://api.sarvam.ai/speech-to-text-translate";
+const REST_BASE = "https://api.sarvam.ai/speech-to-text";
 const LOG = "[sarvam]";
 
 export interface SarvamResult {
@@ -43,6 +44,9 @@ export async function transcribeWithSarvam(
   }
 
   const safeName = filename.replace(/[^A-Za-z0-9._-]/g, "_") || "audio.webm";
+
+  const restResult = await tryRestTranscription(audio, safeName, contentType);
+  if (restResult) return restResult;
 
   const init = await initJob();
   console.log(`${LOG} init ok job_id=${init.job_id}`);
@@ -77,6 +81,48 @@ export async function transcribeWithSarvam(
     `${LOG} parsed: transcript=${parsed.transcript.length} chars, turns=${parsed.turns.length}, lang=${parsed.language_code}`,
   );
 
+  return parsed;
+}
+
+async function tryRestTranscription(
+  audio: Buffer,
+  filename: string,
+  contentType: string,
+): Promise<SarvamResult | null> {
+  const form = new FormData();
+  const bytes = new Uint8Array(audio);
+  form.append("file", new Blob([bytes], { type: contentType || "application/octet-stream" }), filename);
+  form.append("model", serverEnv.sarvamSttModel);
+  form.append("mode", serverEnv.sarvamSttMode);
+  form.append("language_code", "unknown");
+
+  const res = await fetch(REST_BASE, {
+    method: "POST",
+    headers: {
+      "api-subscription-key": serverEnv.sarvamApiKey,
+    },
+    body: form,
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    if (res.status === 422) {
+      console.log(`${LOG} REST rejected ${filename}; falling back to batch: ${text.slice(0, 200)}`);
+      return null;
+    }
+    throw new Error(`Sarvam REST ${res.status}: ${text.slice(0, 500)}`);
+  }
+
+  let json: Record<string, unknown>;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Sarvam REST returned non-JSON: ${text.slice(0, 200)}`);
+  }
+
+  const parsed = parseSarvamResponse(json);
+  console.log(
+    `${LOG} REST parsed: transcript=${parsed.transcript.length} chars, turns=${parsed.turns.length}, lang=${parsed.language_code}`,
+  );
   return parsed;
 }
 
