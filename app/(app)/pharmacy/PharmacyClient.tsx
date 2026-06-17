@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ClientPagination, getClientPageItems } from "@/components/ui/ClientPagination";
 import {
+  addMedicineToMaster,
   medicineComposition,
   pharmacyDash,
   searchMedicines,
@@ -11,6 +12,15 @@ import {
 } from "@/lib/pharmacy/medicine-search";
 
 const PHARMACY_PAGE_SIZE = 8;
+
+const emptyMedicineForm = {
+  composition: "",
+  manufacturerName: "",
+  type: "",
+  packSizeLabel: "",
+  price: "",
+  prescriptionRequired: false,
+};
  
 function formatPrice(price: number | string | null | undefined) {
   if (typeof price === "number") return `Rs ${price.toFixed(2)}`;
@@ -23,10 +33,14 @@ export function PharmacyClient() {
   const [rows, setRows] = useState<MedicineSearchRow[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [medicineForm, setMedicineForm] = useState(emptyMedicineForm);
  
   useEffect(() => {
     const searchQuery = query.trim();
+    setNotice("");
     if (!searchQuery) {
       setRows([]);
       setError("");
@@ -63,6 +77,33 @@ export function PharmacyClient() {
   }, [loading, query, rows.length]);
   const pageData = getClientPageItems(rows, page, PHARMACY_PAGE_SIZE);
   const hasSearched = query.trim().length >= 2;
+  const canAddMedicine = hasSearched && !loading && rows.length === 0 && !error;
+
+  async function addMissingMedicine() {
+    const medicineName = query.trim();
+    if (!medicineName || adding) return;
+
+    setAdding(true);
+    setError("");
+    setNotice("");
+
+    const added = await addMedicineToMaster({
+      name: medicineName,
+      ...medicineForm,
+    });
+    if (added.error) {
+      setError(added.error);
+      setAdding(false);
+      return;
+    }
+
+    const result = await searchMedicines(medicineName);
+    setRows(result.data);
+    setError(result.error);
+    setNotice(`${added.data?.name || medicineName} added to medicine master.`);
+    setMedicineForm(emptyMedicineForm);
+    setAdding(false);
+  }
  
   return (
     <section className="premium-shell">
@@ -99,6 +140,11 @@ export function PharmacyClient() {
               Medicine lookup failed: {error}
             </div>
           ) : null}
+          {notice ? (
+            <div className="status-success mt-3 rounded-xl px-4 py-3 text-sm font-semibold">
+              {notice}
+            </div>
+          ) : null}
         </div>
  
         <div className="overflow-x-auto">
@@ -118,7 +164,81 @@ export function PharmacyClient() {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center font-semibold text-slate-500 dark:text-ink-400">
-                    {hasSearched ? "No medicines matched this search." : "Start typing to search the medicine master."}
+                    <div className="flex flex-col items-center gap-3">
+                      <span>
+                        {hasSearched ? "No medicines matched this search." : "Start typing to search the medicine master."}
+                      </span>
+                      {canAddMedicine ? (
+                        <div className="w-full max-w-4xl rounded-xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-ink-800 dark:bg-ink-900/70">
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <label className="block">
+                              <span className="label">Composition</span>
+                              <input
+                                value={medicineForm.composition}
+                                onChange={(e) => setMedicineForm((form) => ({ ...form, composition: e.target.value }))}
+                                className="input-base mt-1 h-10"
+                                placeholder="Paracetamol 500mg"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="label">Manufacturer</span>
+                              <input
+                                value={medicineForm.manufacturerName}
+                                onChange={(e) => setMedicineForm((form) => ({ ...form, manufacturerName: e.target.value }))}
+                                className="input-base mt-1 h-10"
+                                placeholder="Company name"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="label">Type</span>
+                              <input
+                                value={medicineForm.type}
+                                onChange={(e) => setMedicineForm((form) => ({ ...form, type: e.target.value }))}
+                                className="input-base mt-1 h-10"
+                                placeholder="Tablet"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="label">Pack</span>
+                              <input
+                                value={medicineForm.packSizeLabel}
+                                onChange={(e) => setMedicineForm((form) => ({ ...form, packSizeLabel: e.target.value }))}
+                                className="input-base mt-1 h-10"
+                                placeholder="Strip of 10"
+                              />
+                            </label>
+                            <label className="block">
+                              <span className="label">Price</span>
+                              <input
+                                value={medicineForm.price}
+                                onChange={(e) => setMedicineForm((form) => ({ ...form, price: e.target.value }))}
+                                className="input-base mt-1 h-10"
+                                placeholder="25.00"
+                              />
+                            </label>
+                            <label className="mt-6 flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 dark:border-ink-800 dark:bg-ink-950 dark:text-ink-100">
+                              <input
+                                type="checkbox"
+                                checked={medicineForm.prescriptionRequired}
+                                onChange={(e) => setMedicineForm((form) => ({ ...form, prescriptionRequired: e.target.checked }))}
+                                className="h-4 w-4"
+                              />
+                              Rx required
+                            </label>
+                          </div>
+                          <div className="mt-4 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={addMissingMedicine}
+                              disabled={adding}
+                              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-extrabold text-white shadow-sm hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {adding ? "Adding..." : `Add "${query.trim()}"`}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ) : (

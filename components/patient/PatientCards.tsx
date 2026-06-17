@@ -66,7 +66,13 @@ export function DetailGrid({
   );
 }
 
-export function EmptyState({ label }: { label: string }) {
+export function EmptyState({
+  label,
+  description = "Records will appear here once added by clinic staff.",
+}: {
+  label: string;
+  description?: string;
+}) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
@@ -78,7 +84,7 @@ export function EmptyState({ label }: { label: string }) {
       <div>
         <p className="text-sm font-bold text-slate-600">No {label} yet</p>
         <p className="mt-0.5 text-[12px] font-medium text-slate-400">
-          Records will appear here once added by clinic staff.
+          {description}
         </p>
       </div>
     </div>
@@ -283,6 +289,12 @@ export function VitalsGrid({
 
 export function VisitSummaryCard({ visit }: { visit: Visit }) {
   const medicines = ((visit.prescription as Prescription | null)?.medicines || []) as Medicine[];
+  const clinicalItems = [
+    ["Chief Concern", visit.chief_complaints],
+    ["Diagnosis", visit.confirmed_diagnosis || visit.provisional_diagnosis],
+    ["Doctor Advice", visit.advice],
+    ["Tests / Investigations", visit.investigations_ordered],
+  ].filter(([, value]) => Boolean(value));
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -292,7 +304,7 @@ export function VisitSummaryCard({ visit }: { visit: Visit }) {
             Visit on {formatDate(visit.visit_date)}
           </h2>
           <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            {visit.status}
+            {patientVisitStatus(visit.status)}
           </p>
         </div>
         {visit.follow_up_date ? (
@@ -303,12 +315,17 @@ export function VisitSummaryCard({ visit }: { visit: Visit }) {
       </div>
 
       <div className="p-5">
-        <div className="grid gap-2.5 sm:grid-cols-2">
-          <VisitField label="Chief Complaint" value={visit.chief_complaints} />
-          <VisitField label="Diagnosis" value={visit.confirmed_diagnosis || visit.provisional_diagnosis} />
-          <VisitField label="Advice" value={visit.advice} />
-          <VisitField label="Investigations" value={visit.investigations_ordered} />
-        </div>
+        {clinicalItems.length > 0 ? (
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {clinicalItems.map(([label, value]) => (
+              <VisitField key={label || ""} label={label || ""} value={value || null} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-3.5 py-3 text-[13px] font-semibold text-slate-500">
+            Your clinic has completed this visit. The clinical summary will appear here once shared.
+          </div>
+        )}
 
         {medicines.length > 0 ? (
           <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
@@ -330,6 +347,18 @@ export function VisitSummaryCard({ visit }: { visit: Visit }) {
       </div>
     </article>
   );
+}
+
+function patientVisitStatus(status: Visit["status"]) {
+  const labels: Record<Visit["status"], string> = {
+    intake: "Clinic is preparing your visit",
+    queued: "Waiting for doctor review",
+    in_progress: "Consultation in progress",
+    awaiting_review: "Clinic is reviewing",
+    completed: "Visit completed",
+    cancelled: "Visit cancelled",
+  };
+  return labels[status] || status;
 }
 
 function VisitField({ label, value }: { label: string; value: string | null }) {

@@ -521,6 +521,7 @@ import { useRouter } from "next/navigation";
 import { SelectInput, TextArea, TextInput } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
+import { isoLocalDate } from "@/lib/utils";
 import type { Patient, Visit, VisitDoctorAssignment } from "@/types/db";
 
 type DoctorOption = {
@@ -623,6 +624,9 @@ export function ReceptionIntakeEdit({
     }
     if (patientInfo.postal_code.trim() && !isValidPostalCode(patientInfo.postal_code)) {
       return "Enter a valid postal code.";
+    }
+    if (patientInfo.birthdate && patientInfo.birthdate > isoLocalDate()) {
+      return "Birthdate cannot be in the future.";
     }
     const age = numOrNull(patientInfo.age);
     if (patientInfo.age.trim() && (age == null || age < 0 || age > 130)) {
@@ -743,6 +747,7 @@ export function ReceptionIntakeEdit({
               <TextInput
                 label="Birthdate"
                 type="date"
+                max={isoLocalDate()}
                 value={patientInfo.birthdate}
                 onChange={(e) => updatePatientInfo("birthdate", e.target.value)}
               />

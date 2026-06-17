@@ -39,13 +39,16 @@ export default async function PatientReportsPage({
   return (
     <PatientPortalShell patient={patient} clinic={clinic}>
       <PageHeader
-        eyebrow="Reports"
+        eyebrow="Reports and prescriptions"
         title="Prescriptions & Reports"
-        description="Prescription, investigation, and advice records generated from clinic visit summaries."
+        description="Medicines, tests, advice, and follow-up details shared by your clinic after visits."
       />
  
       {reports.length === 0 ? (
-        <EmptyState label="reports or prescriptions" />
+        <EmptyState
+          label="reports or prescriptions"
+          description="Prescriptions, advice, and test details will appear here after your clinic shares them."
+        />
       ) : (
         <div className="space-y-4">
           {pageData.pageItems.map((visit) => {
@@ -60,7 +63,7 @@ export default async function PatientReportsPage({
                     </h2>
                     {visit.follow_up_date ? (
                       <p className="mt-1 text-sm font-semibold text-slate-500">
-                        Follow-up: {formatDate(visit.follow_up_date)}
+                        Next follow-up: {formatDate(visit.follow_up_date)}
                       </p>
                     ) : null}
                   </div>

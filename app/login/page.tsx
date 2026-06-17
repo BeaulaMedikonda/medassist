@@ -101,7 +101,8 @@ const FEATURES = [
 function LoginInner() {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/dashboard";
+  const explicitNext = search.get("next");
+  const next = explicitNext || "/dashboard";
   const isProviderUrl = next === "/app-provider" || next.startsWith("/app-provider/");
   const { push } = useToast();
 
@@ -152,7 +153,7 @@ function LoginInner() {
     let cancelled = false;
 
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled && data.session) {
+      if (!cancelled && data.session && explicitNext) {
         router.replace(next);
       }
     });
@@ -167,7 +168,7 @@ function LoginInner() {
       cancelled = true;
       data.subscription.unsubscribe();
     };
-  }, [next, router]);
+  }, [explicitNext, next, router]);
 
   async function chooseWorkspace(memberId: string) {
     const res = await fetch("/api/auth/clinics", {

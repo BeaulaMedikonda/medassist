@@ -37,11 +37,14 @@ export default async function PatientVisitsPage({
       <PageHeader
         eyebrow="Visit history"
         title="My Visit Summaries"
-        description="Clinic-approved consultation summaries, diagnosis, advice, investigations, and prescription details."
+        description="Doctor-reviewed summaries, diagnosis, advice, tests, and prescriptions from your clinic visits."
       />
  
       {visits.length === 0 ? (
-        <EmptyState label="visit summaries" />
+        <EmptyState
+          label="visit summaries"
+          description="Your completed visit summaries will appear here after your clinic shares them."
+        />
       ) : (
         <div className="space-y-4">
           {pageData.pageItems.map((visit) => (

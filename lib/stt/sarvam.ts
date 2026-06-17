@@ -45,8 +45,10 @@ export async function transcribeWithSarvam(
 
   const safeName = filename.replace(/[^A-Za-z0-9._-]/g, "_") || "audio.webm";
 
-  const restResult = await tryRestTranscription(audio, safeName, contentType);
-  if (restResult) return restResult;
+  if (!serverEnv.sarvamEnableDiarization) {
+    const restResult = await tryRestTranscription(audio, safeName, contentType);
+    if (restResult) return restResult;
+  }
 
   const init = await initJob();
   console.log(`${LOG} init ok job_id=${init.job_id}`);
@@ -105,7 +107,8 @@ async function tryRestTranscription(
   });
   const text = await res.text();
   if (!res.ok) {
-    if (res.status === 422) {
+    if (res.status === 422 || res.status === 400) {
+
       console.log(`${LOG} REST rejected ${filename}; falling back to batch: ${text.slice(0, 200)}`);
       return null;
     }

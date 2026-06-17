@@ -15,13 +15,12 @@ export const dynamic = "force-dynamic";
 
 function hasVitals(visit: Visit) {
   return Boolean(
-    visit.bp_systolic ||
-      visit.bp_diastolic ||
-      visit.pulse ||
-      visit.temperature_f ||
-      visit.spo2 ||
-      visit.weight_kg ||
-      visit.height_cm,
+    visit.bp_systolic != null ||
+      visit.bp_diastolic != null ||
+      visit.pulse != null ||
+      visit.temperature_f != null ||
+      visit.spo2 != null ||
+      visit.weight_kg != null,
   );
 }
 
@@ -48,12 +47,14 @@ export default async function PatientVitalsPage({
 
   const { data } = await supabase
     .from("visits")
-    .select("id, visit_date, bp_systolic, bp_diastolic, pulse, temperature_f, spo2, weight_kg, height_cm")
+    .select("id, visit_date, bp_systolic, bp_diastolic, pulse, temperature_f, spo2, weight_kg")
     .eq("patient_id", patient.id)
     .order("visit_date", { ascending: false })
     .limit(25);
 
-  const visits = ((data || []) as Visit[]).filter(hasVitals);
+  const visits = ((data || []) as Array<Omit<Visit, "height_cm">>)
+    .map((visit) => ({ ...visit, height_cm: patient.height_cm ?? null }) as Visit)
+    .filter(hasVitals);
   const page = getPageFromParams(params);
   const pageData = paginateServerItems(visits, page, 8);
   const latestVisit = visits[0] ?? null;
@@ -68,9 +69,14 @@ export default async function PatientVitalsPage({
       />
 
       {visits.length === 0 ? (
-        <EmptyState label="vitals" />
+        <EmptyState
+          label="vitals"
+          description="Your clinic will share BP, pulse, SpO2, temperature, and weight after they are recorded during a visit."
+        />
       ) : (
         <div className="space-y-5">
+          {latestVisit ? <LatestVitalsSnapshot visit={latestVisit} /> : null}
+
           {/* Latest vitals summary banner */}
           {latestVisit && (
             <div
@@ -151,4 +157,56 @@ export default async function PatientVitalsPage({
       )}
     </PatientPortalShell>
   );
+}
+
+function LatestVitalsSnapshot({ visit }: { visit: Visit }) {
+  const items = [
+    {
+      label: "Blood Pressure",
+      value:
+        visit.bp_systolic != null || visit.bp_diastolic != null
+          ? `${visit.bp_systolic ?? "-"} / ${visit.bp_diastolic ?? "-"}`
+          : null,
+      unit: "mmHg",
+    },
+    { label: "Pulse", value: valueText(visit.pulse), unit: "bpm" },
+    { label: "SpO2", value: valueText(visit.spo2), unit: "%" },
+    { label: "Temperature", value: valueText(visit.temperature_f), unit: "F" },
+    { label: "Weight", value: valueText(visit.weight_kg), unit: "kg" },
+  ].filter((item) => item.value);
+
+  return (
+    <section className="rounded-2xl border border-teal-100 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#0ea5a4]">
+            Latest Readings
+          </p>
+          <h2 className="mt-1 text-xl font-extrabold text-slate-950">
+            Your most recent vitals
+          </h2>
+        </div>
+        <p className="text-[12px] font-semibold text-slate-500">
+          Recorded {formatDate(visit.visit_date)}
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {items.map((item) => (
+          <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <div className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
+              {item.label}
+            </div>
+            <div className="mt-1 text-lg font-extrabold text-slate-950">
+              {item.value}
+              <span className="ml-1 text-xs font-bold text-slate-400">{item.unit}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function valueText(value: number | null | undefined) {
+  return value == null ? null : String(value);
 }

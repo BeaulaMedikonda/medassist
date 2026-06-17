@@ -886,6 +886,7 @@ export function ReceptionIntakeForm({
               <TextInput
                 label="Date of birth"
                 type="date"
+                max={isoLocalDate()}
                 value={form.birthdate}
                 onChange={(e) => setForm((f) => ({ ...f, birthdate: e.target.value }))}
               />

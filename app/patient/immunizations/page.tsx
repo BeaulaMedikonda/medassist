@@ -8,10 +8,10 @@ import type { Immunization } from "@/types/db";
 export const dynamic = "force-dynamic";
 
 const statusStyle: Record<Immunization["status"], { badge: string; label: string }> = {
-  completed: { badge: "border-emerald-200 bg-emerald-50 text-emerald-700", label: "Completed" },
-  scheduled: { badge: "border-sky-200 bg-sky-50 text-sky-700", label: "Scheduled" },
-  declined: { badge: "border-slate-200 bg-slate-100 text-slate-500", label: "Declined" },
-  contraindicated: { badge: "border-rose-200 bg-rose-50 text-rose-700", label: "Contraindicated" },
+  completed: { badge: "border-emerald-200 bg-emerald-50 text-emerald-700", label: "Received" },
+  scheduled: { badge: "border-sky-200 bg-sky-50 text-sky-700", label: "Upcoming" },
+  declined: { badge: "border-slate-200 bg-slate-100 text-slate-500", label: "Not taken" },
+  contraindicated: { badge: "border-rose-200 bg-rose-50 text-rose-700", label: "Not advised" },
 };
 
 export default async function PatientImmunizationsPage() {
@@ -43,11 +43,14 @@ export default async function PatientImmunizationsPage() {
       <PageHeader
         eyebrow="Immunizations"
         title="My Vaccinations"
-        description="Your vaccination history recorded by the clinic."
+        description="Vaccines recorded or reviewed by your clinic, including next due dates when available."
       />
 
       {immunizations.length === 0 ? (
-        <EmptyState label="vaccination records" />
+        <EmptyState
+          label="vaccination records"
+          description="Your clinic-reviewed vaccine records and next due dates will appear here."
+        />
       ) : (
         <div className="space-y-8">
           {upcoming.length > 0 && (

@@ -79,9 +79,13 @@ export default async function PatientAppointmentsPage({
     ((doctors || []) as Pick<Doctor, "id" | "full_name">[]).map((d) => [d.id, d.full_name]),
   );
 
-  const upcoming = appointments.filter(
+  const upcomingAppointments = appointments
+    .filter(
     (a) => new Date(a.scheduled_at) >= new Date() && a.status !== "cancelled",
-  ).length;
+    )
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+  const upcoming = upcomingAppointments.length;
+  const nextAppointment = upcomingAppointments[0] || null;
 
   return (
     <PatientPortalShell patient={patient} clinic={clinic}>
@@ -108,9 +112,19 @@ export default async function PatientAppointmentsPage({
       )}
 
       {appointments.length === 0 ? (
-        <EmptyState label="appointments" />
+        <EmptyState
+          label="appointments"
+          description="Your upcoming visits will appear here once your clinic schedules them."
+        />
       ) : (
         <div className="space-y-3">
+          {nextAppointment ? (
+            <NextAppointmentCard
+              appointment={nextAppointment}
+              doctorName={doctorById.get(nextAppointment.doctor_id)}
+            />
+          ) : null}
+
           {pageData.pageItems.map((appt) => {
             const dt = formatAppointmentDate(appt.scheduled_at);
             const status = getStatus(appt.status);
@@ -190,5 +204,44 @@ export default async function PatientAppointmentsPage({
         </div>
       )}
     </PatientPortalShell>
+  );
+}
+
+function NextAppointmentCard({
+  appointment,
+  doctorName,
+}: {
+  appointment: Appointment;
+  doctorName?: string;
+}) {
+  const dt = formatAppointmentDate(appointment.scheduled_at);
+  const status = getStatus(appointment.status);
+
+  return (
+    <section className="mb-5 rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#0ea5a4]">
+            Next Appointment
+          </p>
+          <h2 className="mt-1 text-xl font-extrabold text-slate-950">
+            {dt.full} at {dt.time}
+          </h2>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            {doctorName ? `Dr. ${doctorName}` : "Clinic assigned doctor"}
+            {appointment.type ? ` - ${appointment.type.replace(/_/g, " ")}` : ""}
+          </p>
+        </div>
+        <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold ${status.bg} ${status.color}`}>
+          <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+          {status.label}
+        </span>
+      </div>
+      {appointment.notes ? (
+        <p className="mt-4 rounded-xl border border-teal-100 bg-white/80 px-4 py-3 text-[13px] font-semibold text-slate-600">
+          {appointment.notes}
+        </p>
+      ) : null}
+    </section>
   );
 }

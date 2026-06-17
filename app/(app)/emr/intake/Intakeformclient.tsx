@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/browser";
+import { isoLocalDate } from "@/lib/utils";
 import type { Patient } from "@/types/db";
  
 type DoctorOption = {
@@ -132,6 +133,7 @@ export function IntakeFormClient({
     ? `/dashboard?tool=pain-map&patientId=${encodeURIComponent(activePatientId)}&visitId=${encodeURIComponent(savedVisitId)}&returnTo=${encodeURIComponent(returnPatientHref)}`
     : "/dashboard?tool=pain-map";
   const visitCreated = Boolean(activePatientId && savedVisitId);
+  const today = isoLocalDate();
 
   useEffect(() => {
     if (pickedPatient) return;
@@ -757,6 +759,7 @@ export function IntakeFormClient({
                   optional
                   type="date"
                   value={patientForm.birthdate}
+                  max={today}
                   onChange={(value) => updatePatient("birthdate", value)}
                 />
                 <TextField
@@ -1121,6 +1124,7 @@ function TextField({
   optional,
   required,
   className = "",
+  max,
 }: {
   label: string;
   value: string;
@@ -1130,6 +1134,7 @@ function TextField({
   optional?: boolean;
   required?: boolean;
   className?: string;
+  max?: string;
 }) {
   return (
     <div className={className}>
@@ -1139,6 +1144,7 @@ function TextField({
       <input
         type={type}
         value={value}
+        max={max}
         onChange={(e) => onChange(e.target.value)}
         className="input-base h-10"
         placeholder={placeholder}

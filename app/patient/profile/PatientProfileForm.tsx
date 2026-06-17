@@ -106,6 +106,7 @@ export function PatientProfileForm({ patient }: { patient: Patient }) {
   }));
 
   const computedAge = useMemo(() => calculateAge(form.birthdate), [form.birthdate]);
+  const today = todayInputValue();
 
   function update(key: keyof ProfileForm, value: string) {
     setForm((current) => {
@@ -136,6 +137,10 @@ export function PatientProfileForm({ patient }: { patient: Patient }) {
     }
     if (!form.phone.trim() || form.phone === "+91") {
       setNotice({ title: "Missing details", detail: "Phone number is required.", tone: "error" });
+      return;
+    }
+    if (form.birthdate && form.birthdate > today) {
+      setNotice({ title: "Invalid birthdate", detail: "Birthdate cannot be in the future.", tone: "error" });
       return;
     }
 
@@ -204,9 +209,9 @@ export function PatientProfileForm({ patient }: { patient: Patient }) {
           <Field label="First Name" value={form.first_name} onChange={(value) => update("first_name", value)} placeholder="First name" />
           <Field label="Last Name" value={form.last_name} onChange={(value) => update("last_name", value)} placeholder="Last name" />
           <Field required label="Full Name" value={form.full_name} onChange={(value) => update("full_name", value)} placeholder="Full name" span />
-          <Field label="Birthdate" type="date" value={form.birthdate} onChange={(value) => update("birthdate", value)} />
+          <Field label="Birthdate" type="date" value={form.birthdate} max={today} onChange={(value) => update("birthdate", value)} />
           <Field label="Age" value={form.age || computedAge} onChange={(value) => update("age", value)} placeholder="Auto from birthdate" />
-          <Select label="Gender" value={form.sex} onChange={(value) => update("sex", value)} options={SEX_OPTIONS} />
+          <Select label="Sex" value={form.sex} onChange={(value) => update("sex", value)} options={SEX_OPTIONS} />
           <Select label="Blood Group" value={form.blood_group} onChange={(value) => update("blood_group", value)} options={BLOOD_GROUP_OPTIONS} />
           <Field label="Height (cm)" value={form.height_cm} onChange={(value) => update("height_cm", value)} placeholder="e.g. 165" />
         </SubPanel>
@@ -318,7 +323,7 @@ export function PatientProfileForm({ patient }: { patient: Patient }) {
           disabled={busy}
           className="h-10 rounded-full bg-[#0ea5a4] px-6 text-xs font-extrabold text-white shadow-[0_8px_20px_-8px_rgba(14,165,164,0.8)] hover:bg-[#0c8a89] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {busy ? "Saving..." : "Save"}
+          {busy ? "Submitting..." : "Submit changes for clinic review"}
         </button>
       </div>
     </form>
@@ -1004,6 +1009,7 @@ function Field({
   required = false,
   span = false,
   maxLength,
+  max,
   inputMode,
 }: {
   label: string;
@@ -1014,6 +1020,7 @@ function Field({
   required?: boolean;
   span?: boolean;
   maxLength?: number;
+  max?: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
   return (
@@ -1026,6 +1033,7 @@ function Field({
         required={required}
         type={type}
         maxLength={maxLength}
+        max={max}
         inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}

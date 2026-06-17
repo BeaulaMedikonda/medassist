@@ -127,6 +127,7 @@ export function OnlinePatientIntakeForm({ initialEmail }: { initialEmail: string
   const [painMarkers, setPainMarkers] = useState<PainMarker[]>([]);
   const [painIntensity, setPainIntensity] = useState(5);
   const [painType, setPainType] = useState("Sharp");
+  const today = todayInputValue();
 
   const errors = validateForm(form);
 
@@ -222,7 +223,7 @@ export function OnlinePatientIntakeForm({ initialEmail }: { initialEmail: string
         <Field label="First Name" value={form.first_name} onChange={(value) => update("first_name", value)} onBlur={() => touch("first_name")} placeholder="First name" />
         <Field label="Last Name" value={form.last_name} onChange={(value) => update("last_name", value)} onBlur={() => touch("last_name")} placeholder="Last name" />
         <Field required label="Full Name" value={form.full_name} onChange={(value) => update("full_name", value)} onBlur={() => touch("full_name")} placeholder="Auto from first and last name" span error={fieldError("full_name")} />
-        <Field label="Birthdate" type="date" value={form.birthdate} onChange={(value) => update("birthdate", value)} onBlur={() => touch("birthdate")} error={fieldError("birthdate")} />
+        <Field label="Birthdate" type="date" value={form.birthdate} max={today} onChange={(value) => update("birthdate", value)} onBlur={() => touch("birthdate")} error={fieldError("birthdate")} />
         <Field label="Age" value={form.age || computedAge} onChange={(value) => update("age", value)} placeholder="Auto from birthdate" />
         <Select label="Gender" value={form.sex} onChange={(value) => update("sex", value)} options={SEX_OPTIONS} />
         <Select label="Blood Group" value={form.blood_group} onChange={(value) => update("blood_group", value)} options={BLOOD_GROUP_OPTIONS} />
@@ -449,6 +450,7 @@ function Field({
   required = false,
   span = false,
   error,
+  max,
 }: {
   label: string;
   value: string;
@@ -459,6 +461,7 @@ function Field({
   required?: boolean;
   span?: boolean;
   error?: string;
+  max?: string;
 }) {
   return (
     <label className={span ? "sm:col-span-2" : ""}>
@@ -468,6 +471,7 @@ function Field({
       <input
         required={required}
         type={type}
+        max={max}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
@@ -483,6 +487,12 @@ function Field({
       ) : null}
     </label>
   );
+}
+
+function todayInputValue() {
+  const now = new Date();
+  const offsetDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return offsetDate.toISOString().slice(0, 10);
 }
 
 function Textarea({

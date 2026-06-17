@@ -17,7 +17,7 @@ export function PatientSignOutButton({
     document.cookie = "patient_selected_clinic_id=; path=/; max-age=0; samesite=lax";
     document.cookie = "patient_selected_clinic_name=; path=/; max-age=0; samesite=lax";
     await supabaseBrowser().auth.signOut();
-    router.replace("/login?next=/patient/profile");
+    router.replace("/login");
     router.refresh();
   }
 

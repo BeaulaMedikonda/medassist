@@ -16,7 +16,7 @@ const navSections = [
   {
     title: "Reports",
     items: [
-      { href: "/patient/reports", label: "Prescriptions", icon: <PrescriptionIcon /> },
+      { href: "/patient/reports", label: "Reports & Prescriptions", icon: <PrescriptionIcon /> },
       { href: "/patient/vitals", label: "Vitals History", icon: <VitalsIcon /> },
     ],
   },
