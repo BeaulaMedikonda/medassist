@@ -16,6 +16,13 @@ function supabaseJwtEnv(name: string, fallback = ""): string {
   return value.split(/\s+|SUPABASE_[A-Z0-9_]+=|NEXT_PUBLIC_[A-Z0-9_]+=/)[0] || value;
 }
 
+function optionalNumber(name: string): number | null {
+  const value = env(name);
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 const fallbackSupabaseUrl = "https://efusjcxddrkmyjfyudap.supabase.co";
 const fallbackSupabaseAnonKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVmdXNqY3hkZHJrbXlqZnl1ZGFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4Nzc5NTgsImV4cCI6MjA5NTQ1Mzk1OH0.rCzm-kE4fqGZ-Q7KlKgIofX8W7En-jzU2vdDsHbmlAk";
@@ -49,7 +56,7 @@ export const serverEnv = {
   sarvamSttModel:         process.env.SARVAM_STT_MODEL        || "saaras:v3",
   sarvamSttMode:          process.env.SARVAM_STT_MODE         || "translate",
   sarvamEnableDiarization:(process.env.SARVAM_ENABLE_DIARIZATION || "true") === "true",
-  sarvamNumSpeakers:      Number(process.env.SARVAM_NUM_SPEAKERS     || 4),
+  sarvamNumSpeakers:      optionalNumber("SARVAM_NUM_SPEAKERS"),
   sarvamPollIntervalMs:   Number(process.env.SARVAM_POLL_INTERVAL_MS || 10000),
   sarvamJobTimeoutMs:     Number(process.env.SARVAM_JOB_TIMEOUT_MS   || 1200000),
  

@@ -114,7 +114,15 @@ export function NewVisitClient({
         });
       if (upErr) throw new Error(upErr.message);
 
-      await supabase.from("visits").update({ audio_url: path }).eq("id", visitId);
+      const attachRes = await fetch("/api/visits/audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visitId, audioPath: path }),
+      });
+      if (!attachRes.ok) {
+        const j = await safeJson(attachRes);
+        throw new Error(j?.error || `Could not attach audio (${attachRes.status})`);
+      }
 
       setBusy("transcribing");
       const tRes = await fetch("/api/transcribe", {

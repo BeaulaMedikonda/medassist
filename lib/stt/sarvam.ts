@@ -1,75 +1,65 @@
-//lib/stt/sarvam.ts
+// lib/stt/sarvam.ts
 import { serverEnv } from "@/lib/env";
 import type { SpeakerTurn } from "@/types/db";
-
-// Sarvam Batch API for Speech-to-Text-Translate (with diarization).
-// Sync `/speech-to-text-translate` does NOT support diarization — only this batch flow does.
+ 
+// Sarvam STT/STT-Translate integration.
+// Short audio: REST API (< 30 seconds).
+// Long audio: Batch API /job/v1.
 //
-// Flow:
-//   1) POST /speech-to-text-translate/job/init           -> { job_id, input_storage_path, output_storage_path }
-//   2) PUT  {input_storage_path}/<filename>              -> upload audio (Azure Blob via SAS URL)
-//   3) POST /speech-to-text-translate/job                -> start job with parameters
-//   4) GET  /speech-to-text-translate/job/{id}/status    -> poll until Completed
-//   5) GET  {output_storage_path}/<filename>.json        -> download translated, diarized transcript
-//
-// Notes / gotchas:
-// - The output container can be a SAS URL pointing at a sub-prefix below the
-//   container (e.g. `https://acct.blob.core.windows.net/jobs/<id>/output?...`).
-//   To list its contents we have to compute the *container-only* URL and use
-//   the `prefix=` parameter. Listing the URL as-is returns nothing.
-// - After the job's status flips to "completed", there can be a 1–3 second lag
-//   before the JSON is actually readable. We retry the download a few times.
-// - The output may be one or several JSON files (transcript / diarization /
-//   metadata). We try each and merge the one that has a `transcript` field.
-
-const BASE = "https://api.sarvam.ai/speech-to-text-translate";
-const REST_BASE = "https://api.sarvam.ai/speech-to-text";
+// Important:
+// - REST API rejects long audio with 400/422 and message "Audio duration exceeds...30 seconds".
+// - Batch API supports long audio and diarization.
+ 
+const STT_BASE = "https://api.sarvam.ai/speech-to-text";
+const STTT_BASE = "https://api.sarvam.ai/speech-to-text-translate";
 const LOG = "[sarvam]";
-
+ 
 export interface SarvamResult {
   transcript: string;
   language_code: string | null;
   turns: SpeakerTurn[];
   raw: unknown;
 }
-
+ 
 export async function transcribeWithSarvam(
   audio: Buffer,
   filename: string,
   contentType: string,
 ): Promise<SarvamResult> {
   console.log("USING SARVAM PIPELINE");
+ 
   if (!serverEnv.sarvamApiKey) {
     throw new Error("SARVAM_API_KEY is not configured");
   }
-
+ 
   const safeName = filename.replace(/[^A-Za-z0-9._-]/g, "_") || "audio.webm";
-
+ 
+  // REST is quick for short audio, but it does not reliably return diarized
+  // speaker turns. When diarization is enabled, use Batch even for short clips.
   if (!serverEnv.sarvamEnableDiarization) {
     const restResult = await tryRestTranscription(audio, safeName, contentType);
     if (restResult) return restResult;
   }
-
+ 
+  // Long audio and diarized audio use Batch.
   const init = await initJob();
   console.log(`${LOG} init ok job_id=${init.job_id}`);
-
-  await uploadAudio(init.input_storage_path, safeName, audio, contentType);
+ 
+  await uploadAudio(init.job_id, safeName, audio, contentType);
   console.log(`${LOG} uploaded ${safeName} (${audio.byteLength} bytes)`);
-
+ 
   await startJob(init.job_id);
   console.log(`${LOG} job started`);
-
-  await pollJob(init.job_id);
-  console.log(`${LOG} job complete, fetching output`);
-
-  const result = await downloadResult(init.output_storage_path, safeName);
-
+ 
+  const outputFiles = await pollJob(init.job_id);
+  console.log(
+    `${LOG} job complete, output files: ${outputFiles.length ? outputFiles.join(", ") : "none returned"}`,
+  );
+ 
+  const result = await downloadResult(init.job_id, outputFiles);
   const parsed = parseSarvamResponse(result);
-
-  // Sanity check: throw only if the response structure is unexpected (no known
-  // transcript key at all). An empty transcript just means no speech was detected.
-  const hasKnownShape =
-    "transcript" in result || "text" in result || "diarized_transcript" in result;
+ 
+  const hasKnownShape = hasTranscriptShape(result);
   if (!hasKnownShape && parsed.transcript.length === 0 && parsed.turns.length === 0) {
     const keys = Object.keys(result);
     const preview = JSON.stringify(result).slice(0, 600);
@@ -78,14 +68,22 @@ export async function transcribeWithSarvam(
         `Top-level keys: ${JSON.stringify(keys)}. Preview: ${preview}`,
     );
   }
-
+ 
   console.log(
     `${LOG} parsed: transcript=${parsed.transcript.length} chars, turns=${parsed.turns.length}, lang=${parsed.language_code}`,
   );
-
+ 
   return parsed;
 }
-
+ 
+function getRestBase(): string {
+  return serverEnv.sarvamSttMode === "translate" ? STTT_BASE : STT_BASE;
+}
+ 
+function getBatchBase(): string {
+  return `${serverEnv.sarvamSttMode === "translate" ? STTT_BASE : STT_BASE}/job/v1`;
+}
+ 
 async function tryRestTranscription(
   audio: Buffer,
   filename: string,
@@ -93,115 +91,80 @@ async function tryRestTranscription(
 ): Promise<SarvamResult | null> {
   const form = new FormData();
   const bytes = new Uint8Array(audio);
-  form.append("file", new Blob([bytes], { type: contentType || "application/octet-stream" }), filename);
+ 
+  form.append(
+    "file",
+    new Blob([bytes], { type: contentType || "application/octet-stream" }),
+    filename,
+  );
+ 
   form.append("model", serverEnv.sarvamSttModel);
   form.append("mode", serverEnv.sarvamSttMode);
   form.append("language_code", "unknown");
-
-  const res = await fetch(REST_BASE, {
+ 
+  const res = await fetch(getRestBase(), {
     method: "POST",
     headers: {
       "api-subscription-key": serverEnv.sarvamApiKey,
     },
     body: form,
   });
+ 
   const text = await res.text();
+ 
   if (!res.ok) {
-    if (res.status === 422 || res.status === 400) {
-
-      console.log(`${LOG} REST rejected ${filename}; falling back to batch: ${text.slice(0, 200)}`);
+    const lowerText = text.toLowerCase();
+ 
+    const shouldFallbackToBatch =
+      res.status === 400 ||
+      res.status === 422 ||
+      lowerText.includes("audio duration exceeds") ||
+      lowerText.includes("maximum limit of 30 seconds") ||
+      lowerText.includes("batch api") ||
+      lowerText.includes("longer audio");
+ 
+    if (shouldFallbackToBatch) {
+      console.log(
+        `${LOG} REST rejected ${filename}; falling back to batch: ${text.slice(0, 200)}`,
+      );
       return null;
     }
+ 
     throw new Error(`Sarvam REST ${res.status}: ${text.slice(0, 500)}`);
   }
-
+ 
   let json: Record<string, unknown>;
   try {
     json = JSON.parse(text);
   } catch {
     throw new Error(`Sarvam REST returned non-JSON: ${text.slice(0, 200)}`);
   }
-
+ 
   const parsed = parseSarvamResponse(json);
   console.log(
     `${LOG} REST parsed: transcript=${parsed.transcript.length} chars, turns=${parsed.turns.length}, lang=${parsed.language_code}`,
   );
+ 
   return parsed;
 }
-
+ 
 interface InitResponse {
   job_id: string;
-  input_storage_path: string;
-  output_storage_path: string;
 }
-
+ 
 async function initJob(): Promise<InitResponse> {
-  const res = await fetch(`${BASE}/job/init`, {
-    method: "POST",
-    headers: {
-      "api-subscription-key": serverEnv.sarvamApiKey,
-      "Content-Type": "application/json",
-    },
-  });
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Sarvam init ${res.status}: ${text.slice(0, 500)}`);
-  }
-  let json: Record<string, unknown>;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`Sarvam init returned non-JSON: ${text.slice(0, 200)}`);
-  }
-  const job_id = (json.job_id as string) || (json.jobId as string) || "";
-  const input_storage_path =
-    (json.input_storage_path as string) || (json.inputStoragePath as string) || "";
-  const output_storage_path =
-    (json.output_storage_path as string) || (json.outputStoragePath as string) || "";
-  if (!job_id || !input_storage_path || !output_storage_path) {
-    throw new Error(`Sarvam init missing fields: ${text.slice(0, 200)}`);
-  }
-  return { job_id, input_storage_path, output_storage_path };
-}
-
-async function uploadAudio(
-  containerSasUrl: string,
-  filename: string,
-  audio: Buffer,
-  contentType: string,
-) {
-  const target = appendPathToSas(containerSasUrl, filename);
-  const ab = new ArrayBuffer(audio.byteLength);
-  new Uint8Array(ab).set(audio);
-
-  const res = await fetch(target, {
-    method: "PUT",
-    headers: {
-      "x-ms-blob-type": "BlockBlob",
-      "Content-Type": contentType || "application/octet-stream",
-    },
-    body: ab,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Sarvam audio upload ${res.status}: ${text.slice(0, 300)}`);
-  }
-}
-
-async function startJob(jobId: string) {
   const body = {
-    job_id: jobId,
     job_parameters: {
       model: serverEnv.sarvamSttModel,
       mode: serverEnv.sarvamSttMode,
       with_diarization: serverEnv.sarvamEnableDiarization,
-      ...(serverEnv.sarvamEnableDiarization && {
-        num_speakers: serverEnv.sarvamNumSpeakers,
-      }),
+      ...(serverEnv.sarvamEnableDiarization && serverEnv.sarvamNumSpeakers
+        ? { num_speakers: serverEnv.sarvamNumSpeakers }
+        : {}),
     },
   };
-
-  const res = await fetch(`${BASE}/job`, {
+ 
+  const res = await fetch(getBatchBase(), {
     method: "POST",
     headers: {
       "api-subscription-key": serverEnv.sarvamApiKey,
@@ -209,311 +172,430 @@ async function startJob(jobId: string) {
     },
     body: JSON.stringify(body),
   });
+ 
+  const text = await res.text();
+ 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
+    throw new Error(`Sarvam batch init ${res.status}: ${text.slice(0, 500)}`);
+  }
+ 
+  let json: Record<string, unknown>;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Sarvam batch init returned non-JSON: ${text.slice(0, 200)}`);
+  }
+ 
+  const job_id = stringValue(json.job_id) || stringValue(json.jobId);
+ 
+  if (!job_id) {
+    throw new Error(`Sarvam batch init missing job_id: ${text.slice(0, 500)}`);
+  }
+ 
+  return { job_id };
+}
+ 
+async function uploadAudio(
+  jobId: string,
+  filename: string,
+  audio: Buffer,
+  contentType: string,
+) {
+  const res = await fetch(`${getBatchBase()}/upload-files`, {
+    method: "POST",
+    headers: {
+      "api-subscription-key": serverEnv.sarvamApiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      job_id: jobId,
+      files: [filename],
+    }),
+  });
+ 
+  const text = await res.text();
+ 
+  if (!res.ok) {
+    throw new Error(`Sarvam upload url ${res.status}: ${text.slice(0, 500)}`);
+  }
+ 
+  let json: Record<string, unknown>;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Sarvam upload url returned non-JSON: ${text.slice(0, 200)}`);
+  }
+ 
+  const uploadUrl = extractUrlForFile(json.upload_urls, filename);
+ 
+  if (!uploadUrl) {
+    throw new Error(`Sarvam upload url missing: ${text.slice(0, 500)}`);
+  }
+ 
+  const ab = bufferToArrayBuffer(audio);
+ 
+  const putRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "x-ms-blob-type": "BlockBlob",
+      "Content-Type": contentType || "application/octet-stream",
+    },
+    body: ab,
+  });
+ 
+  if (!putRes.ok) {
+    const err = await putRes.text().catch(() => "");
+    throw new Error(`Sarvam audio upload ${putRes.status}: ${err.slice(0, 500)}`);
+  }
+}
+ 
+async function startJob(jobId: string) {
+  const res = await fetch(`${getBatchBase()}/${jobId}/start`, {
+    method: "POST",
+    headers: {
+      "api-subscription-key": serverEnv.sarvamApiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+ 
+  const text = await res.text();
+ 
+  if (!res.ok) {
     throw new Error(`Sarvam start ${res.status}: ${text.slice(0, 500)}`);
   }
 }
-
-async function pollJob(jobId: string) {
+ 
+async function pollJob(jobId: string): Promise<string[]> {
   const startedAt = Date.now();
   let lastState = "";
+  let lastBody = "";
+ 
   while (true) {
     if (Date.now() - startedAt > serverEnv.sarvamJobTimeoutMs) {
       throw new Error(
-        `Sarvam job timed out after ${Math.round(serverEnv.sarvamJobTimeoutMs / 1000)}s (last state: ${lastState})`,
+        `Sarvam job timed out after ${Math.round(
+          serverEnv.sarvamJobTimeoutMs / 1000,
+        )}s. Last state: ${lastState}. Last response: ${lastBody.slice(0, 500)}`,
       );
     }
-    const res = await fetch(`${BASE}/job/${jobId}/status`, {
-      headers: { "api-subscription-key": serverEnv.sarvamApiKey },
+ 
+    const res = await fetch(`${getBatchBase()}/${jobId}/status`, {
+      headers: {
+        "api-subscription-key": serverEnv.sarvamApiKey,
+      },
     });
+ 
     const text = await res.text();
+    lastBody = text;
+ 
     if (!res.ok) {
-      throw new Error(`Sarvam status ${res.status}: ${text.slice(0, 300)}`);
+      throw new Error(`Sarvam status ${res.status}: ${text.slice(0, 500)}`);
     }
+ 
     let json: Record<string, unknown>;
     try {
       json = JSON.parse(text);
     } catch {
       throw new Error(`Sarvam status returned non-JSON: ${text.slice(0, 200)}`);
     }
+ 
     const state =
-      (json.job_state as string) ||
-      (json.state as string) ||
-      (json.status as string) ||
+      stringValue(json.job_state) ||
+      stringValue(json.state) ||
+      stringValue(json.status) ||
       "";
+ 
     lastState = state;
-    const norm = state.toLowerCase();
-    if (
-      norm === "completed" ||
-      norm === "succeeded" ||
-      norm === "successful" ||
-      norm === "success" ||
-      norm === "done"
-    ) {
-      return;
+    const norm = normalizeState(state);
+    const outputFiles = collectOutputFilenames(json);
+ 
+    console.log(
+      `${LOG} batch status: ${state || "unknown"}; output files: ${
+        outputFiles.length ? outputFiles.join(", ") : "none"
+      }`,
+    );
+ 
+    if (norm === "completed" || norm === "partiallycompleted") {
+      return outputFiles;
     }
-    if (norm === "failed" || norm === "error" || norm === "cancelled") {
-      throw new Error(`Sarvam job ${state}: ${text.slice(0, 500)}`);
+ 
+    if (norm === "failed" || norm === "error" || norm === "cancelled" || norm === "canceled") {
+      throw new Error(`Sarvam job failed: ${text.slice(0, 500)}`);
     }
+ 
     await sleep(serverEnv.sarvamPollIntervalMs);
   }
 }
-
+ 
 async function downloadResult(
-  outputContainerSasUrl: string,
-  inputFilename: string,
+  jobId: string,
+  outputFiles: string[],
 ): Promise<Record<string, unknown>> {
-  // After status=completed there can be a small lag before files appear.
-  // Try a few rounds with a short delay between.
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (attempt > 0) {
-      await sleep(2000);
-      console.log(`${LOG} download attempt ${attempt + 1}`);
-    }
-
-    // (a) Direct fetch using common filename patterns derived from input.
-    const direct = await tryKnownFilenames(outputContainerSasUrl, inputFilename);
-    if (direct) return direct;
-
-    // (b) List the container/prefix and try every JSON file we find.
-    const listed = await listContainer(outputContainerSasUrl);
-    if (listed.length > 0) {
-      console.log(`${LOG} listed ${listed.length} file(s):`, listed);
-    }
-    const merged = await fetchAndMergeJson(outputContainerSasUrl, listed);
-    if (merged) return merged;
-
-    // Last resort on this attempt: also try fetching .txt outputs as a transcript.
-    const txt = await tryTextFallback(outputContainerSasUrl, listed, inputFilename);
-    if (txt) return txt;
-  }
-
-  // Diagnostics for the error so we can debug exactly what went wrong.
-  const finalListed = await listContainer(outputContainerSasUrl);
-  throw new Error(
-    `Sarvam output not found at ${trimSas(outputContainerSasUrl)}. ` +
-      `Container listing: ${JSON.stringify(finalListed.slice(0, 30))}`,
-  );
-}
-
-async function tryKnownFilenames(
-  outputContainerSasUrl: string,
-  inputFilename: string,
-): Promise<Record<string, unknown> | null> {
-  const base = inputFilename.replace(/\.[^.]+$/, "");
-  const candidates = [
-    `${base}.json`,
-    `${inputFilename}.json`,
-    `${base}_transcript.json`,
-    `${base}-transcript.json`,
-    "transcript.json",
-    "output.json",
-  ];
-  for (const name of candidates) {
-    const url = appendPathToSas(outputContainerSasUrl, name);
-    const res = await fetch(url);
-    if (res.ok) {
-      const text = await res.text();
-      try {
-        const json = JSON.parse(text);
-        console.log(`${LOG} fetched ${name} (direct)`);
-        return json;
-      } catch {
-        // not JSON, try next
-      }
-    }
-  }
-  return null;
-}
-
-async function fetchAndMergeJson(
-  outputContainerSasUrl: string,
-  listed: string[],
-): Promise<Record<string, unknown> | null> {
-  const jsons: Array<{ name: string; data: Record<string, unknown> }> = [];
-  for (const name of listed) {
-    if (!name.toLowerCase().endsWith(".json")) continue;
-    const url = appendPathToSas(outputContainerSasUrl, name);
-    const res = await fetch(url);
-    if (!res.ok) continue;
-    const text = await res.text();
-    try {
-      jsons.push({ name, data: JSON.parse(text) });
-    } catch {
-      // skip
-    }
-  }
-  if (jsons.length === 0) return null;
-  console.log(
-    `${LOG} fetched ${jsons.length} JSON file(s):`,
-    jsons.map((j) => j.name),
-  );
-
-  // Prefer the file that has a transcript field. If multiple, shallow-merge them
-  // so a separate diarization file can fill in the diarized_transcript field.
-  const withTranscript = jsons.find(
-    (j) => "transcript" in j.data || "text" in j.data,
-  );
-  const withDia = jsons.find((j) => "diarized_transcript" in j.data);
-
-  if (withTranscript && withDia && withTranscript !== withDia) {
-    return { ...withTranscript.data, ...withDia.data };
-  }
-  if (withTranscript) return withTranscript.data;
-  // Otherwise return the largest object (most likely to be the transcript bundle).
-  jsons.sort((a, b) => JSON.stringify(b.data).length - JSON.stringify(a.data).length);
-  return jsons[0].data;
-}
-
-async function tryTextFallback(
-  outputContainerSasUrl: string,
-  listed: string[],
-  inputFilename: string,
-): Promise<Record<string, unknown> | null> {
-  const base = inputFilename.replace(/\.[^.]+$/, "");
-  const candidates = listed.filter((n) => n.toLowerCase().endsWith(".txt"));
-  if (candidates.length === 0) {
-    const guess = `${base}.txt`;
-    candidates.push(guess);
-  }
-  for (const name of candidates) {
-    const url = appendPathToSas(outputContainerSasUrl, name);
-    const res = await fetch(url);
-    if (res.ok) {
-      const text = await res.text();
-      if (text.trim().length > 0) {
-        console.log(`${LOG} fell back to text file ${name}`);
-        return { transcript: text, language_code: null };
-      }
-    }
-  }
-  return null;
-}
-
-async function listContainer(containerSasUrl: string): Promise<string[]> {
-  const idx = containerSasUrl.indexOf("?");
-  if (idx === -1) return [];
-  const base = containerSasUrl.slice(0, idx);
-  const query = containerSasUrl.slice(idx);
-
-  // Detect if URL is at container root (host/container) or has a subpath
-  // (host/container/sub/path/...). For listing, Azure expects:
-  //   GET https://host/container?{query}&restype=container&comp=list[&prefix=...]
-  // — i.e. URL must be the *container*, and any path component must move into
-  // the prefix= parameter.
-  const m = base.match(/^(https?:\/\/[^/]+\/[^/?]+)(?:\/(.*))?$/);
-  if (!m) return [];
-  const containerOnly = m[1];
-  const prefix = m[2] ? m[2].replace(/\/+$/, "") + "/" : "";
-
-  const listUrl =
-    `${containerOnly}${query}&restype=container&comp=list` +
-    (prefix ? `&prefix=${encodeURIComponent(prefix)}` : "");
-
-  const res = await fetch(listUrl);
+  const files = outputFiles.length > 0 ? outputFiles : ["0.json", "output.json", "transcript.json"];
+ 
+  const res = await fetch(`${getBatchBase()}/download-files`, {
+    method: "POST",
+    headers: {
+      "api-subscription-key": serverEnv.sarvamApiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      job_id: jobId,
+      files,
+    }),
+  });
+ 
+  const text = await res.text();
+ 
   if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
-    console.warn(
-      `${LOG} list ${res.status} on ${trimSas(listUrl)} — ${errBody.slice(0, 200)}`,
-    );
-    return [];
+    throw new Error(`Sarvam download url ${res.status}: ${text.slice(0, 500)}`);
   }
-  const xml = await res.text();
-  const names: string[] = [];
-  const re = /<Name>([^<]+)<\/Name>/g;
-  let mm: RegExpExecArray | null;
-  while ((mm = re.exec(xml)) !== null) {
-    const fullName = mm[1];
-    // Return name relative to the prefix so appendPathToSas works correctly.
-    if (prefix && fullName.startsWith(prefix)) {
-      names.push(fullName.slice(prefix.length));
-    } else {
-      names.push(fullName);
+ 
+  let json: Record<string, unknown>;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Sarvam download url returned non-JSON: ${text.slice(0, 200)}`);
+  }
+ 
+  const urls = extractAllUrls(json.download_urls);
+ 
+  if (urls.length === 0) {
+    throw new Error(`Sarvam download url missing: ${text.slice(0, 500)}`);
+  }
+ 
+  const results: Record<string, unknown>[] = [];
+  const textParts: string[] = [];
+ 
+  for (const url of urls) {
+    const fileRes = await fetch(url);
+    if (!fileRes.ok) {
+      console.warn(`${LOG} output download failed ${fileRes.status} for ${trimUrl(url)}`);
+      continue;
+    }
+ 
+    const fileText = await fileRes.text();
+    if (!fileText.trim()) continue;
+ 
+    try {
+      results.push(JSON.parse(fileText));
+    } catch {
+      textParts.push(fileText);
     }
   }
-  return names;
+ 
+  if (results.length === 1) return results[0];
+ 
+  if (results.length > 1) {
+    const withTranscript = results.find(hasTranscriptShape);
+    const withDia = results.find((r) => "diarized_transcript" in r || "diarization" in r);
+ 
+    if (withTranscript && withDia && withTranscript !== withDia) {
+      return { ...withTranscript, ...withDia };
+    }
+ 
+    return withTranscript || results[0];
+  }
+ 
+  if (textParts.length > 0) {
+    return {
+      transcript: textParts.join("\n"),
+      language_code: null,
+    };
+  }
+ 
+  throw new Error("Sarvam output file could not be downloaded");
 }
-
-function appendPathToSas(sasUrl: string, path: string): string {
-  const idx = sasUrl.indexOf("?");
-  if (idx === -1) return `${sasUrl.replace(/\/$/, "")}/${path}`;
-  const base = sasUrl.slice(0, idx).replace(/\/$/, "");
-  const query = sasUrl.slice(idx);
-  return `${base}/${path}${query}`;
+ 
+function extractUrlForFile(value: unknown, filename: string): string | null {
+  if (!value) return null;
+ 
+  if (typeof value === "string") return value;
+ 
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const url = extractUrlForFile(item, filename);
+      if (url) return url;
+    }
+    return null;
+  }
+ 
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+ 
+    const exact = obj[filename];
+    if (typeof exact === "string") return exact;
+ 
+    for (const key of ["url", "upload_url", "uploadUrl", "signed_url", "signedUrl"]) {
+      if (typeof obj[key] === "string") return obj[key] as string;
+    }
+ 
+    for (const item of Object.values(obj)) {
+      const url = extractUrlForFile(item, filename);
+      if (url) return url;
+    }
+  }
+ 
+  return null;
 }
-
-function trimSas(url: string): string {
-  // Drop the SAS query string for log-safe display.
-  const idx = url.indexOf("?");
-  return idx === -1 ? url : url.slice(0, idx);
+ 
+function extractAllUrls(value: unknown): string[] {
+  const urls: string[] = [];
+ 
+  function walk(v: unknown) {
+    if (!v) return;
+ 
+    if (typeof v === "string") {
+      if (v.startsWith("http://") || v.startsWith("https://")) urls.push(v);
+      return;
+    }
+ 
+    if (Array.isArray(v)) {
+      v.forEach(walk);
+      return;
+    }
+ 
+    if (typeof v === "object") {
+      Object.values(v as Record<string, unknown>).forEach(walk);
+    }
+  }
+ 
+  walk(value);
+  return [...new Set(urls)];
 }
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
+ 
+function collectOutputFilenames(json: Record<string, unknown>): string[] {
+  const names = new Set<string>();
+ 
+  function walk(v: unknown) {
+    if (!v) return;
+ 
+    if (Array.isArray(v)) {
+      v.forEach(walk);
+      return;
+    }
+ 
+    if (typeof v !== "object") return;
+ 
+    const obj = v as Record<string, unknown>;
+ 
+    const fileName = stringValue(obj.file_name) || stringValue(obj.filename) || stringValue(obj.name);
+    if (fileName && /\.(json|txt)$/i.test(fileName)) names.add(fileName);
+ 
+    for (const value of Object.values(obj)) walk(value);
+  }
+ 
+  walk(json.job_details);
+  walk(json.outputs);
+  walk(json.output_files);
+  walk(json.files);
+ 
+  return [...names];
 }
-
+ 
+function hasTranscriptShape(input: Record<string, unknown>): boolean {
+  if ("transcript" in input || "text" in input || "diarized_transcript" in input) return true;
+ 
+  for (const key of ["output", "result", "data", "response"]) {
+    const inner = input[key];
+    if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+      if (hasTranscriptShape(inner as Record<string, unknown>)) return true;
+    }
+  }
+ 
+  return false;
+}
+ 
 function parseSarvamResponse(input: Record<string, unknown>): SarvamResult {
-  // Unwrap one level if the payload is nested under a common envelope key.
   const wrappers = ["output", "result", "data", "response"];
   let json: Record<string, unknown> = input;
+ 
   for (const k of wrappers) {
     const inner = input[k];
-    if (
-      inner &&
-      typeof inner === "object" &&
-      !Array.isArray(inner) &&
-      ("transcript" in inner || "diarized_transcript" in inner || "text" in inner)
-    ) {
-      json = inner as Record<string, unknown>;
-      break;
+    if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+      const innerObj = inner as Record<string, unknown>;
+      if (hasTranscriptShape(innerObj)) {
+        json = innerObj;
+        break;
+      }
     }
   }
-
+ 
   const transcript =
-    (typeof json.transcript === "string" && json.transcript) ||
-    (typeof json.text === "string" && json.text) ||
-    "";
+    stringValue(json.transcript) ||
+    stringValue(json.text) ||
+    stringValue(json.translated_text) ||
+    collectTranscriptFromSegments(json);
+ 
   const language_code =
-    (typeof json.language_code === "string" && json.language_code) ||
-    (typeof json.detected_language === "string" && json.detected_language) ||
+    stringValue(json.language_code) ||
+    stringValue(json.detected_language) ||
+    stringValue(json.language) ||
     null;
-
-  // Diarized turns can show up under several possible keys.
-  const dia =
-    (json.diarized_transcript as
-      | { entries?: Array<Record<string, unknown>>; segments?: Array<Record<string, unknown>> }
-      | undefined) ||
-    (json.diarization as
-      | { entries?: Array<Record<string, unknown>>; segments?: Array<Record<string, unknown>> }
-      | undefined) ||
-    undefined;
-
-  const directEntries = (json.entries as Array<Record<string, unknown>> | undefined) || [];
-  const directSegments = (json.segments as Array<Record<string, unknown>> | undefined) || [];
-
+ 
+  const turns = extractTurns(json);
+ 
+  return { transcript, language_code, turns, raw: json };
+}
+ 
+function extractTurns(json: Record<string, unknown>): SpeakerTurn[] {
   const allEntries: Array<Record<string, unknown>> = [];
-  if (Array.isArray(dia?.entries)) allEntries.push(...(dia!.entries || []));
-  if (Array.isArray(dia?.segments)) allEntries.push(...(dia!.segments || []));
-  if (Array.isArray(directEntries)) allEntries.push(...directEntries);
-  if (Array.isArray(directSegments)) allEntries.push(...directSegments);
-
+ 
+  function addArray(value: unknown) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          allEntries.push(item as Record<string, unknown>);
+        }
+      }
+    }
+  }
+ 
+  const dia =
+    objectValue(json.diarized_transcript) ||
+    objectValue(json.diarization) ||
+    objectValue(json.speaker_diarization);
+ 
+  if (dia) {
+    addArray(dia.entries);
+    addArray(dia.segments);
+    addArray(dia.turns);
+  }
+ 
+  addArray(json.entries);
+  addArray(json.segments);
+  addArray(json.turns);
+  addArray(json.chunks);
+ 
   const turns: SpeakerTurn[] = [];
+ 
   for (const e of allEntries) {
-    const t = (e.transcript ?? e.text ?? e.translated_text) as string | undefined;
+    const t =
+      stringValue(e.transcript) ||
+      stringValue(e.text) ||
+      stringValue(e.translated_text) ||
+      stringValue(e.content);
+ 
     const speaker =
-      (e.speaker_id as string | undefined) ||
-      (e.speaker as string | undefined) ||
+      stringValue(e.speaker_id) ||
+      stringValue(e.speaker) ||
+      stringValue(e.speaker_label) ||
       "SPEAKER_UNKNOWN";
+ 
     const start =
-      (e.start_time_seconds as number | undefined) ??
-      (e.start as number | undefined) ??
+      numberValue(e.start_time_seconds) ??
+      numberValue(e.start_time) ??
+      numberValue(e.start) ??
       0;
+ 
     const end =
-      (e.end_time_seconds as number | undefined) ??
-      (e.end as number | undefined) ??
+      numberValue(e.end_time_seconds) ??
+      numberValue(e.end_time) ??
+      numberValue(e.end) ??
       0;
-    if (typeof t === "string" && t.length > 0) {
+ 
+    if (t.length > 0) {
       turns.push({
         speaker: normalizeSpeakerId(speaker),
         text: t,
@@ -523,20 +605,66 @@ function parseSarvamResponse(input: Record<string, unknown>): SarvamResult {
       });
     }
   }
-
-  return { transcript, language_code, turns, raw: json };
+ 
+  return turns;
 }
-
+ 
+function collectTranscriptFromSegments(json: Record<string, unknown>): string {
+  const turns = extractTurns(json);
+  if (turns.length > 0) {
+    return turns.map((t) => t.translated_text || t.text).join("\n");
+  }
+  return "";
+}
+ 
 function normalizeSpeakerId(s: string) {
-  // Keep 0-based index: SPEAKER_00 → SPEAKER_0, SPEAKER_01 → SPEAKER_1, etc.
-  // Do NOT add 1 — the extraction prompt receives these labels and must match exactly.
   const m = s.match(/(\d+)/);
   if (m) return `SPEAKER_${parseInt(m[1], 10)}`;
   return s;
 }
+ 
+function normalizeState(state: string): string {
+  return state.toLowerCase().replace(/[\s_-]/g, "");
+}
+ 
+function objectValue(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+ 
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+ 
+function numberValue(value: unknown): number | null {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value))) {
+    return Number(value);
+  }
+  return null;
+}
+ 
+function bufferToArrayBuffer(buffer: Buffer): ArrayBuffer {
+  return buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength,
+  ) as ArrayBuffer;
+}
+ 
+function trimUrl(url: string): string {
+  const idx = url.indexOf("?");
+  return idx === -1 ? url : url.slice(0, idx);
+}
+ 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+ 
 export function formatTurnsForPrompt(turns: SpeakerTurn[]): string {
   if (turns.length === 0) return "(diarization unavailable — use full transcript text)";
-  return turns
-    .map((t) => `[${t.speaker}] ${t.translated_text || t.text}`)
-    .join("\n");
+  return turns.map((t) => `[${t.speaker}] ${t.translated_text || t.text}`).join("\n");
 }
+ 
+ 
